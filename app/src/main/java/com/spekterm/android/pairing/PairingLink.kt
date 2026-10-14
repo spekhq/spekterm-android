@@ -1,0 +1,88 @@
+package com.spekterm.android.pairing
+
+import java.net.URI
+import java.net.URLDecoder
+
+/**
+ * The fields of a desktop's pairing link (`docs/remote-protocol.md` section 1):
+ * `spekterm://pair?v=1&a=<addresses>&p=<port>&fp=<fingerprint>&c=<code>&n=<name>`.
+ *
+ * A link is either read whole or refused; a refused link never opens a connection (`device-pairing`).
+ */
+data class PairingLink(
+    /** In the link's order. IPv6 literals without brackets, host names as given. */
+    val addresses: List<String>,
+    val port: Int,
+    /** 64 upper-case hex digits: SHA-256 of the desktop certificate's DER. */
+    val fingerprint: String,
+    /** 26 upper-case base32 characters. */
+    val code: String,
+    val name: String,
+) {
+    override fun toString(): String =
+        "PairingLink(addresses=$addresses, port=$port, fingerprint=$fingerprint, code=<redacted>, name=$name)"
+
+    sealed interface Result {
+        data class Ok(val link: PairingLink) : Result
+        data class Refused(val reason: Refusal) : Result
+    }
+
+    enum class Refusal {
+        /** Not a `spekterm://pair` link, or not parseable at all. */
+        NOT_A_PAIRING_LINK,
+        /** `v` is not 1: the link comes from a newer desktop. */
+        UNSUPPORTED_VERSION,
+        NO_ADDRESS,
+        BAD_PORT,
+        BAD_FINGERPRINT,
+        BAD_CODE,
+    }
+
+    companion object {
+        private val HEX64 = Regex("^[0-9A-F]{64}$")
+        private val BASE32_26 = Regex("^[A-Z2-7]{26}$")
+
+        /** `AB:CD:…` or `abcd…` → `ABCD…`, so the dialog's form and the link's form compare equal. */
+        fun normalizeFingerprint(value: String): String = value.replace(":", "").trim().uppercase()
+
+        fun parse(text: String): Result {
+            val uri = try {
+                URI(text.trim())
+            } catch (_: Exception) {
+                return Result.Refused(Refusal.NOT_A_PAIRING_LINK)
+            }
+            if (uri.scheme?.equals("spekterm", ignoreCase = true) != true || uri.rawAuthority?.lowercase() != "pair") {
+                return Result.Refused(Refusal.NOT_A_PAIRING_LINK)
+            }
+            val params = query(uri.rawQuery ?: return Result.Refused(Refusal.NOT_A_PAIRING_LINK))
+
+            if (params["v"] != "1") return Result.Refused(Refusal.UNSUPPORTED_VERSION)
+
+            val addresses = (params["a"] ?: "").split(',').map { it.trim() }.filter { it.isNotEmpty() }
+                .map { it.removePrefix("[").removeSuffix("]") }
+            if (addresses.isEmpty()) return Result.Refused(Refusal.NO_ADDRESS)
+
+            val port = params["p"]?.toIntOrNull()
+            if (port == null || port !in 1..65535) return Result.Refused(Refusal.BAD_PORT)
+
+            val fingerprint = normalizeFingerprint(params["fp"] ?: "")
+            if (!HEX64.matches(fingerprint)) return Result.Refused(Refusal.BAD_FINGERPRINT)
+
+            val code = (params["c"] ?: "").trim().uppercase()
+            if (!BASE32_26.matches(code)) return Result.Refused(Refusal.BAD_CODE)
+
+            return Result.Ok(PairingLink(addresses, port, fingerprint, code, params["n"] ?: ""))
+        }
+
+        /** Decodes `k=v&…`; a comma arrives as `%2C` until decoded, so splitting `a` happens after this. */
+        private fun query(raw: String): Map<String, String> = raw.split('&').filter { it.isNotEmpty() }.associate { pair ->
+            val eq = pair.indexOf('=')
+            val key = if (eq < 0) pair else pair.substring(0, eq)
+            val value = if (eq < 0) "" else pair.substring(eq + 1)
+            decode(key) to decode(value)
+        }
+
+        /** Form decoding, matching the desktop's `URLSearchParams` (a space arrives as `+`). */
+        private fun decode(s: String): String = URLDecoder.decode(s, "UTF-8")
+    }
+}

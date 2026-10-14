@@ -1,0 +1,21 @@
+schema: spec-driven
+
+context: |
+  Project: spekterm-android — the companion Android app for spekterm (the agent-first desktop workbench,
+           github.com/spekhq/spekterm). MIT, public (github.com/spekhq/spekterm-android).
+  Purpose: reach the user's own spekterm desktop directly — LAN, Tailscale, or a port the user forwards —
+           to be told when an agent needs them, and later to read and answer sessions from the phone.
+  Fixed decisions: native Kotlin; published on Google Play; application id com.spekterm.android (frozen once
+           published). No relay server. No FCM, no UnifiedPush: notifications arrive only over the app's own
+           held connection (a foreground service), and the desktop replays missed events on reconnect.
+  Authority: the wire protocol is spekterm's docs/remote-protocol.md (version 1). Its "Client obligations"
+             section is binding on this app. Server behavior, when the document is unclear:
+             spekterm's src/main/remote-*.ts; reference client: spekterm's scripts/lib/remote-client.mjs.
+  Toolchain: Android SDK at ~/Android/Sdk (platforms up to android-36, build-tools 36.0.0), JDK 17,
+             Gradle wrapper committed in the repository.
+  Verification: JVM unit tests for pure logic, instrumented tests on the user's real phone for platform
+                behavior (TLS, Keystore, notifications), and recorded runs against a spekterm desktop started
+                from source (`npm run dev` in ~/git/spekterm). Nothing is called done that has not run on
+                the real phone.
+  Conventions: English for everything committed — code, comments, docs, openspec/ artifacts, commit messages.
+               Commit straight to master; no branches.
