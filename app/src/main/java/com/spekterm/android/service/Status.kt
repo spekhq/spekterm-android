@@ -12,9 +12,11 @@ data class Status(
     val reconnects: Int = 0,
     val lastClose: String? = null,
     val retryAt: Long? = null,
+    /** The desktop said remote access is off (or it quit): kept until a connection authenticates again. */
+    val remoteOff: Boolean = false,
     val recent: List<RecentEvent> = emptyList(),
 ) {
-    enum class State { STOPPED, CONNECTING, CONNECTED, WAITING, REMOTE_OFF }
+    enum class State { STOPPED, CONNECTING, CONNECTED, WAITING }
 
     data class RecentEvent(val kind: String, val title: String, val receivedAt: Long, val outcome: String)
 }

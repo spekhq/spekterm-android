@@ -32,7 +32,15 @@ fun QrScanner(modifier: Modifier = Modifier, onText: (String) -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
     val done = remember { AtomicBoolean(false) }
-    DisposableEffect(Unit) { onDispose { executor.shutdown() } }
+    val bound = remember { arrayOfNulls<androidx.camera.core.UseCase>(2) }
+    DisposableEffect(Unit) {
+        onDispose {
+            // Release the camera as soon as the scanner leaves the screen, not when the activity stops.
+            val provider = ProcessCameraProvider.getInstance(context)
+            provider.addListener({ provider.get().unbind(*bound.filterNotNull().toTypedArray()) }, ContextCompat.getMainExecutor(context))
+            executor.shutdown()
+        }
+    }
 
     AndroidView(
         modifier = modifier,
@@ -55,6 +63,8 @@ fun QrScanner(modifier: Modifier = Modifier, onText: (String) -> Unit) {
                 }
                 provider.unbindAll()
                 provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                bound[0] = preview
+                bound[1] = analysis
             }, ContextCompat.getMainExecutor(ctx))
             view
         },

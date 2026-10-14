@@ -1,6 +1,7 @@
 package com.spekterm.android.pairing
 
 import java.net.URI
+import okhttp3.HttpUrl
 import java.net.URLDecoder
 
 /**
@@ -33,6 +34,8 @@ data class PairingLink(
         /** `v` is not 1: the link comes from a newer desktop. */
         UNSUPPORTED_VERSION,
         NO_ADDRESS,
+        /** An address that cannot be connected to as given (a space, a scoped IPv6 literal, …). */
+        BAD_ADDRESS,
         BAD_PORT,
         BAD_FINGERPRINT,
         BAD_CODE,
@@ -61,6 +64,7 @@ data class PairingLink(
             val addresses = (params["a"] ?: "").split(',').map { it.trim() }.filter { it.isNotEmpty() }
                 .map { it.removePrefix("[").removeSuffix("]") }
             if (addresses.isEmpty()) return Result.Refused(Refusal.NO_ADDRESS)
+            if (!addresses.all(::usable)) return Result.Refused(Refusal.BAD_ADDRESS)
 
             val port = params["p"]?.toIntOrNull()
             if (port == null || port !in 1..65535) return Result.Refused(Refusal.BAD_PORT)
@@ -72,6 +76,14 @@ data class PairingLink(
             if (!BASE32_26.matches(code)) return Result.Refused(Refusal.BAD_CODE)
 
             return Result.Ok(PairingLink(addresses, port, fingerprint, code, params["n"] ?: ""))
+        }
+
+        /** Whether OkHttp can build a URL with [address] as its host; one it cannot would fail every connection. */
+        private fun usable(address: String): Boolean = try {
+            HttpUrl.Builder().scheme("https").host(address).build()
+            true
+        } catch (_: IllegalArgumentException) {
+            false
         }
 
         /** Decodes `k=v&…`; a comma arrives as `%2C` until decoded, so splitting `a` happens after this. */

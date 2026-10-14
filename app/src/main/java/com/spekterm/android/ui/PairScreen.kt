@@ -36,6 +36,7 @@ import com.spekterm.android.pairing.Pairer
 import com.spekterm.android.pairing.PairingLink
 import com.spekterm.android.store.Pairing
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
 @Composable
 fun PairScreen(pairAgain: Boolean, onPaired: (Pairing) -> Unit, onCancel: (() -> Unit)? = null) {
@@ -55,7 +56,13 @@ fun PairScreen(pairAgain: Boolean, onPaired: (Pairing) -> Unit, onCancel: (() ->
                 busy = "Pairing with ${link.name.ifEmpty { "the desktop" }}…"
                 message = null
                 scope.launch {
-                    val result = Pairer.pair(link, deviceName(context), Build.MODEL)
+                    val result = try {
+                        Pairer.pair(link, deviceName(context), Build.MODEL)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Pairer.Result.Failed(Pairer.Failure.OTHER, link.addresses, e.javaClass.simpleName)
+                    }
                     busy = null
                     when (result) {
                         is Pairer.Result.Paired -> onPaired(result.pairing)
@@ -134,6 +141,7 @@ private fun deviceName(context: Context): String =
 
 private fun refusalText(reason: PairingLink.Refusal): String = when (reason) {
     PairingLink.Refusal.UNSUPPORTED_VERSION -> "This link needs a newer version of the app."
+    PairingLink.Refusal.BAD_ADDRESS -> "The link holds an address the phone cannot connect to."
     else -> "This is not a valid pairing link."
 }
 

@@ -178,3 +178,6 @@ measurement — the overnight run is on Wi-Fi.
 - Android's notification update rate limit and per-app cap (about 5 per second, about 50) — from memory of
   `NotificationManagerService`, not checked; the app coalesces replays regardless.
 - Behavior on API levels other than the Pixel 7's — only one phone is tested.
+- Backoff waits run on a monotonic clock that stops while the CPU sleeps, so in Doze a wait can stretch past its
+  nominal length; "reconnects within one backoff cap" is a property of an awake phone. The overnight log shows
+  how long reconnections actually took.

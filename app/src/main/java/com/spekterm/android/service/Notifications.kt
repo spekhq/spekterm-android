@@ -53,12 +53,12 @@ object Notifications {
     )
 
     fun ongoing(context: Context, desktop: String, status: Status): Notification {
-        val text = when (status.state) {
-            Status.State.CONNECTED -> "Connected" + (status.address?.let { " via $it" } ?: "")
-            Status.State.CONNECTING -> "Connecting" + (status.address?.let { " to $it" } ?: "")
-            Status.State.WAITING -> "Waiting to retry"
-            Status.State.REMOTE_OFF -> "Remote access is off, or the desktop quit"
-            Status.State.STOPPED -> "Stopped"
+        val text = when {
+            status.state == Status.State.CONNECTED -> "Connected" + (status.address?.let { " via $it" } ?: "")
+            status.remoteOff -> "Remote access is off, or the desktop quit"
+            status.state == Status.State.CONNECTING -> "Connecting" + (status.address?.let { " to $it" } ?: "")
+            status.state == Status.State.WAITING -> "Waiting to retry"
+            else -> "Stopped"
         }
         val pause = PendingIntent.getService(
             context,

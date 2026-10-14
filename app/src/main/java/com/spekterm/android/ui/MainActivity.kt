@@ -25,6 +25,11 @@ import com.spekterm.android.service.ConnectionService
 import com.spekterm.android.service.Notifications
 import com.spekterm.android.store.Announcements
 import com.spekterm.android.store.Pairing
+import com.spekterm.android.store.StoreUnavailableException
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 
 /** Two screens: pairing when nothing is paired, status otherwise (design D8). */
 class MainActivity : ComponentActivity() {
@@ -37,7 +42,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        handle(intent)
+        // Only a fresh launch acts on its intent: a task recreated from recents redelivers the original one.
+        val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (savedInstanceState == null && !fromHistory) handle(intent)
+        // Reload whenever the service changes the pairing or the announcements (revoked, identity changed…).
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) { app.changes.collect { reload() } }
+        }
         setContent {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
                 Surface(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -84,7 +95,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun reload() {
-        pairing = app.credentials.load()
+        // A store that is momentarily unreadable keeps what is shown rather than showing "not paired".
+        pairing = try {
+            app.credentials.load()
+        } catch (_: StoreUnavailableException) {
+            pairing
+        }
         announcements = app.announcements.load()
     }
 

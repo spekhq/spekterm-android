@@ -27,7 +27,14 @@ import com.spekterm.android.net.RemoteConnection
 import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.WatchAnswer
 import com.spekterm.android.store.Pairing
+import com.spekterm.android.store.StoreUnavailableException
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import com.spekterm.android.ui.MainActivity
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -52,8 +59,12 @@ class ConnectionService : Service() {
     @Volatile private var current: RemoteConnection? = null
     @Volatile private var connectedNetwork: Network? = null
     @Volatile private var defaultNetwork: Network? = null
-    private var desktopName = "spekterm"
+    @Volatile private var desktopName = "spekterm"
     private var registered = false
+    @Volatile private var destroyed = false
+    @Volatile private var storeUnavailable = false
+    /** The identity verdict last announced, so a dismissal sticks until the verdict itself changes. */
+    @Volatile private var identityAnnounced = false
 
     private val log get() = app.log
 
@@ -64,12 +75,8 @@ class ConnectionService : Service() {
             pause()
             return START_NOT_STICKY
         }
-        val pairing = app.credentials.load()
-        if (pairing == null || app.announcements.load().paused) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
-        desktopName = pairing.desktopName.ifEmpty { "spekterm" }
+        // Every start that may have come from `startForegroundService` calls `startForeground` first, even when
+        // it then finds nothing to do: stopping before it crashes the app.
         try {
             ServiceCompat.startForeground(
                 this,
@@ -90,15 +97,29 @@ class ConnectionService : Service() {
                     "Android did not let the app reconnect in the background. Tap to resume.",
                     MainActivity.ACTION_RESUME,
                 )
-                stopSelf()
+                stopSelf(startId)
                 return START_NOT_STICKY
             }
             throw e
         }
+        val pairing = try {
+            app.credentials.load()
+        } catch (_: StoreUnavailableException) {
+            // Not "unpaired": the supervisor retries reading it.
+            null.also { storeUnavailable = true }
+        }
+        if ((pairing == null && !storeUnavailable) || app.announcements.load().paused) {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        pairing?.let { desktopName = it.desktopName.ifEmpty { "spekterm" } }
+        refreshOngoing()
         if (supervisor?.isActive != true) {
             log.write(Kind.SERVICE_START, "sticky" to (intent == null))
             app.announcements.update { it.copy(connectionStopped = false) }
             Notifications.cancel(this, Notifications.TAG_STATUS, Notifications.ID_STOPPED)
+            identityAnnounced = app.announcements.load().identityChanged
             register()
             supervisor = scope.launch { supervise() }
         }
@@ -106,6 +127,7 @@ class ConnectionService : Service() {
     }
 
     override fun onDestroy() {
+        destroyed = true
         log.write(Kind.SERVICE_STOP)
         unregister()
         current?.close()
@@ -113,6 +135,9 @@ class ConnectionService : Service() {
         StatusBoard.update { it.copy(state = Status.State.STOPPED, address = null, since = null, retryAt = null) }
         super.onDestroy()
     }
+
+    /** False once the service is stopping: a supervisor still finishing a blocking step writes nothing more. */
+    private fun alive(): Boolean = !destroyed && scope.isActive
 
     private fun pause() {
         app.announcements.update { it.copy(paused = true) }
@@ -124,58 +149,86 @@ class ConnectionService : Service() {
     // ---- The supervisor ----
 
     private suspend fun supervise() {
-        while (scope.isActive) {
-            val pairing = app.credentials.load() ?: return stopSelf()
-            var closeInfo: CloseInfo? = null
-            var helloError: RemoteError? = null
-            var connected = false
-            for (address in pairing.addressOrder()) {
-                setStatus(Status.State.CONNECTING, address)
-                log.write(Kind.ATTEMPT, "address" to address)
-                connectedNetwork = defaultNetwork
-                when (val result = RemoteClient.open(address, pairing.port, pairing.fingerprint)) {
-                    is RemoteClient.OpenResult.PinMismatch -> {
-                        identity.record(IdentityTracker.Outcome.MISMATCH)
-                        log.write(Kind.PIN_MISMATCH, "address" to address, "check" to result.refusedBy)
-                    }
-                    is RemoteClient.OpenResult.Unreachable -> {
-                        identity.record(IdentityTracker.Outcome.UNREACHABLE)
-                        log.write(Kind.UNREACHABLE, "address" to address, "error" to result.cause?.javaClass?.simpleName)
-                    }
-                    is RemoteClient.OpenResult.Open -> {
-                        identity.record(IdentityTracker.Outcome.MATCH)
-                        connected = true
-                        val outcome = session(result.connection, pairing, address)
-                        closeInfo = outcome.first
-                        helloError = outcome.second
-                        break
-                    }
-                }
-            }
-            announceIdentity(identity.endRound())
-
-            if (!connected) {
+        while (alive()) {
+            // A network change from now on cuts this round's wait short; older ones are stale.
+            kick.tryReceive()
+            val pairing = try {
+                app.credentials.load()
+            } catch (e: StoreUnavailableException) {
+                log.write(Kind.STORE_UNAVAILABLE, "error" to e.cause?.javaClass?.simpleName)
                 waitToRetry(throttled = false)
                 continue
+            } ?: return stopSelf()
+            desktopName = pairing.desktopName.ifEmpty { "spekterm" }
+            try {
+                if (!round(pairing)) return
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Whatever went wrong, the service keeps trying rather than going quiet.
+                log.write(Kind.ERROR, "error" to e.javaClass.simpleName)
+                waitToRetry(throttled = false)
             }
-            val info = closeInfo
-            log.write(
-                Kind.DISCONNECTED,
-                "code" to info?.code,
-                "failure" to info?.failure?.javaClass?.simpleName,
-                "error" to (helloError ?: info?.error)?.code,
-            )
-            StatusBoard.update { it.copy(lastClose = describe(info, helloError ?: info?.error)) }
-            when (val decision = ConnectionPolicy.decide(info?.code, helloError ?: info?.error)) {
-                ConnectionPolicy.Decision.Unpair -> return unpair()
-                is ConnectionPolicy.Decision.Unsupported -> {
-                    app.announcements.update { it.copy(unsupported = decision.hint.name) }
-                    return stopSelf()
+        }
+    }
+
+    /** One round of attempts and, if one connects, its session. Returns false when the service must stop. */
+    private suspend fun round(pairing: Pairing): Boolean {
+        var closeInfo: CloseInfo? = null
+        var error: RemoteError? = null
+        var connected = false
+        for (address in pairing.addressOrder()) {
+            if (!alive()) return false
+            setStatus(Status.State.CONNECTING, address)
+            log.write(Kind.ATTEMPT, "address" to address)
+            connectedNetwork = defaultNetwork ?: getSystemService(ConnectivityManager::class.java).activeNetwork
+            when (val result = RemoteClient.open(address, pairing.port, pairing.fingerprint)) {
+                is RemoteClient.OpenResult.PinMismatch -> {
+                    identity.record(IdentityTracker.Outcome.MISMATCH)
+                    log.write(Kind.PIN_MISMATCH, "address" to address, "check" to result.refusedBy)
                 }
-                is ConnectionPolicy.Decision.Retry -> {
-                    if (decision.remoteOff) setStatus(Status.State.REMOTE_OFF, null)
-                    waitToRetry(decision.throttled)
+                is RemoteClient.OpenResult.Unreachable -> {
+                    identity.record(IdentityTracker.Outcome.UNREACHABLE)
+                    log.write(Kind.UNREACHABLE, "address" to address, "error" to result.cause?.javaClass?.simpleName)
                 }
+                is RemoteClient.OpenResult.Open -> {
+                    identity.record(IdentityTracker.Outcome.MATCH)
+                    connected = true
+                    val outcome = session(result.connection, pairing, address)
+                    closeInfo = outcome.first
+                    error = outcome.second ?: outcome.first.error
+                    break
+                }
+            }
+        }
+        announceIdentity(identity.endRound())
+        if (!alive()) return false
+
+        if (!connected) {
+            waitToRetry(throttled = false)
+            return true
+        }
+        log.write(
+            Kind.DISCONNECTED,
+            "code" to closeInfo?.code,
+            "failure" to closeInfo?.failure?.javaClass?.simpleName,
+            "error" to error?.code,
+        )
+        StatusBoard.update { it.copy(lastClose = describe(closeInfo, error)) }
+        return when (val decision = ConnectionPolicy.decide(closeInfo?.code, error)) {
+            ConnectionPolicy.Decision.Unpair -> {
+                unpair(pairing)
+                false
+            }
+            is ConnectionPolicy.Decision.Unsupported -> {
+                app.announcements.update { it.copy(unsupported = decision.hint.name) }
+                stopSelf()
+                false
+            }
+            is ConnectionPolicy.Decision.Retry -> {
+                if (decision.remoteOff) StatusBoard.update { it.copy(remoteOff = true) }
+                waitToRetry(decision.throttled)
+                true
             }
         }
     }
@@ -194,18 +247,28 @@ class ConnectionService : Service() {
                 return info to hello.error
             }
             log.write(Kind.AUTHENTICATED, "address" to address)
-            if (pairing.lastAddress != address) app.credentials.save(pairing.copy(lastAddress = address))
+            if (pairing.lastAddress != address) app.credentials.updateIf(pairing.deviceId) { it.copy(lastAddress = address) }
+            if (app.announcements.load().unsupported != null) app.announcements.update { it.copy(unsupported = null) }
 
-            val watch = connection.call("attention.watch", Frames.attentionWatch(app.positions.load()))
-            val notifier = AttentionNotifier(this, app.positions, log)
-            if (watch.ok) {
-                val answer = watch.result?.let { Frames.decodeOrNull<WatchAnswer>(it) } ?: WatchAnswer(emptyList(), true)
-                notifier.apply(AttentionPolicy.onAnswer(answer), answer.events, "answer")
-                log.write(Kind.WATCHING, "events" to answer.events.size, "complete" to answer.complete)
+            val watch = connection.call("attention.watch", Frames.attentionWatch(app.positions.load(pairing.deviceId)))
+            if (!watch.ok) {
+                // Connected but not watching is useless: end it and try again.
+                log.write(Kind.ERROR, "error" to watch.error?.code, "op" to "attention.watch")
+                connection.cancel()
+                return connection.closed.await() to null
             }
+            val notifier = AttentionNotifier(this, pairing.deviceId, app.positions, log, alive = ::alive)
+            val answer = watchAnswer(watch.result)
+            notifier.apply(AttentionPolicy.onAnswer(answer), answer.events, "answer")
+            log.write(Kind.WATCHING, "events" to answer.events.size, "complete" to answer.complete)
             backoff.reset()
-            StatusBoard.update {
-                it.copy(state = Status.State.CONNECTED, address = address, since = System.currentTimeMillis(), retryAt = null, reconnects = it.reconnects + 1)
+            if (alive()) {
+                StatusBoard.update {
+                    it.copy(
+                        state = Status.State.CONNECTED, address = address, since = System.currentTimeMillis(),
+                        retryAt = null, remoteOff = false, reconnects = it.reconnects + 1,
+                    )
+                }
             }
             refreshOngoing()
             for (event in connection.events) {
@@ -221,34 +284,37 @@ class ConnectionService : Service() {
         }
     }
 
+    /** Decodes a watch answer event by event, so one malformed event does not lose the others. */
+    private fun watchAnswer(result: JsonElement?): WatchAnswer {
+        val obj = result as? JsonObject ?: return WatchAnswer(emptyList(), complete = false)
+        val complete = (obj["complete"] as? JsonPrimitive)?.booleanOrNull ?: false
+        val events = (obj["events"] as? JsonArray)?.mapNotNull { Frames.decodeOrNull<Attention>(it) } ?: emptyList()
+        return WatchAnswer(events, complete)
+    }
+
     private suspend fun waitToRetry(throttled: Boolean) {
         val delayMs = backoff.nextDelayMs(throttled)
-        StatusBoard.update {
-            it.copy(
-                state = if (it.state == Status.State.REMOTE_OFF) Status.State.REMOTE_OFF else Status.State.WAITING,
-                retryAt = System.currentTimeMillis() + delayMs,
-                since = null,
-            )
-        }
+        if (alive()) StatusBoard.update { it.copy(state = Status.State.WAITING, retryAt = System.currentTimeMillis() + delayMs, since = null) }
         refreshOngoing()
         log.write(Kind.BACKOFF, "delayMs" to delayMs, "throttled" to throttled)
-        // Drain a stale kick, so only a network change from now on cuts the wait short.
-        kick.tryReceive()
         if (throttled) delay(delayMs) else withTimeoutOrNull(delayMs) { kick.receive() }
     }
 
-    private fun unpair() {
-        log.write(Kind.UNPAIRED)
-        app.credentials.delete()
-        app.positions.delete()
-        app.announcements.update { it.copy(pairAgain = true, identityChanged = false) }
-        Notifications.status(this, Notifications.ID_PAIR_AGAIN, "Pair again with $desktopName", "The desktop no longer accepts this phone. Scan a new pairing code.")
+    private fun unpair(pairing: Pairing) {
+        // Only the pairing this service was connecting with; never one that replaced it meanwhile.
+        if (app.credentials.deleteIf(pairing.deviceId)) {
+            log.write(Kind.UNPAIRED)
+            app.positions.delete()
+            app.announcements.update { it.copy(pairAgain = true, identityChanged = false) }
+            Notifications.status(this, Notifications.ID_PAIR_AGAIN, "Pair again with $desktopName", "The desktop no longer accepts this phone. Scan a new pairing code.")
+        }
         stopSelf()
     }
 
+    /** Announces only when the tracker's verdict changes, so a dismissed banner is not raised again every round. */
     private fun announceIdentity(changed: Boolean) {
-        val before = app.announcements.load().identityChanged
-        if (changed == before) return
+        if (changed == identityAnnounced || !alive()) return
+        identityAnnounced = changed
         app.announcements.update { it.copy(identityChanged = changed) }
         if (changed) {
             Notifications.status(
@@ -263,11 +329,15 @@ class ConnectionService : Service() {
     }
 
     private fun setStatus(state: Status.State, address: String?) {
+        if (!alive()) return
         StatusBoard.update { it.copy(state = state, address = address, since = null) }
         refreshOngoing()
     }
 
-    private fun refreshOngoing() = Notifications.post(this, null, Notifications.ID_FOREGROUND, Notifications.ongoing(this, desktopName, StatusBoard.status.value))
+    private fun refreshOngoing() {
+        if (!alive()) return
+        Notifications.post(this, null, Notifications.ID_FOREGROUND, Notifications.ongoing(this, desktopName, StatusBoard.status.value))
+    }
 
     private fun describe(info: CloseInfo?, error: RemoteError?): String =
         listOfNotNull(info?.code?.let { "close $it" }, error?.code, info?.failure?.javaClass?.simpleName).joinToString(", ").ifEmpty { "closed" }

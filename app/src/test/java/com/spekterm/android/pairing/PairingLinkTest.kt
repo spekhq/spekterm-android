@@ -79,6 +79,13 @@ class PairingLinkTest {
     }
 
     @Test
+    fun refusesAnAddressThatCannotBeConnectedTo() {
+        // One bad address anywhere in the list: it would crash or fail every later reconnect through it.
+        assertEquals(Refusal.BAD_ADDRESS, refusal(link(a = "192.168.1.5,foo%20bar")))
+        assertEquals(Refusal.BAD_ADDRESS, refusal(link(a = "fe80::1%25wlan0")))
+    }
+
+    @Test
     fun refusesOtherLinks() {
         assertEquals(Refusal.NOT_A_PAIRING_LINK, refusal("https://example.com/?v=1"))
         assertEquals(Refusal.NOT_A_PAIRING_LINK, refusal("spekterm://open?v=1"))

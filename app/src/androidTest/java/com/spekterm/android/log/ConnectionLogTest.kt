@@ -39,7 +39,7 @@ class ConnectionLogTest {
             Position("e", 1), Attention.CHOICE, at = System.currentTimeMillis(), sessionId = "s",
             folderName = "FOLDER-MARK", title = "TITLE-MARK", summary = "SUMMARY-MARK", tool = "TOOL-MARK", suppressed = true,
         )
-        AttentionNotifier(context, PositionStore(context), log).apply(AttentionPolicy.onLive(event), listOf(event), "live")
+        AttentionNotifier(context, "test-device", PositionStore(context), log).apply(AttentionPolicy.onLive(event), listOf(event), "live")
         val text = log.export()
         assertTrue(text.contains("attention") && text.contains("kind=choice") && text.contains("outcome=suppressed"))
         for (mark in listOf("FOLDER-MARK", "TITLE-MARK", "SUMMARY-MARK", "TOOL-MARK")) assertFalse(mark, text.contains(mark))

@@ -17,15 +17,20 @@ import com.spekterm.android.store.PositionStore
  */
 class AttentionNotifier(
     private val context: Context,
+    /** The pairing whose position this notifier stores. */
+    private val deviceId: String,
     private val positions: PositionStore,
     private val log: ConnectionLog,
     private val now: () -> Long = System::currentTimeMillis,
+    /** False once the owning service is stopping: nothing more is posted or stored. */
+    private val alive: () -> Boolean = { true },
 ) {
     /** [events] are the events behind [actions], for the log; [source] is `live` or `answer`. */
     fun apply(actions: List<Action>, events: List<Attention>, source: String) {
         val receivedAt = now()
         val outcome = mutableMapOf<Attention, String>()
         for (action in actions) {
+            if (!alive()) return
             when (action) {
                 is Action.Notify -> {
                     post(action.key, action.event, action.alert)
@@ -33,7 +38,7 @@ class AttentionNotifier(
                 }
                 is Action.Cancel -> Notifications.cancel(context, action.key, ID)
                 is Action.Summarize -> summarize(action.count)
-                is Action.Store -> positions.save(action.position)
+                is Action.Store -> positions.save(deviceId, action.position)
             }
         }
         val summarized = actions.any { it is Action.Summarize }

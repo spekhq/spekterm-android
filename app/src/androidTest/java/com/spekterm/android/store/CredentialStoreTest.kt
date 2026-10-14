@@ -6,6 +6,7 @@ import com.spekterm.android.net.Position
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -20,10 +21,12 @@ class CredentialStoreTest {
         val positions = PositionStore(context)
         val pairing = Pairing("desk", listOf("192.168.50.22", "100.106.81.33"), 47615, "AB".repeat(32), "dev-1", secret, "100.106.81.33")
         store.save(pairing)
-        positions.save(Position("e", 3))
+        positions.save("dev-1", Position("e", 3))
 
         assertEquals(pairing, CredentialStore(context).load())
-        assertEquals(Position("e", 3), positions.load())
+        assertEquals(Position("e", 3), positions.load("dev-1"))
+        // A position written for another pairing is never read as this one's.
+        assertNull(positions.load("dev-2"))
 
         // No file anywhere under the app's data directory holds the secret's bytes.
         val needle = secret.encodeToByteArray()
@@ -37,7 +40,24 @@ class CredentialStoreTest {
         store.delete()
         positions.delete()
         assertNull(store.load())
-        assertNull(positions.load())
+        assertNull(positions.load("dev-1"))
+    }
+
+    @Test
+    fun conditionalWritesTouchOnlyTheSamePairing() {
+        val store = CredentialStore(context)
+        val old = Pairing("desk", listOf("a"), 1, "AB".repeat(32), "old", "s1")
+        val new = old.copy(deviceId = "new", deviceSecret = "s2")
+        store.save(new)
+        // A stopping service of the old pairing must not overwrite or delete the new one.
+        store.updateIf("old") { it.copy(lastAddress = "a") }
+        assertEquals(new, store.load())
+        assertFalse(store.deleteIf("old"))
+        assertEquals(new, store.load())
+        store.updateIf("new") { it.copy(lastAddress = "a") }
+        assertEquals("a", store.load()!!.lastAddress)
+        assertTrue(store.deleteIf("new"))
+        assertNull(store.load())
     }
 
     @Test

@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -25,6 +25,12 @@ import kotlin.coroutines.resume
  */
 object RemoteClient {
     const val CONNECT_TIMEOUT_MS = 5_000L
+    /**
+     * Bounds the whole open — TCP, TLS and the upgrade. `connectTimeout` covers only TCP, and the read timeout is
+     * 0 for a WebSocket, so without this a desktop that stalls mid-handshake holds the attempt for minutes.
+     * OkHttp ends the call timeout at the upgrade, so it does not limit the open WebSocket.
+     */
+    const val OPEN_TIMEOUT_MS = 10_000L
     const val PING_INTERVAL_MS = 30_000L
 
     /** Shared dispatcher and pool; each connection derives its own client carrying its pin. */
@@ -47,6 +53,7 @@ object RemoteClient {
         .sslSocketFactory(pin.sslContext().socketFactory, pin.trustManager)
         .hostnameVerifier(pin.hostnameVerifier)
         .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .callTimeout(OPEN_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .pingInterval(PING_INTERVAL_MS, TimeUnit.MILLISECONDS)
         .build()
@@ -54,11 +61,22 @@ object RemoteClient {
     suspend fun open(address: String, port: Int, fingerprint: String, base: OkHttpClient = this.base): OpenResult {
         val pin = Pin(fingerprint)
         val client = clientFor(pin, base)
-        val request = Request.Builder().url(url(address, port)).build()
+        val request = try {
+            Request.Builder().url(url(address, port)).build()
+        } catch (e: IllegalArgumentException) {
+            // An address OkHttp cannot put in a URL; the link parser refuses these, this is the last guard.
+            return OpenResult.Unreachable(e)
+        }
         val connection = RemoteConnection()
         return suspendCancellableCoroutine { continuation ->
             val socket = client.newWebSocket(request, connection.listener(pin) { result ->
-                if (continuation.isActive) continuation.resume(result)
+                if (continuation.isActive) {
+                    // Cancelled just after resuming: close what was opened rather than leave it to the
+                    // desktop's 10 s authentication deadline (which counts toward throttling).
+                    continuation.resume(result) { _, value, _ -> (value as? OpenResult.Open)?.connection?.cancel() }
+                } else {
+                    (result as? OpenResult.Open)?.connection?.cancel()
+                }
             })
             continuation.invokeOnCancellation { socket.cancel() }
         }
@@ -67,6 +85,8 @@ object RemoteClient {
 
 /** How a connection ended. [error] is the last error not answering a request of ours (`id: null`). */
 data class CloseInfo(val code: Int?, val reason: String, val failure: Throwable?, val error: RemoteError?)
+
+class RequestTimeoutException(method: String) : IOException("no answer to $method in time")
 
 class ConnectionClosedException(val info: CloseInfo) : IOException("connection closed (${info.code ?: info.failure})")
 
@@ -94,11 +114,18 @@ class RemoteConnection internal constructor() {
             pending.remove(id)
             throw ConnectionClosedException(closeInfoNow())
         }
-        return try {
-            withTimeout(timeoutMs) { answer.await() }
+        val result = try {
+            withTimeoutOrNull(timeoutMs) { answer.await() }
         } finally {
             pending.remove(id)
         }
+        if (result != null) return result
+        // No answer in time: the connection is not usable. End it and report it as closed, never as a
+        // cancellation (which would silently end the caller's coroutine).
+        socket?.cancel()
+        val info = CloseInfo(null, "no answer to $method", RequestTimeoutException(method), unsolicitedError)
+        finish(info)
+        throw ConnectionClosedException(closeInfo ?: info)
     }
 
     /** A normal close (1000). */
@@ -152,7 +179,8 @@ class RemoteConnection internal constructor() {
         }
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-            webSocket.close(code, null)
+            // 1005 ("no status") may not be sent back; answer it with a normal close.
+            webSocket.close(if (code == 1005) 1000 else code, null)
             finish(CloseInfo(code, reason, null, unsolicitedError))
         }
 

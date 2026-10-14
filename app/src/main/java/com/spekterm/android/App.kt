@@ -1,6 +1,7 @@
 package com.spekterm.android
 
 import android.app.Application
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.spekterm.android.log.ConnectionLog
 import com.spekterm.android.service.Notifications
 import com.spekterm.android.store.AnnouncementStore
@@ -17,11 +18,14 @@ class App : Application() {
     lateinit var log: ConnectionLog
         private set
 
+    /** Bumped whenever the pairing or the announcements change, so screens reload what the service changed. */
+    val changes = MutableStateFlow(0L)
+
     override fun onCreate() {
         super.onCreate()
-        credentials = CredentialStore(this)
+        credentials = CredentialStore(this) { changes.value++ }
         positions = PositionStore(this)
-        announcements = AnnouncementStore(this)
+        announcements = AnnouncementStore(this) { changes.value++ }
         log = ConnectionLog.forApp(this)
         Notifications.createChannels(this)
     }

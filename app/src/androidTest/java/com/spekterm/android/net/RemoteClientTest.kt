@@ -6,6 +6,8 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,6 +56,21 @@ class RemoteClientTest {
         val info = withTimeout(5_000) { connection.closed.await() }
         assertEquals(4030, info.code)
         assertEquals(RemoteError.THROTTLED, info.error?.code)
+    }
+
+    @Test
+    fun aRequestWithNoAnswerEndsTheConnectionInsteadOfCancellingTheCaller() = runBlocking<Unit> {
+        // The desktop accepts the upgrade and then never answers (asleep, hung): the caller must see a closed
+        // connection it can retry, not a cancellation that silently ends its coroutine.
+        server.enqueue(DesktopSocket { _, _ -> null }.response())
+        val connection = open()
+        try {
+            connection.call("hello", Frames.hello("d", "s"), timeoutMs = 500)
+            fail("an unanswered request returned")
+        } catch (e: ConnectionClosedException) {
+            assertTrue(e.info.failure is RequestTimeoutException)
+        }
+        assertTrue(connection.closed.isCompleted)
     }
 
     @Test

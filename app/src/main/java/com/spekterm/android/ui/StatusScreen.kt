@@ -125,8 +125,8 @@ private fun stateText(status: Status, paused: Boolean, time: DateFormat): String
     paused -> "Paused"
     status.state == Status.State.CONNECTED ->
         "Connected via ${status.address}" + (status.since?.let { " since ${time.format(Date(it))}" } ?: "")
+    status.remoteOff -> "Remote access is off, or the desktop quit"
     status.state == Status.State.CONNECTING -> "Connecting to ${status.address}…"
-    status.state == Status.State.REMOTE_OFF -> "Remote access is off, or the desktop quit"
     status.state == Status.State.WAITING -> "Waiting to retry" + (status.retryAt?.let { " at ${time.format(Date(it))}" } ?: "")
     else -> "Not connected"
 }
