@@ -251,7 +251,8 @@ class ConnectionService : Service() {
                 return info to hello.error
             }
             log.write(Kind.AUTHENTICATED, "address" to address)
-            if (pairing.lastAddress != address) app.credentials.updateIf(pairing.deviceId) { it.copy(lastAddress = address) }
+            val listed = Frames.addresses(hello.result)
+            storeAddresses(pairing.deviceId, "hello", listed) { it.authenticated(address, listed) }
             if (app.announcements.load().unsupported != null) app.announcements.update { it.copy(unsupported = null) }
 
             val watch = connection.call("attention.watch", Frames.attentionWatch(app.positions.load(pairing.deviceId)))
@@ -279,22 +280,51 @@ class ConnectionService : Service() {
             attached = true
             Desktop.attach(connection)
             for (event in connection.events) {
-                if (event.kind != "attention") {
+                when (EventRoute.of(event.kind)) {
+                    EventRoute.ATTENTION -> {
+                        val attention = Frames.decodeOrNull<Attention>(event.data) ?: continue
+                        val visible = Desktop.visibleSession
+                        notifier.apply(AttentionPolicy.onLive(attention, visible), listOf(attention), "live", visible)
+                    }
+                    EventRoute.ADDRESSES -> {
+                        val listed = Frames.addresses(event.data) ?: continue
+                        storeAddresses(pairing.deviceId, "event", listed) { it.withLatest(listed) }
+                    }
                     // Sessions and the watched conversation (`session-conversation`), in arrival order.
-                    Desktop.onEvent(connection, event)
-                    continue
+                    EventRoute.DESKTOP -> Desktop.onEvent(connection, event)
+                    EventRoute.IGNORED -> Unit
                 }
-                val attention = Frames.decodeOrNull<Attention>(event.data) ?: continue
-                val visible = Desktop.visibleSession
-                notifier.apply(AttentionPolicy.onLive(attention, visible), listOf(attention), "live", visible)
             }
             return connection.closed.await() to null
         } catch (_: ConnectionClosedException) {
             return connection.closed.await() to null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The supervisor starts another round: this socket must not stay open with nobody reading it.
+            connection.cancel()
+            throw e
         } finally {
             current = null
             if (attached) withContext(NonCancellable) { Desktop.detach(connection) }
         }
+    }
+
+    /**
+     * Stores the desktop's address list ([listed], `null` when it sent none) with [change]. A store that cannot be
+     * written now is logged and the connection goes on: the next `hello` answer carries the list again (D4).
+     */
+    private fun storeAddresses(deviceId: String, source: String, listed: List<String>?, change: (Pairing) -> Pairing) {
+        val changed = try {
+            app.credentials.updateIf(deviceId, change)
+        } catch (e: StoreUnavailableException) {
+            log.write(Kind.STORE_UNAVAILABLE, "error" to e.cause?.javaClass?.simpleName, "op" to "addresses")
+            return
+        } catch (e: Exception) {
+            log.write(Kind.ERROR, "error" to e.javaClass.simpleName, "op" to "addresses")
+            return
+        }
+        log.write(Kind.ADDRESSES, "source" to source, "count" to listed?.size, "changed" to changed)
     }
 
     /** Decodes a watch answer event by event, so one malformed event does not lose the others. */

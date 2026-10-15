@@ -33,12 +33,31 @@ data class Pairing(
     val deviceSecret: String,
     /** The address that last authenticated; tried first (design D6). */
     val lastAddress: String? = null,
+    /**
+     * The latest list the desktop sent (`pair`, `hello`, `addresses.changed`), kept beside the link's [addresses],
+     * never replacing them (`addresses-and-mid-turn-replies` D1). Empty when the desktop never sent one.
+     */
+    val latestAddresses: List<String> = emptyList(),
 ) {
     override fun toString(): String =
-        "Pairing(desktopName=$desktopName, addresses=$addresses, port=$port, deviceId=$deviceId, deviceSecret=<redacted>, lastAddress=$lastAddress)"
+        "Pairing(desktopName=$desktopName, addresses=$addresses, port=$port, deviceId=$deviceId, deviceSecret=<redacted>, " +
+            "lastAddress=$lastAddress, latestAddresses=$latestAddresses)"
 
-    /** Last-good first, then the link's order. */
-    fun addressOrder(): List<String> = listOfNotNull(lastAddress?.takeIf { it in addresses }) + addresses.filter { it != lastAddress }
+    /**
+     * Last-good first while the desktop still lists it (or has sent no list), then the desktop's latest list, then
+     * the link's, then last-good if not placed yet; each address once (D2).
+     */
+    fun addressOrder(): List<String> {
+        val last = lastAddress
+        val lastFirst = last != null && (latestAddresses.isEmpty() || last in latestAddresses)
+        return (listOfNotNull(last.takeIf { lastFirst }) + latestAddresses + addresses + listOfNotNull(last)).distinct()
+    }
+
+    /** With the desktop's latest list; `null` (an answer or event without one) keeps the stored list. */
+    fun withLatest(list: List<String>?): Pairing = if (list == null) this else copy(latestAddresses = list)
+
+    /** Authenticated at [address], the `hello` answer carrying [list]. */
+    fun authenticated(address: String, list: List<String>?): Pairing = copy(lastAddress = address).withLatest(list)
 }
 
 /**
@@ -84,12 +103,17 @@ class CredentialStore(context: Context, private val onChange: () -> Unit = {}) {
 
     /**
      * Rewrites the pairing only if it is still the one with [deviceId]: a service that is stopping must never
-     * overwrite a pairing that replaced its own, nor bring back one the user removed.
+     * overwrite a pairing that replaced its own, nor bring back one the user removed. Writes only a change, and
+     * returns whether it wrote.
      */
     @Synchronized
-    fun updateIf(deviceId: String, change: (Pairing) -> Pairing) {
-        val current = load() ?: return
-        if (current.deviceId == deviceId) save(change(current))
+    fun updateIf(deviceId: String, change: (Pairing) -> Pairing): Boolean {
+        val current = load() ?: return false
+        if (current.deviceId != deviceId) return false
+        val next = change(current)
+        if (next == current) return false
+        save(next)
+        return true
     }
 
     /** Deletes the pairing only if it is still the one with [deviceId]. Returns whether it did. */

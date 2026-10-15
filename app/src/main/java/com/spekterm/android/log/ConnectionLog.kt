@@ -64,6 +64,8 @@ class ConnectionLog(
         STORE_UNAVAILABLE, ERROR,
         // `session-conversation`: codes and outcomes of the desktop requests, never text or labels.
         LIST, CONVERSATION, WAKE, SEND,
+        // `addresses-and-mid-turn-replies`: the desktop's address list (source, count, whether stored anew).
+        ADDRESSES,
     }
 
     companion object {

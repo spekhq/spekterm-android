@@ -50,14 +50,30 @@ class CredentialStoreTest {
         val new = old.copy(deviceId = "new", deviceSecret = "s2")
         store.save(new)
         // A stopping service of the old pairing must not overwrite or delete the new one.
-        store.updateIf("old") { it.copy(lastAddress = "a") }
+        assertFalse(store.updateIf("old") { it.copy(lastAddress = "a") })
         assertEquals(new, store.load())
         assertFalse(store.deleteIf("old"))
         assertEquals(new, store.load())
-        store.updateIf("new") { it.copy(lastAddress = "a") }
+        assertTrue(store.updateIf("new") { it.copy(lastAddress = "a") })
         assertEquals("a", store.load()!!.lastAddress)
         assertTrue(store.deleteIf("new"))
         assertNull(store.load())
+    }
+
+    @Test
+    fun anUnchangedUpdateWritesNothing() {
+        var changes = 0
+        val store = CredentialStore(context) { changes++ }
+        val pairing = Pairing("desk", listOf("a"), 1, "AB".repeat(32), "dev", "s", lastAddress = "a", latestAddresses = listOf("b"))
+        store.save(pairing)
+        assertEquals(1, changes)
+        assertFalse(store.updateIf("dev") { it.authenticated("a", listOf("b")) })
+        assertFalse(store.updateIf("dev") { it.withLatest(null) })
+        assertEquals(1, changes)
+        assertTrue(store.updateIf("dev") { it.withLatest(listOf("c")) })
+        assertEquals(2, changes)
+        assertEquals(listOf("c"), store.load()!!.latestAddresses)
+        store.delete()
     }
 
     @Test
@@ -65,6 +81,7 @@ class CredentialStoreTest {
         val pairing = Pairing("d", listOf("a", "b", "c"), 1, "AB".repeat(32), "i", "s", lastAddress = "b")
         assertEquals(listOf("b", "a", "c"), pairing.addressOrder())
         assertEquals(listOf("a", "b", "c"), pairing.copy(lastAddress = null).addressOrder())
-        assertEquals(listOf("a", "b", "c"), pairing.copy(lastAddress = "gone").addressOrder())
+        // Learned from a desktop's list since gone: still tried, never dropped (`addresses-and-mid-turn-replies` D2).
+        assertEquals(listOf("gone", "a", "b", "c"), pairing.copy(lastAddress = "gone").addressOrder())
     }
 }

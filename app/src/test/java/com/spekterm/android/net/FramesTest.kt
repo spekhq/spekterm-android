@@ -189,4 +189,46 @@ class FramesTest {
         assertEquals("a\nb", send["text"]!!.jsonPrimitive.content)
         assertEquals("s1", parse(Frames.request(1, "sessions.wake", Frames.sessionsWake("s1")))["p"]!!.jsonObject["sessionId"]!!.jsonPrimitive.content)
     }
+
+    // ---- `addresses-and-mid-turn-replies` ----
+
+    private fun result(text: String) = (Frames.decode(text) as ServerFrame.Response).result
+
+    @Test
+    fun readsTheAddressesOfAHelloAndAPairAnswer() {
+        val hello = result("""{"t":"res","id":1,"ok":true,"r":{"protocol":1,"server":{"name":"spekterm","version":"0.2.5"},"addresses":["192.168.50.22","fd7a::1","desk.ts.net"],"later":{"x":1}}}""")
+        assertEquals(listOf("192.168.50.22", "fd7a::1", "desk.ts.net"), Frames.addresses(hello))
+        // Unknown fields, `addresses` included, do not stop the typed answer from decoding.
+        assertEquals(1, Frames.decodeOrNull<HelloResult>(hello!!)!!.protocol)
+        val pair = result("""{"t":"res","id":1,"ok":true,"r":{"protocol":1,"server":{},"addresses":["10.0.0.2"],"deviceId":"d","deviceSecret":"s","later":true}}""")
+        assertEquals(listOf("10.0.0.2"), Frames.addresses(pair))
+        assertEquals("d", Frames.decodeOrNull<PairResult>(pair!!)!!.deviceId)
+    }
+
+    @Test
+    fun anAnswerWithoutAddressesHasNoList() {
+        assertNull(Frames.addresses(result("""{"t":"res","id":1,"ok":true,"r":{"protocol":1,"server":{}}}""")))
+        assertNull(Frames.addresses(result("""{"t":"res","id":1,"ok":true,"r":{"protocol":1,"addresses":"10.0.0.2"}}""")))
+        assertNull(Frames.addresses(null))
+        assertEquals(emptyList<String>(), Frames.addresses(result("""{"t":"res","id":1,"ok":true,"r":{"addresses":[]}}""")))
+    }
+
+    @Test
+    fun oddAddressesAreLeftOutAndTheRestKept() {
+        val r = result("""{"t":"res","id":1,"ok":true,"r":{"protocol":1,"addresses":[" 192.168.1.5 ",7,null,"","foo bar","[fd7a::1]","fd7a::1","fe80::1%wlan0","host:8080","desk.ts.net"]}}""")
+        assertEquals(listOf("192.168.1.5", "fd7a::1", "desk.ts.net"), Frames.addresses(r))
+        // An odd element does not lose the answer.
+        assertEquals(1, Frames.decodeOrNull<HelloResult>(r!!)!!.protocol)
+    }
+
+    @Test
+    fun readsAnAddressesChangedEventAndIgnoresUnknownEventsAndFields() {
+        val changed = Frames.decode("""{"t":"evt","k":"addresses.changed","d":{"addresses":["10.0.0.3"],"reason":"later"}}""") as ServerFrame.Event
+        assertEquals("addresses.changed", changed.kind)
+        assertEquals(listOf("10.0.0.3"), Frames.addresses(changed.data))
+        val unknown = Frames.decode("""{"t":"evt","k":"something.new","d":{"x":[1,2]},"extra":1}""")
+        assertTrue(unknown is ServerFrame.Event)
+        assertEquals("something.new", (unknown as ServerFrame.Event).kind)
+        assertNull(Frames.decode("""{"t":"later","k":"x"}"""))
+    }
 }

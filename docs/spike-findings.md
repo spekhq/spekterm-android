@@ -173,6 +173,10 @@ are pairing again, a DHCP reservation on the router, or a stable extra address e
 or DDNS name). A lasting fix needs the desktop to send its current addresses after authentication, which is a protocol
 change for spekterm and a separate change here.
 
+Fixed since: spekterm 0.2.5 sends its current addresses in the `hello` and `pair` answers and an `addresses.changed`
+event, and the app keeps that latest list beside the link's and tries it first (change
+`addresses-and-mid-turn-replies`; run recorded in `docs/conversation-findings.md`, "Against spekterm 0.2.5").
+
 ## Unverified
 
 - Whether Google Play accepts `specialUse` for this use — only the first upload can tell.

@@ -23,8 +23,11 @@ data class Reply(
     val state: State = State.SENDING,
     /** When the desktop answered `submitted`. */
     val submittedAt: Long? = null,
-    /** Sent while the agent worked, and the agent has since stopped working. */
-    val agentStopped: Boolean = false,
+    /**
+     * Sent while the agent worked: when the desktop first reported it ready or unknown since (a permission prompt
+     * is not a stop). Cleared by a report of it working again within the grace (`addresses-and-mid-turn-replies` D6).
+     */
+    val stoppedAt: Long? = null,
 ) {
     enum class State { SENDING, SUBMITTED, MAY_NOT_HAVE_BEEN_SENT, NOT_SUBMITTED }
 
@@ -34,7 +37,7 @@ data class Reply(
         NOT_YET_CONFIRMED(false),
         WAITING_FOR_AGENT(false),
         NOT_IN_CONVERSATION_YET(true),
-        MAY_NOT_SHOW(true),
+        NOT_SHOWN_AFTER_WORK(true),
         MAY_NOT_HAVE_BEEN_SENT(true),
         NOT_SUBMITTED(true),
     }
@@ -44,11 +47,22 @@ data class Reply(
         State.MAY_NOT_HAVE_BEEN_SENT -> Label.MAY_NOT_HAVE_BEEN_SENT
         State.NOT_SUBMITTED -> Label.NOT_SUBMITTED
         State.SUBMITTED -> when {
-            sentWhile == WaitState.BUSY -> if (agentStopped) Label.MAY_NOT_SHOW else Label.WAITING_FOR_AGENT
+            sentWhile == WaitState.BUSY -> when {
+                stoppedAt == null -> Label.WAITING_FOR_AGENT
+                inGrace(now) -> Label.NOT_YET_CONFIRMED
+                else -> Label.NOT_SHOWN_AFTER_WORK
+            }
             now - (submittedAt ?: now) >= Replies.NOT_SEEN_MS -> Label.NOT_IN_CONVERSATION_YET
             else -> Label.NOT_YET_CONFIRMED
         }
     }
+
+    /**
+     * Within 30 s of the agent stopping: during a text-only answer the desktop reports `ready` just before the turn
+     * that takes the reply starts, so the reply is not called missing yet. One predicate for [label] and
+     * [Replies.waited], so they agree at the boundary.
+     */
+    fun inGrace(now: Long): Boolean = stoppedAt != null && now - stoppedAt < Replies.NOT_SEEN_MS
 
     /** A typed-but-withheld reply is never submitted by the desktop, so nothing can confirm it. */
     val matchable: Boolean get() = state != State.NOT_SUBMITTED
@@ -195,10 +209,26 @@ object Replies {
         return if (remaining.size == c.replies.size) c else c.copy(replies = remaining)
     }
 
-    /** The wait state changed: a reply sent while the agent worked notes that the agent stopped. */
-    fun waited(c: Conversation, wait: String): Conversation {
-        if (wait == WaitState.BUSY || c.replies.none { it.sentWhile == WaitState.BUSY && !it.agentStopped }) return c
-        return c.copy(replies = c.replies.map { if (it.sentWhile == WaitState.BUSY) it.copy(agentStopped = true) else it })
+    /**
+     * The desktop reported [wait] (D6). For a reply sent while the agent worked: `ready`
+     * or `unknown` starts the grace once; `busy` or `awaiting-choice` (a prompt pauses the turn, it does not end it)
+     * within the grace ends it again. After the grace the reply has settled and stays so.
+     */
+    fun waited(c: Conversation, wait: String, now: Long): Conversation {
+        val working = wait == WaitState.BUSY || wait == WaitState.AWAITING_CHOICE
+        var changed = false
+        val replies = c.replies.map { reply ->
+            // Kept for every state; only a submitted reply's label reads it (one still sending may become one).
+            if (reply.sentWhile != WaitState.BUSY) return@map reply
+            val next = when {
+                working && reply.inGrace(now) -> reply.copy(stoppedAt = null)
+                !working && reply.stoppedAt == null -> reply.copy(stoppedAt = now)
+                else -> reply
+            }
+            if (next !== reply) changed = true
+            next
+        }
+        return if (changed) c.copy(replies = replies) else c
     }
 
     /** The connection ended: a reply still waiting for its answer may or may not have been written. */

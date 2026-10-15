@@ -1,5 +1,6 @@
 package com.spekterm.android.net
 
+import com.spekterm.android.pairing.PairingLink
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -106,6 +107,19 @@ object Frames {
         put("text", text)
     }
 
+    /**
+     * `addresses` of a `hello` or `pair` answer or an `addresses.changed` event (`docs/remote-protocol.md` sections
+     * 4 and 6): `null` when absent or not an array (a desktop older than 0.2.5), else its usable string elements.
+     * Read by hand so one odd element does not discard the answer it came in.
+     */
+    fun addresses(element: JsonElement?): List<String>? {
+        val array = (element as? JsonObject)?.get("addresses") as? JsonArray ?: return null
+        return addressList(array.mapNotNull { (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content })
+    }
+
+    /** Addresses normalized as the pairing link's are, unusable ones left out, each once. */
+    fun addressList(addresses: List<String>): List<String> = addresses.mapNotNull { PairingLink.normalize(it) }.distinct()
+
     /** `detail.supported` of an `UNSUPPORTED_VERSION` error: the desktop's versions. */
     fun supportedVersions(error: RemoteError): List<Int> =
         ((error.detail?.get("supported")) as? JsonArray)?.mapNotNull { it.jsonPrimitive.intOrNull } ?: emptyList()
@@ -153,7 +167,7 @@ data class RemoteError(val code: String, val message: String = "", val detail: J
 @Serializable
 data class ServerInfo(val name: String = "", val version: String = "")
 
-/** The answer to `hello`. */
+/** The answer to `hello`. Its `addresses` are read with [Frames.addresses]. */
 @Serializable
 data class HelloResult(val protocol: Int, val server: ServerInfo = ServerInfo())
 

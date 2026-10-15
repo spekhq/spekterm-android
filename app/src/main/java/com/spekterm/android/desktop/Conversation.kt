@@ -135,14 +135,14 @@ object ConversationReducer {
      * `Notification` for the same prompt folds to no request), so a report without a tool keeps the one held
      * while the agent still asks for a choice.
      */
-    fun waited(c: Conversation, state: String, pending: Pending?): Conversation {
+    fun waited(c: Conversation, state: String, pending: Pending?, now: Long): Conversation {
         val wait = WaitState.of(state)
         val asked = when {
             wait != WaitState.AWAITING_CHOICE -> null
             pending?.tool.isNullOrBlank() && c.wait == WaitState.AWAITING_CHOICE && c.pending != null -> c.pending
             else -> pending
         }
-        return Replies.waited(c.copy(wait = wait, pending = asked), wait)
+        return Replies.waited(c.copy(wait = wait, pending = asked), wait, now)
     }
 
     /**

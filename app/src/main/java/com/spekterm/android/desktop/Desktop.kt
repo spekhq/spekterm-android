@@ -92,7 +92,7 @@ object Desktop {
                 change(update.sessionId) { ConversationReducer.apply(it, update, now()) }
             }
             "conversation.wait" -> Frames.decodeOrNull<ConversationWait>(event.data)?.let { wait ->
-                change(wait.sessionId) { ConversationReducer.waited(it, wait.state, wait.pending) }
+                change(wait.sessionId) { ConversationReducer.waited(it, wait.state, wait.pending, now()) }
             }
             "conversation.ended" -> Frames.decodeOrNull<ConversationEnded>(event.data)?.let { ended ->
                 val c = mutableConversation.value

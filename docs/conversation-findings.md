@@ -85,7 +85,8 @@ over CDP like the emulator run's.
 
 ## Findings
 
-- **The desktop reports `ready` while an agent writes without tools.** spekterm derives "busy" from
+- **Fixed in spekterm 0.2.5 (commit 4c37609); re-run below: "Working…" during a text-only answer.**
+  **The desktop reports `ready` while an agent writes without tools.** spekterm derives "busy" from
   `PreToolUse`/`PostToolUse` and "ready" from `Stop`; it injects no `UserPromptSubmit` hook
   (`agent-events.ts` `nextWaitState`, the injected `settings.json`). So during a text-only answer both the
   desktop and the phone show "Waiting for you", and a reply sent then is treated as sent while ready (its "not
@@ -94,21 +95,51 @@ over CDP like the emulator run's.
 - **The Markdown renderer's defaults conflict with the spec**: it animates content size (a transition whose
   length grows with the text) and parses asynchronously (an entry first shows empty). Both are switched off
   (`ui/AgentMarkdown.kt`).
-- **A background task's completion shows as the user's message.** When an agent runs a command in the background,
+- **Fixed in spekterm 0.2.5 (commit 4c37609); re-run below: shown as "Injected by the agent".**
+  **A background task's completion shows as the user's message.** When an agent runs a command in the background,
   Claude Code later writes a user record holding `<task-notification>…</task-notification>`; it has
   `origin.kind: "task-notification"` and `promptSource: "system"` but no `isMeta`, so spekterm sends it with
   `meta: false` and both the desktop ("你") and the phone ("You") show it as the user's words, raw XML included.
   The same turn also produces two "waiting" attention events: one when the agent ends its turn after starting
   the background command, one when it answers the task's completion. Both are spekterm's to classify.
-- **A reply typed while the agent runs tools never shows in the conversation.** Claude Code (2.1.300) delivers it
+- **Fixed in spekterm 0.2.5 (commit 4c37609); re-run below: confirmed where the agent took it in.**
+  **A reply typed while the agent runs tools never shows in the conversation.** Claude Code (2.1.300) delivers it
   mid-turn as an `attachment` of type `queued_command` (with the text in `prompt`), not as a user record, and
   spekterm projects no entry for it — the desktop's own conversation view does not show it either. Replies typed
   during text-only generation do arrive as user records after the turn (emulator run). A spekterm change: project
   `queued_command` attachments as user entries.
-- **The desktop drops a prompt's tool on its second report.** `pending` comes from the last drained batch, and a
+- **Fixed in spekterm 0.2.5 (commit 4c37609); re-run below: the tool stays shown.**
+  **The desktop drops a prompt's tool on its second report.** `pending` comes from the last drained batch, and a
   batch holding only the prompt's `Notification` yields none. The phone keeps the tool it holds; the desktop could
   keep it while the state stays `awaiting-choice`.
 - **Frame times in the debug build**: 15 % janky frames over the whole run, scrolling the long conversation included (90th percentile 27 ms), measured on a
   debuggable, unminified build; not a release measurement.
 - Desktop attention events for the session displayed in the desktop's focused window arrive `suppressed`, as
   the spike found; with a virtual display the throwaway desktop's window counts as focused.
+
+## Against spekterm 0.2.5
+
+Change `addresses-and-mid-turn-replies`, 2026-10-15, on the Pixel 7 (Android 17) against the maintainer's installed
+spekterm 0.2.5 (the AppImage; it sends the address list, which only 0.2.5 and later do), with remote access turned on and the phone paired with it
+anew for this run. A new Claude Code session in this repository's folder was driven from the phone (adb, ADB
+Keyboard, uiautomator); the maintainer worked the desktop's settings and answered its prompts. The desktop's
+transcript (`~/.claude/projects/…/<session>.jsonl`) was read to see how each reply reached the agent.
+
+| Scenario (spec) | Outcome |
+|---|---|
+| JVM unit tests (111), including the address order and list reading, event routing with an unknown kind, and the busy-reply grace | host: pass. `CredentialStoreTest` (instrumented) updated and compiled, not run: instrumented runs uninstall the app on the Pixel |
+| Pairing: the `pair` answer's list stored with the pairing; the first `hello` answer carried the same three addresses (log `addresses source=hello count=3 changed=false`) (desktop-connection) | pass |
+| The desktop's additional address set to its Tailscale MagicDNS name, not in the pairing link, while connected: the phone stored the new list 0.6 s after the desktop saved it (log `addresses source=event count=4 changed=true`); the status screen listed the name (desktop-connection) | pass |
+| Remote access off for about 15 s: every round tried the LAN address, the Tailscale IPv4 and IPv6, then the MagicDNS name (resolved, refused); back on: reconnected through the last good address, `hello` carrying the same four (`changed=false`) (desktop-connection) | pass |
+| An address that disappears for good was not produced; reaching the desktop by another address after the LAN one changed was run in the Pixel run above, and the order is carried by `PairingTest` | carried by tests |
+| An unknown event kind: the desktop cannot be made to send one; carried by `EventRouteTest` and `FramesTest` (desktop-connection) | carried by tests |
+| A text-only answer (a 700-word story, no tools): "Working…" throughout (conversation-view) | pass |
+| A reply sent during that text-only answer: "Waiting for the agent to take it", then confirmed as the user's message when the agent took it in a second turn; the fallback label never shown (conversation-reply) | pass |
+| Replies while the agent ran eight foreground `sleep 5` calls: one line and three lines, each delivered as a `queued_command` and shown as the user's message between the tool calls where the agent took it, text verbatim; neither labeled (conversation-reply) | pass |
+| A permission prompt (WebFetch of a new domain, "accept edits" mode): "The agent asks for a choice: WebFetch — https://example.org", the tool still shown across the desktop's later reports of the same prompt (conversation-reply) | pass |
+| A reply queued during the text before a prompt, the prompt then raised before the agent took it: "Waiting for the agent to take it" for the 30+ s the prompt stayed open (conversation-reply) | pass |
+| That prompt answered "No": Claude Code interrupted the turn, then submitted the queued reply as the next prompt (`dequeue`, then a user record); the phone confirmed it. Nothing was left in the desktop's input | pass — the design's unmeasured case: a refused prompt does not lose a queued reply |
+| A background task's notice (`sleep 30` moved to the background by Claude Code): "Injected by the agent", not "You" (conversation-view) | pass |
+
+A `mkdir -p /tmp/…` raised no prompt in this setup (the maintainer's permissions allow it), unlike the earlier runs;
+WebFetch of a new domain was used instead.

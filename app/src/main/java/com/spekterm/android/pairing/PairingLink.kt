@@ -61,10 +61,9 @@ data class PairingLink(
 
             if (params["v"] != "1") return Result.Refused(Refusal.UNSUPPORTED_VERSION)
 
-            val addresses = (params["a"] ?: "").split(',').map { it.trim() }.filter { it.isNotEmpty() }
-                .map { it.removePrefix("[").removeSuffix("]") }
-            if (addresses.isEmpty()) return Result.Refused(Refusal.NO_ADDRESS)
-            if (!addresses.all(::usable)) return Result.Refused(Refusal.BAD_ADDRESS)
+            val given = (params["a"] ?: "").split(',').filter { it.isNotBlank() }
+            if (given.isEmpty()) return Result.Refused(Refusal.NO_ADDRESS)
+            val addresses = given.map { normalize(it) ?: return Result.Refused(Refusal.BAD_ADDRESS) }
 
             val port = params["p"]?.toIntOrNull()
             if (port == null || port !in 1..65535) return Result.Refused(Refusal.BAD_PORT)
@@ -77,6 +76,14 @@ data class PairingLink(
 
             return Result.Ok(PairingLink(addresses, port, fingerprint, code, params["n"] ?: ""))
         }
+
+        /**
+         * An address as the app keeps it — trimmed, an IPv6 literal without its brackets — or `null` when it is blank
+         * or cannot be connected to as given. Shared by the link and the desktop's address list, so one address
+         * written both ways is one address.
+         */
+        fun normalize(address: String): String? =
+            address.trim().removePrefix("[").removeSuffix("]").takeIf { it.isNotEmpty() && usable(it) }
 
         /** Whether OkHttp can build a URL with [address] as its host; one it cannot would fail every connection. */
         private fun usable(address: String): Boolean = try {

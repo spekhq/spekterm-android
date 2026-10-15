@@ -92,7 +92,7 @@ class ConversationReducerTest {
     fun disconnectKeepsEntriesAndForgetsTheWaitState() {
         var c = ConversationReducer.answered(ConversationReducer.requested(empty), null)
         c = apply(c, update(text("a"), reset = true))
-        c = ConversationReducer.waited(c, WaitState.READY, null)
+        c = ConversationReducer.waited(c, WaitState.READY, null, 0)
         val d = ConversationReducer.disconnected(c)
         assertEquals(listOf("a"), d.entries.map { it.uuid })
         assertEquals(Phase.DISCONNECTED, d.phase)
@@ -102,7 +102,7 @@ class ConversationReducerTest {
 
     @Test
     fun aRequestStartsCatchingUpWithAnUnknownWaitState() {
-        val c = ConversationReducer.requested(ConversationReducer.waited(empty, WaitState.READY, null))
+        val c = ConversationReducer.requested(ConversationReducer.waited(empty, WaitState.READY, null, 0))
         assertEquals(Watch.Requested, c.watch)
         assertTrue(c.watch.active)
         assertEquals(Phase.CATCHING_UP, c.phase)
@@ -111,20 +111,20 @@ class ConversationReducerTest {
 
     @Test
     fun theWaitStateKeepsPendingOnlyWhileAwaitingAChoice() {
-        val choice = ConversationReducer.waited(empty, "awaiting-choice", Pending("Bash", "touch /tmp/x"))
+        val choice = ConversationReducer.waited(empty, "awaiting-choice", Pending("Bash", "touch /tmp/x"), 0)
         assertEquals(Pending("Bash", "touch /tmp/x"), choice.pending)
-        assertNull(ConversationReducer.waited(choice, "busy", Pending("x")).pending)
-        assertEquals(WaitState.UNKNOWN, ConversationReducer.waited(empty, "new-state", null).wait)
+        assertNull(ConversationReducer.waited(choice, "busy", Pending("x"), 0).pending)
+        assertEquals(WaitState.UNKNOWN, ConversationReducer.waited(empty, "new-state", null, 0).wait)
     }
 
     @Test
     fun aLaterReportOfTheSameChoiceWithoutAToolKeepsTheToolShown() {
-        val choice = ConversationReducer.waited(empty, "awaiting-choice", Pending("Bash", "mkdir -p /tmp/x"))
-        assertEquals(Pending("Bash", "mkdir -p /tmp/x"), ConversationReducer.waited(choice, "awaiting-choice", null).pending)
-        assertEquals(Pending("Bash", "mkdir -p /tmp/x"), ConversationReducer.waited(choice, "awaiting-choice", Pending("")).pending)
-        assertEquals(Pending("Edit", "a.kt"), ConversationReducer.waited(choice, "awaiting-choice", Pending("Edit", "a.kt")).pending)
-        val answered = ConversationReducer.waited(choice, "busy", null)
-        assertNull(ConversationReducer.waited(answered, "awaiting-choice", null).pending)
+        val choice = ConversationReducer.waited(empty, "awaiting-choice", Pending("Bash", "mkdir -p /tmp/x"), 0)
+        assertEquals(Pending("Bash", "mkdir -p /tmp/x"), ConversationReducer.waited(choice, "awaiting-choice", null, 0).pending)
+        assertEquals(Pending("Bash", "mkdir -p /tmp/x"), ConversationReducer.waited(choice, "awaiting-choice", Pending(""), 0).pending)
+        assertEquals(Pending("Edit", "a.kt"), ConversationReducer.waited(choice, "awaiting-choice", Pending("Edit", "a.kt"), 0).pending)
+        val answered = ConversationReducer.waited(choice, "busy", null, 0)
+        assertNull(ConversationReducer.waited(answered, "awaiting-choice", null, 0).pending)
     }
 
     @Test

@@ -16,7 +16,7 @@ class RepliesTest {
     private fun user(uuid: String, text: String, meta: Boolean = false) = Entry.User(uuid, 0, text, meta)
     private fun update(vararg events: Entry, reset: Boolean = false) = ConversationUpdate("s1", "ok", events.toList(), false, reset)
     private fun watching(wait: String = WaitState.READY) =
-        ConversationReducer.waited(ConversationReducer.answered(ConversationReducer.requested(Conversation("s1")), null), wait, null)
+        ConversationReducer.waited(ConversationReducer.answered(ConversationReducer.requested(Conversation("s1")), null), wait, null, 0)
     private fun send(c: Conversation, text: String, id: Long = 1, outcome: SendOutcome = SendOutcome.Submitted, at: Long = 0) =
         Replies.answered(Replies.sent(c, id, text), id, outcome, at)
 
@@ -70,15 +70,76 @@ class RepliesTest {
         assertTrue(c.replies.isEmpty())
     }
 
+    private fun waited(c: Conversation, wait: String, at: Long) = ConversationReducer.waited(c, wait, null, at)
+
     @Test
-    fun aReplySentWhileBusyWaitsForTheAgentThenMayNotShow() {
+    fun aReplySentWhileBusyWaitsForTheAgentThenGetsAGraceThenSettles() {
         var c = send(watching(WaitState.BUSY), "also this", at = 0)
         assertEquals(Reply.Label.WAITING_FOR_AGENT, c.replies.single().label(10 * 60_000))
-        c = ConversationReducer.waited(c, WaitState.BUSY, null)
-        assertEquals(Reply.Label.WAITING_FOR_AGENT, c.replies.single().label(0))
-        c = ConversationReducer.waited(c, WaitState.READY, null)
-        assertEquals(Reply.Label.MAY_NOT_SHOW, c.replies.single().label(0))
-        assertTrue(ConversationReducer.apply(c, update(user("u", "also this")), 0).replies.isEmpty())
+        c = waited(c, WaitState.BUSY, 1_000)
+        assertEquals(Reply.Label.WAITING_FOR_AGENT, c.replies.single().label(1_000))
+        c = waited(c, WaitState.READY, 10_000)
+        assertEquals(Reply.Label.NOT_YET_CONFIRMED, c.replies.single().label(10_000 + 29_999))
+        assertFalse(Reply.Label.NOT_YET_CONFIRMED.settled)
+        assertEquals(Reply.Label.NOT_SHOWN_AFTER_WORK, c.replies.single().label(10_000 + 30_000))
+        assertTrue(Reply.Label.NOT_SHOWN_AFTER_WORK.settled)
+        assertTrue(ConversationReducer.apply(c, update(user("u", "also this")), 60_000).replies.isEmpty())
+    }
+
+    @Test
+    fun aPermissionPromptDoesNotEndTheWait() {
+        var c = send(watching(WaitState.BUSY), "x")
+        c = waited(c, WaitState.AWAITING_CHOICE, 1_000)
+        assertEquals(Reply.Label.WAITING_FOR_AGENT, c.replies.single().label(10 * 60_000))
+    }
+
+    @Test
+    fun workingAgainWithinTheGraceWaitsAgain() {
+        for (again in listOf(WaitState.BUSY, WaitState.AWAITING_CHOICE)) {
+            var c = send(watching(WaitState.BUSY), "x")
+            c = waited(c, WaitState.READY, 1_000)
+            c = waited(c, again, 1_000 + 29_999)
+            assertEquals(again, Reply.Label.WAITING_FOR_AGENT, c.replies.single().label(5 * 60_000))
+        }
+    }
+
+    @Test
+    fun anUnknownReportStartsTheGraceAndARepeatedReportDoesNotRestartIt() {
+        var c = send(watching(WaitState.BUSY), "x")
+        c = waited(c, WaitState.UNKNOWN, 1_000)
+        assertEquals(Reply.Label.NOT_YET_CONFIRMED, c.replies.single().label(1_000))
+        c = waited(c, WaitState.READY, 21_000)
+        assertEquals(Reply.Label.NOT_SHOWN_AFTER_WORK, c.replies.single().label(31_000))
+    }
+
+    @Test
+    fun aSettledReplyStaysSettledWhenTheAgentWorksAgain() {
+        var c = send(watching(WaitState.BUSY), "x")
+        c = waited(c, WaitState.READY, 1_000)
+        c = waited(c, WaitState.BUSY, 31_000)
+        assertEquals(Reply.Label.NOT_SHOWN_AFTER_WORK, c.replies.single().label(31_000))
+        c = ConversationReducer.apply(c, update(user("late", "x")), 40_000)
+        assertTrue(c.replies.isEmpty())
+    }
+
+    @Test
+    fun aReplyTakenInTheTurnAfterATextOnlyAnswerConfirmsWithinTheGrace() {
+        var c = send(watching(WaitState.BUSY), "and then")
+        c = waited(c, WaitState.READY, 1_000)
+        assertEquals(Reply.Label.NOT_YET_CONFIRMED, c.replies.single().label(3_000))
+        c = ConversationReducer.apply(c, update(user("next", "and then")), 6_000)
+        assertTrue(c.replies.isEmpty())
+    }
+
+    @Test
+    fun theGraceLeavesOtherRepliesAlone() {
+        val ready = send(watching(WaitState.READY), "r", at = 0)
+        assertEquals(ready.replies, waited(ready, WaitState.BUSY, 1_000).replies)
+        for (outcome in listOf(SendOutcome.Unknown, SendOutcome.NotSubmitted)) {
+            val c = waited(send(watching(WaitState.BUSY), "x", outcome = outcome), WaitState.READY, 1_000)
+            val expected = if (outcome == SendOutcome.Unknown) Reply.Label.MAY_NOT_HAVE_BEEN_SENT else Reply.Label.NOT_SUBMITTED
+            assertEquals(expected, c.replies.single().label(1_000))
+        }
     }
 
     @Test

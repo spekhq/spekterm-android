@@ -57,6 +57,7 @@ object Pairer {
                                     deviceId = result.deviceId,
                                     deviceSecret = result.deviceSecret,
                                     lastAddress = address,
+                                    latestAddresses = Frames.addresses(answer.result) ?: emptyList(),
                                 ),
                             )
                             else -> failure(answer.error, tried)

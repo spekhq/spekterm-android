@@ -319,7 +319,7 @@ private fun ReplyRow(reply: Reply, now: Long) {
         Reply.Label.NOT_YET_CONFIRMED -> "Not yet confirmed"
         Reply.Label.WAITING_FOR_AGENT -> "Waiting for the agent to take it"
         Reply.Label.NOT_IN_CONVERSATION_YET -> "Not in the conversation yet — check the desktop"
-        Reply.Label.MAY_NOT_SHOW -> "Sent while the agent worked — it may not show in the conversation"
+        Reply.Label.NOT_SHOWN_AFTER_WORK -> "Sent while the agent worked — not in the conversation; check the desktop"
         Reply.Label.MAY_NOT_HAVE_BEEN_SENT -> "May not have been sent — check the desktop"
         Reply.Label.NOT_SUBMITTED -> "Typed into the agent's input but not sent — the agent's state changed (for example, a choice appeared). Finish it on the desktop."
     }
