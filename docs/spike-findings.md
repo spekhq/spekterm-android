@@ -167,6 +167,14 @@ Smaller follow-ups seen in the same run: the status should say plainly that the 
 this network (and why), and the retry rate while unreachable for hours on mobile data needs its own battery
 measurement — the overnight run is on Wi-Fi.
 
+The desktop's address can also change under a pairing. On 2026-10-15 the desktop's LAN address moved from
+192.168.50.22 to 192.168.0.199 (seen by the session-conversation run), and the phone could reach it only over Tailscale.
+The phone knows only the addresses in the pairing link: the `hello` answer carries no addresses
+(`docs/remote-protocol.md` sections 1 and 4 in spekterm), so nothing tells the app the new one. Today's remedies
+are pairing again, a DHCP reservation on the router, or a stable extra address entered on the desktop (a Tailscale
+or DDNS name). A lasting fix needs the desktop to send its current addresses after authentication, which is a protocol
+change for spekterm and a separate change here.
+
 ## Unverified
 
 - Whether Google Play accepts `specialUse` for this use — only the first upload can tell.
