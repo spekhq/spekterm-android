@@ -348,6 +348,7 @@ class ConnectionService : Service() {
         if (app.credentials.deleteIf(pairing.deviceId)) {
             log.write(Kind.UNPAIRED)
             app.positions.delete()
+            app.collapsed.delete()
             Desktop.clear()
             app.announcements.update { it.copy(pairAgain = true, identityChanged = false) }
             Notifications.status(this, Notifications.ID_PAIR_AGAIN, "Pair again with $desktopName", "The desktop no longer accepts this phone. Scan a new pairing code.")

@@ -66,6 +66,8 @@ class ConnectionLog(
         LIST, CONVERSATION, WAKE, SEND,
         // `addresses-and-mid-turn-replies`: the desktop's address list (source, count, whether stored anew).
         ADDRESSES,
+        // `folders-and-new-sessions`: starting a session (global or not, outcome, error code; never names).
+        CREATE,
     }
 
     companion object {

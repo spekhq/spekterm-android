@@ -3,6 +3,7 @@ package com.spekterm.android.desktop
 import com.spekterm.android.log.ConnectionLog.Kind
 import com.spekterm.android.net.ConnectionClosedException
 import com.spekterm.android.net.ConversationEnded
+import com.spekterm.android.net.CreateResult
 import com.spekterm.android.net.ConversationUpdate
 import com.spekterm.android.net.ConversationWait
 import com.spekterm.android.net.Frames
@@ -18,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -55,6 +57,18 @@ object Desktop {
     /** Whether a connection is attached (authenticated, attention watch answered). */
     val connected: StateFlow<Boolean> = mutableConnected
 
+    private val mutableCreation = MutableStateFlow<Creation?>(null)
+
+    /** A session being started from the phone, and its outcome until dismissed (`session-create`). */
+    val creation: StateFlow<Creation?> = mutableCreation
+
+    /** Whether the session list is on screen: a created session opens by itself only then (design D7). */
+    @Volatile var listOnScreen: Boolean = false
+        private set
+
+    /** How long a created session may take to be listed running (design D6); shortened by tests. */
+    @Volatile var createWaitMs: Long = 10_000L
+
     /** The session whose conversation is on screen: no notification is raised for it (design D8). */
     @Volatile var visibleSession: String? = null
         private set
@@ -67,6 +81,12 @@ object Desktop {
     private var focus: Focus? = null
     private val clock = ListClock()
     private var nextReplyId = 0L
+    private var pendingCreate: CreateTracker.Pending? = null
+    private var createTimer: Job? = null
+    private var nextCreateId = 0L
+
+    /** Bumped when everything is dropped ([clear]): a create of an older generation writes nothing. */
+    private var generation = 0L
 
     // ---- Hooks for the service ----
 
@@ -110,6 +130,7 @@ object Desktop {
         attached = null
         mutableConnected.value = false
         mutableSessions.value = mutableSessions.value.copy(current = false)
+        track(CreateTracker.detached(trackerState(), a))
         mutableConversation.value?.let { mutableConversation.value = ConversationReducer.disconnected(it) }
     }
 
@@ -179,6 +200,56 @@ object Desktop {
         true
     }
 
+    /**
+     * Starts an agent session in [folderId] (`null`: the global item), named [name] on screen (design D6). Runs
+     * in [Desktop]'s own scope, so leaving the screen does not abandon it; does nothing while not attached or
+     * while another start is in progress. Never retried.
+     */
+    fun create(folderId: String?, name: String) {
+        scope.launch {
+            val a = attached ?: return@launch
+            if (mutableCreation.value is Creation.Starting) return@launch
+            val gen = generation
+            val id = ++nextCreateId
+            mutableCreation.value = Creation.Starting(name)
+            try {
+                val answer = request(a, "sessions.create", Frames.sessionsCreate(folderId), CREATE_TIMEOUT_MS)
+                if (generation != gen) return@launch
+                val outcome = CreateOutcome.of(
+                    answered = answer != null,
+                    sessionId = answer?.result?.let { Frames.decodeOrNull<CreateResult>(it) }?.sessionId,
+                    code = answer?.error?.code,
+                    message = answer?.error?.message,
+                )
+                log(Kind.CREATE, "global" to (folderId == null), "outcome" to outcome.logName(), "error" to answer?.error?.code)
+                val list = mutableSessions.value.takeIf { it.current && attached === a }?.list
+                track(CreateTracker.answered(trackerState(), id, name, outcome, a, attached, list, listOnScreen))
+                if (pendingCreate?.id == id) {
+                    createTimer = scope.launch {
+                        delay(createWaitMs)
+                        track(CreateTracker.timedOut(trackerState(), id))
+                    }
+                }
+            } finally {
+                // Every exit leaves an outcome, unless the answer is waiting for its list or all was cleared.
+                if (generation == gen && pendingCreate == null && mutableCreation.value is Creation.Starting) {
+                    mutableCreation.value = Creation.Failed(name, Creation.Reason.UNKNOWN)
+                }
+            }
+        }
+    }
+
+    /** The session list is on screen ([shown]) or not; leaving it keeps a created session from opening by itself. */
+    fun setListOnScreen(shown: Boolean) {
+        listOnScreen = shown
+        if (!shown) scope.launch { track(CreateTracker.leftList(trackerState())) }
+    }
+
+    /** The outcome of a start was shown and acted on or dismissed. Ignored while starting. */
+    fun consumeCreation() {
+        scope.launch { if (mutableCreation.value !is Creation.Starting) mutableCreation.value = null }
+    }
+
     /** Unpaired: nothing of the old desktop is kept. */
     fun clear() {
         scope.launch {
@@ -190,6 +261,7 @@ object Desktop {
             mutableConnected.value = false
             mutableSessions.value = SessionsState()
             mutableConversation.value = null
+            dropCreation()
         }
     }
 
@@ -204,13 +276,44 @@ object Desktop {
         mutableConnected.value = false
         mutableSessions.value = SessionsState()
         mutableConversation.value = null
+        dropCreation()
+        listOnScreen = false
+        createWaitMs = 10_000L
     }
 
     // ---- Internals, on the dispatcher ----
 
+    private fun trackerState() = CreateTracker.State(pendingCreate, mutableCreation.value)
+
+    /** Applies a tracker step; when a wait ends, its timer goes and the outcome is logged. */
+    private fun track(next: CreateTracker.State) {
+        val waited = pendingCreate
+        pendingCreate = next.pending
+        mutableCreation.value = next.creation
+        if (waited != null && next.pending == null) {
+            createTimer?.cancel()
+            createTimer = null
+            log(Kind.CREATE, "event" to (if (next.creation is Creation.Opened) "listed" else "unlisted"))
+        }
+    }
+
+    private fun dropCreation() {
+        generation++
+        createTimer?.cancel()
+        createTimer = null
+        pendingCreate = null
+        mutableCreation.value = null
+    }
+
+    private fun CreateOutcome.logName(): String = when (this) {
+        is CreateOutcome.Created -> "created"
+        is CreateOutcome.Refused -> reason.name.lowercase()
+    }
+
     private fun applyList(a: Attached, seq: Long, list: SessionList) {
         if (attached !== a || !clock.accept(seq)) return
         mutableSessions.value = SessionsState(list, current = true, receivedAt = now())
+        track(CreateTracker.listed(trackerState(), list, a, listOnScreen))
         mutableConversation.value?.let { mutableConversation.value = ConversationReducer.listed(it, list) }
         reconcile()
     }
@@ -286,4 +389,7 @@ object Desktop {
 
     /** Replies to one session queue on the desktop, and a call with no answer ends the connection. */
     const val SEND_TIMEOUT_MS = 30_000L
+
+    /** Above the desktop's own 15 s limit for its interface, so a slow create answers `TIMEOUT` first. */
+    const val CREATE_TIMEOUT_MS = 20_000L
 }

@@ -96,6 +96,12 @@ object Frames {
 
     fun sessionsWake(sessionId: String): JsonObject = buildJsonObject { put("sessionId", sessionId) }
 
+    /** An agent session; the global item is an explicit `null` — the desktop refuses an absent `folderId`. */
+    fun sessionsCreate(folderId: String?): JsonObject = buildJsonObject {
+        put("folderId", folderId?.let(::JsonPrimitive) ?: JsonNull)
+        put("target", Session.CLAUDE)
+    }
+
     /** `afterUuid` is omitted when nothing is held: the desktop then sends the last 400 entries, replacing. */
     fun conversationWatch(sessionId: String, afterUuid: String?): JsonObject = buildJsonObject {
         put("sessionId", sessionId)

@@ -117,8 +117,9 @@ class MainActivity : ComponentActivity() {
             composable<SessionsRoute> {
                 SessionsScreen(
                     desktopName = desktopName,
+                    deviceId = pairing.deviceId,
                     announcements = announcements,
-                    onOpen = { nav.navigate(ConversationRoute(it.id)) },
+                    onOpen = { nav.navigate(ConversationRoute(it)) },
                     onStatus = { nav.navigate(StatusRoute) { launchSingleTop = true } },
                     onResume = { resume() },
                 )
@@ -190,6 +191,7 @@ class MainActivity : ComponentActivity() {
         ConnectionService.stop(this)
         app.credentials.save(paired)
         app.positions.delete()
+        app.collapsed.delete()
         Desktop.clear()
         announcements = app.announcements.update { Announcements() }
         for (id in listOf(Notifications.ID_PAIR_AGAIN, Notifications.ID_IDENTITY, Notifications.ID_STOPPED)) {
@@ -218,6 +220,7 @@ class MainActivity : ComponentActivity() {
         ConnectionService.stop(this)
         app.credentials.delete()
         app.positions.delete()
+        app.collapsed.delete()
         Desktop.clear()
         announcements = app.announcements.update { Announcements() }
         app.log.write(ConnectionLog.Kind.UNPAIRED, "by" to "user")

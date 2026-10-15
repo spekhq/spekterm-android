@@ -14,15 +14,16 @@ you forward — with no relay and no push service in between.
 - **Notifications** when an agent waits for you, asks for a choice, finishes a handoff, or an inbox item
   arrives — over the app's own held connection. Tapping one about a session opens its conversation.
 - **Sessions**: the desktop's sessions by folder, with each agent's state (waiting for you, working, asks for a
-  choice) or dormant, kept live.
+  choice) or dormant, kept live. Folders can be collapsed; a collapsed folder still shows what waits for you.
+- **New sessions**: start an agent session in any of the desktop's folders, quietly, and continue in its
+  conversation on the phone.
 - **Conversations**: an agent session's messages, thinking, tool calls and results; a dormant session can be
   woken. Agent text is Markdown that loads nothing from the network.
 - **Replies**: free text to the agent while it waits or works, shown as unconfirmed until it appears in the
   conversation. A permission prompt is not answered on the phone: the app shows what is asked and says to
   answer it on the desktop.
 
-Not yet: the terminal view (shell sessions, answering prompts), the inbox, handoffs, OpenSpec browsing, and
-creating sessions.
+Not yet: the terminal view (shell sessions, answering prompts), the inbox, handoffs, and OpenSpec browsing.
 
 ## How it talks to spekterm
 

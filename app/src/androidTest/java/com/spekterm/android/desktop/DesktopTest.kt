@@ -270,4 +270,138 @@ class DesktopTest {
         delay(300)
         assertTrue(Desktop.sessions.value.list!!.sessions.any { it.id == "s1" })
     }
+
+    // ---- Starting a session (`folders-and-new-sessions` design D6–D7) ----
+
+    private fun listWith(id: String, running: Boolean) =
+        """{"window":true,"folders":[],"sessions":[{"id":"$id","folderId":null,"target":"claude","label":"N","running":$running}]}"""
+
+    /** A desktop that lists nothing and answers `sessions.create` with [onCreate]. */
+    private fun creating(onCreate: (Scripted.Req, WebSocket) -> Unit) = Scripted().apply {
+        handle = { req, ws ->
+            when (req.method) {
+                "sessions.list" -> ws.send(ok(req.id, """{"window":true,"folders":[],"sessions":[]}"""))
+                "sessions.create" -> onCreate(req, ws)
+                else -> ws.send(ok(req.id, "{}"))
+            }
+        }
+    }
+
+    private suspend fun creationUntil(predicate: (Creation?) -> Boolean): Creation? =
+        withTimeout(5_000) { Desktop.creation.first(predicate) }
+
+    @Test
+    fun anAnswerThenAListHoldingItRunningOpensIt() = runBlocking<Unit> {
+        val desktop = creating { req, ws ->
+            ws.send(ok(req.id, """{"sessionId":"n1"}"""))
+            pump.launch {
+                delay(200)
+                ws.send(evt("sessions.changed", listWith("n1", running = true)))
+            }
+        }
+        connect(desktop)
+        Desktop.setListOnScreen(true)
+        Desktop.create(null, "Global")
+        assertEquals(Creation.Opened("n1", "Global", autoOpen = true), creationUntil { it is Creation.Opened })
+        val sent = desktop.requests.single { it.method == "sessions.create" }.params
+        assertEquals(kotlinx.serialization.json.JsonNull, sent["folderId"])
+        assertEquals("claude", (sent["target"] as JsonPrimitive).content)
+    }
+
+    @Test
+    fun aListBeforeTheAnswerOpensItWithoutWaiting() = runBlocking<Unit> {
+        val desktop = creating { req, ws ->
+            ws.send(evt("sessions.changed", listWith("n1", running = true)))
+            ws.send(ok(req.id, """{"sessionId":"n1"}"""))
+        }
+        connect(desktop)
+        Desktop.createWaitMs = 60_000
+        Desktop.create("f1", "alpha")
+        assertEquals(Creation.Opened("n1", "alpha", autoOpen = false), creationUntil { it is Creation.Opened })
+    }
+
+    @Test
+    fun aListedButNotRunningSessionOpensOnlyOnceRunning() = runBlocking<Unit> {
+        val desktop = creating { req, ws ->
+            ws.send(evt("sessions.changed", listWith("n1", running = false)))
+            ws.send(ok(req.id, """{"sessionId":"n1"}"""))
+        }
+        connect(desktop)
+        Desktop.create("f1", "alpha")
+        delay(500)
+        // Waiting for its list is not a failure.
+        assertEquals(Creation.Starting("alpha"), Desktop.creation.value)
+        desktop.socket!!.send(evt("sessions.changed", listWith("n1", running = true)))
+        assertTrue(creationUntil { it is Creation.Opened } is Creation.Opened)
+    }
+
+    @Test
+    fun noListInTimeIsUnlisted() = runBlocking<Unit> {
+        val desktop = creating { req, ws -> ws.send(ok(req.id, """{"sessionId":"n1"}""")) }
+        connect(desktop)
+        Desktop.createWaitMs = 500
+        Desktop.create("f1", "alpha")
+        assertEquals(Creation.Unlisted("alpha"), creationUntil { it is Creation.Unlisted })
+    }
+
+    @Test
+    fun aDetachWhileWaitingIsUnlisted() = runBlocking<Unit> {
+        val desktop = creating { req, ws -> ws.send(ok(req.id, """{"sessionId":"n1"}""")) }
+        val connection = connect(desktop)
+        Desktop.createWaitMs = 60_000
+        Desktop.create("f1", "alpha")
+        creationUntil { it is Creation.Starting }
+        delay(300)
+        connection.cancel()
+        assertEquals(Creation.Unlisted("alpha"), creationUntil { it is Creation.Unlisted })
+    }
+
+    @Test
+    fun aDetachBeforeTheAnswerIsUnknownAndNotRetried() = runBlocking<Unit> {
+        val first = creating { _, _ -> }
+        val connection = connect(first)
+        Desktop.create("f1", "alpha")
+        withTimeout(5_000) { while (first.count("sessions.create") == 0) delay(20) }
+        connection.cancel()
+        assertEquals(Creation.Failed("alpha", Creation.Reason.UNKNOWN), creationUntil { it is Creation.Failed })
+        val second = creating { req, ws -> ws.send(ok(req.id, """{"sessionId":"n2"}""")) }
+        connect(second)
+        withTimeout(5_000) { Desktop.sessions.first { it.current } }
+        delay(500)
+        assertEquals(0, second.count("sessions.create"))
+    }
+
+    @Test
+    fun aSecondCreateWhileStartingSendsNothing() = runBlocking<Unit> {
+        val desktop = creating { _, _ -> }
+        connect(desktop)
+        Desktop.create("f1", "alpha")
+        creationUntil { it is Creation.Starting }
+        Desktop.create("f2", "beta")
+        delay(500)
+        assertEquals(1, desktop.count("sessions.create"))
+        assertEquals(Creation.Starting("alpha"), Desktop.creation.value)
+    }
+
+    @Test
+    fun clearingDuringACreateWritesNothingAfterwards() = runBlocking<Unit> {
+        var answer: (() -> Unit)? = null
+        val desktop = creating { req, ws -> answer = { ws.send(ok(req.id, """{"sessionId":"n1"}""")) } }
+        connect(desktop)
+        Desktop.create("f1", "alpha")
+        withTimeout(5_000) { while (answer == null) delay(20) }
+        Desktop.clear()
+        delay(300)
+        answer!!()
+        delay(500)
+        assertNull(Desktop.creation.value)
+    }
+
+    @Test
+    fun theDesktopsRefusalIsShownWithItsReason() = runBlocking<Unit> {
+        val desktop = creating { req, ws -> ws.send("""{"t":"res","id":${req.id},"ok":false,"e":{"code":"CREATE_FAILED","message":"folder gone"}}""") }
+        connect(desktop)
+        Desktop.create("f1", "alpha")
+        assertEquals(Creation.Failed("alpha", Creation.Reason.CREATE_FAILED, "folder gone"), creationUntil { it is Creation.Failed })
+    }
 }

@@ -212,7 +212,12 @@ private fun items(c: Conversation, now: Long): List<Item> {
 @Composable
 private fun Entries(c: Conversation?, modifier: Modifier) {
     if (c == null || (c.entries.isEmpty() && c.replies.isEmpty())) {
-        Box(modifier.fillMaxWidth()) {}
+        Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            // Delivered and empty: a new session where nothing has been said yet (design D8).
+            if (c?.phase == Phase.OK) {
+                Text("No messages yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         return
     }
     // Labels that change with time ("not in the conversation yet" after 30 s) need a clock while replies wait.

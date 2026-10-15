@@ -93,4 +93,48 @@ class SessionsViewTest {
         val back = ConversationReducer.listed(ended, list)
         assertEquals(Screen.Dormant, screen(id = "a1", conversation = back))
     }
+
+    @Test
+    fun groupsHaveKeysBranchesAndSummaries() {
+        val withBranch = list.copy(folders = listOf(Folder("f1", "alpha", branch = "feat/x"), Folder("f2", "beta")))
+        val groups = SessionsView.groups(withBranch)
+        assertEquals(listOf("global", "folder:f1", "folder:f2", "other"), groups.map { it.key })
+        assertEquals(listOf(null, "feat/x", null, null), groups.map { it.branch })
+    }
+
+    @Test
+    fun aSummaryCountsChoicesAndWaitingAgentsOnly() {
+        val many = SessionList(
+            true,
+            listOf(Folder("f1", "alpha")),
+            listOf(
+                Session("c", "f1", "claude", running = true, wait = "awaiting-choice"),
+                Session("r1", "f1", "claude", running = true, wait = "ready"),
+                Session("r2", "f1", "claude", running = true, wait = "ready"),
+                Session("d", "f1", "claude", running = false, wait = "ready"),
+                Session("sh", "f1", "shell", running = true),
+            ),
+        )
+        assertEquals(SessionsView.Summary(choice = 1, ready = 2), SessionsView.groups(many).single().summary)
+    }
+
+    @Test
+    fun choicesHoldGlobalThenEveryFolderEvenWithoutSessions() {
+        val choices = SessionsView.choices(list)
+        assertEquals(listOf(null, "f1", "f2", "empty"), choices.map { it.folderId })
+        assertEquals(listOf("Global", "alpha", "beta", "unused"), choices.map { it.name })
+    }
+
+    @Test
+    fun startingASessionNeedsAConnectedCurrentListWithAWindowAndNoStartInProgress() {
+        val current = SessionsState(list, current = true)
+        assertTrue(SessionsView.canCreate(true, false, current, null))
+        assertTrue(SessionsView.canCreate(true, false, current, Creation.Unlisted("a")))
+        assertFalse(SessionsView.canCreate(false, false, current, null))
+        assertFalse(SessionsView.canCreate(true, true, current, null))
+        assertFalse(SessionsView.canCreate(true, false, current.copy(current = false), null))
+        assertFalse(SessionsView.canCreate(true, false, SessionsState(SessionList(false, emptyList(), emptyList()), current = true), null))
+        assertFalse(SessionsView.canCreate(true, false, SessionsState(), null))
+        assertFalse(SessionsView.canCreate(true, false, current, Creation.Starting("a")))
+    }
 }

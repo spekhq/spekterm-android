@@ -231,4 +231,14 @@ class FramesTest {
         assertEquals("something.new", (unknown as ServerFrame.Event).kind)
         assertNull(Frames.decode("""{"t":"later","k":"x"}"""))
     }
+
+    @Test
+    fun sessionsCreateSendsAnExplicitNullForTheGlobalItem() {
+        val global = Frames.request(3, "sessions.create", Frames.sessionsCreate(null))
+        assertTrue(global, global.contains("\"folderId\":null"))
+        assertTrue(global.contains("\"target\":\"claude\""))
+        val p = parse(Frames.request(4, "sessions.create", Frames.sessionsCreate("f1")))["p"]!!.jsonObject
+        assertEquals("f1", p["folderId"]!!.jsonPrimitive.content)
+        assertEquals("claude", p["target"]!!.jsonPrimitive.content)
+    }
 }

@@ -136,6 +136,10 @@ data class ConversationWait(val sessionId: String, val state: String, val pendin
 @Serializable
 data class ConversationEnded(val sessionId: String, val reason: String = "")
 
+/** The answer to `sessions.create` and `sessions.wake`. */
+@Serializable
+data class CreateResult(val sessionId: String)
+
 /** The answer to `conversation.send`. */
 @Serializable
 data class SendResult(val outcome: String) {

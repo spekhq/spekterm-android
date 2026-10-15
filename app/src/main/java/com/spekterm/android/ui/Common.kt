@@ -31,9 +31,9 @@ fun TopBar(title: String, onBack: (() -> Unit)? = null, subtitle: String? = null
     }
 }
 
-/** A notice across the screen, with an optional action. */
+/** A notice across the screen, with up to two optional actions. */
 @Composable
-fun Notice(text: String, action: String? = null, onAction: () -> Unit = {}) {
+fun Notice(text: String, action: String? = null, onAction: () -> Unit = {}, second: String? = null, onSecond: () -> Unit = {}) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -45,6 +45,7 @@ fun Notice(text: String, action: String? = null, onAction: () -> Unit = {}) {
     ) {
         Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
         if (action != null) TextButton(onClick = onAction) { Text(action) }
+        if (second != null) TextButton(onClick = onSecond) { Text(second) }
     }
 }
 

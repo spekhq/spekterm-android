@@ -215,6 +215,21 @@ class PositionStore(context: Context) {
     @Synchronized fun delete() = file.delete()
 }
 
+@Serializable
+private data class StoredCollapsed(val deviceId: String, val keys: List<String>)
+
+/**
+ * The session list's collapsed groups (`session-list`, design D3), bound to the pairing like positions; keys of
+ * folders that went away are kept, so a folder that comes back is still collapsed.
+ */
+class CollapsedStore(context: Context) {
+    private val file = JsonFile(AtomicFile(File(context.noBackupFilesDir, "collapsed.json")), StoredCollapsed.serializer())
+
+    @Synchronized fun load(deviceId: String): Set<String> = file.read()?.takeIf { it.deviceId == deviceId }?.keys?.toSet() ?: emptySet()
+    @Synchronized fun save(deviceId: String, keys: Set<String>) = file.write(StoredCollapsed(deviceId, keys.sorted()))
+    @Synchronized fun delete() = file.delete()
+}
+
 /**
  * States the app announces with a notification, kept on disk so the status screen shows them even when the
  * notification permission is denied or the process ended (design D5), and whether the user paused.

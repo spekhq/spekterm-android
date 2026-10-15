@@ -35,8 +35,44 @@ object SessionsView {
 
     data class Row(val session: Session, val state: RowState)
 
-    /** [folderId] null with [global] true is the global item; null with [global] false holds unknown folders. */
-    data class Group(val folderId: String?, val name: String?, val global: Boolean, val rows: List<Row>)
+    /** How many sessions of a group need the user (design D1). */
+    data class Summary(val choice: Int, val ready: Int)
+
+    /**
+     * [folderId] null with [global] true is the global item; null with [global] false holds unknown folders.
+     * [key] identifies the group for the list and for collapsing (design D1).
+     */
+    data class Group(
+        val folderId: String?,
+        val name: String?,
+        val global: Boolean,
+        val rows: List<Row>,
+        val branch: String? = null,
+    ) {
+        val key: String = when {
+            global -> GLOBAL
+            folderId != null -> "folder:$folderId"
+            else -> OTHER
+        }
+        val summary: Summary = Summary(rows.count { it.state == RowState.CHOICE }, rows.count { it.state == RowState.READY })
+    }
+
+    /** Where a new session can be started: [folderId] null is the global item (design D5). */
+    data class Choice(val folderId: String?, val name: String, val branch: String?)
+
+    const val GLOBAL = "global"
+    const val OTHER = "other"
+
+    /** The global item, then every folder of the list in its order, with or without sessions (design D5). */
+    fun choices(list: SessionList): List<Choice> =
+        listOf(Choice(null, "Global", null)) + list.folders.map { Choice(it.id, it.name.ifEmpty { it.id }, it.branch) }
+
+    /**
+     * Whether a new session can be started now (design D5): connected, not paused, the shown list current with
+     * a window, and no start in progress.
+     */
+    fun canCreate(connected: Boolean, paused: Boolean, sessions: SessionsState, creation: Creation?): Boolean =
+        connected && !paused && sessions.current && sessions.list?.window == true && creation !is Creation.Starting
 
     fun state(session: Session): RowState = when {
         !session.running -> RowState.DORMANT
@@ -60,7 +96,8 @@ object SessionsView {
         return buildList {
             rows.filter { it.session.folderId == null }.takeIf { it.isNotEmpty() }?.let { add(Group(null, null, true, it)) }
             for (folder in list.folders) {
-                rows.filter { it.session.folderId == folder.id }.takeIf { it.isNotEmpty() }?.let { add(Group(folder.id, folder.name, false, it)) }
+                rows.filter { it.session.folderId == folder.id }.takeIf { it.isNotEmpty() }
+                    ?.let { add(Group(folder.id, folder.name, false, it, folder.branch)) }
             }
             rows.filter { it.session.folderId != null && it.session.folderId !in known }.takeIf { it.isNotEmpty() }
                 ?.let { add(Group(null, null, false, it)) }

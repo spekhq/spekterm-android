@@ -51,7 +51,10 @@ fun StatusScreen(
 
     Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         onBack?.let { TextButton(onClick = it) { Text("‹ Sessions") } }
-        Text(pairing.desktopName.ifEmpty { "spekterm" }, style = MaterialTheme.typography.headlineSmall)
+        // The app's settings: everything it lets the user set already lives here, the connection first (design D4).
+        Text("Settings", style = MaterialTheme.typography.headlineSmall)
+        Text("Connection", style = MaterialTheme.typography.titleMedium)
+        Text(pairing.desktopName.ifEmpty { "spekterm" }, style = MaterialTheme.typography.titleSmall)
         Text(stateText(status, announcements.paused, time))
         status.lastClose?.let { Text("Last disconnect: $it", style = MaterialTheme.typography.bodySmall) }
         Text("Connections this session: ${status.reconnects}", style = MaterialTheme.typography.bodySmall)
