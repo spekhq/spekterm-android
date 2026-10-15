@@ -94,4 +94,31 @@ class AttentionPolicyTest {
         val bare = event(session = null)
         assertEquals("pos:e:${bare.pos.seq}", AttentionPolicy.key(bare))
     }
+
+    @Test
+    fun aLiveEventForTheVisibleConversationCancelsAndStillStores() {
+        val e = event(session = "s1")
+        assertEquals(listOf(Action.Cancel("session:s1"), Action.Store(e.pos)), AttentionPolicy.onLive(e, visible = "s1"))
+        assertEquals(listOf(Action.Notify("session:s1", e, true), Action.Store(e.pos)), AttentionPolicy.onLive(e, visible = "s2"))
+    }
+
+    @Test
+    fun aCompleteAnswerSkipsTheVisibleConversationAndAlertsForTheNextOne() {
+        val a = event(session = "s1")
+        val b = event(session = "s2")
+        assertEquals(
+            listOf(Action.Cancel("session:s1"), Action.Notify("session:s2", b, true), Action.Store(b.pos)),
+            AttentionPolicy.onAnswer(WatchAnswer(listOf(a, b), complete = true), visible = "s1"),
+        )
+    }
+
+    @Test
+    fun anIncompleteAnswerStillCountsTheVisibleConversationInItsSummary() {
+        val a = event(session = "s1")
+        val b = event(session = "s2")
+        assertEquals(
+            listOf(Action.Cancel("session:s1"), Action.Summarize(2), Action.Store(b.pos)),
+            AttentionPolicy.onAnswer(WatchAnswer(listOf(a, b), complete = false), visible = "s1"),
+        )
+    }
 }

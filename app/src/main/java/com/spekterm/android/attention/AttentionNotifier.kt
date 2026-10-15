@@ -10,6 +10,7 @@ import com.spekterm.android.service.Notifications
 import com.spekterm.android.service.Status
 import com.spekterm.android.service.StatusBoard
 import com.spekterm.android.store.PositionStore
+import com.spekterm.android.ui.MainActivity
 
 /**
  * Carries out [AttentionPolicy] actions (design D7). One notification per key, posted with `tag = key` so keys
@@ -25,8 +26,11 @@ class AttentionNotifier(
     /** False once the owning service is stopping: nothing more is posted or stored. */
     private val alive: () -> Boolean = { true },
 ) {
-    /** [events] are the events behind [actions], for the log; [source] is `live` or `answer`. */
-    fun apply(actions: List<Action>, events: List<Attention>, source: String) {
+    /**
+     * [events] are the events behind [actions], for the log; [source] is `live` or `answer`; [visible] is the
+     * session whose conversation was on screen when the policy decided.
+     */
+    fun apply(actions: List<Action>, events: List<Attention>, source: String, visible: String? = null) {
         val receivedAt = now()
         val outcome = mutableMapOf<Attention, String>()
         for (action in actions) {
@@ -45,6 +49,7 @@ class AttentionNotifier(
         for (event in events) {
             val result = outcome[event] ?: when {
                 event.suppressed -> "suppressed"
+                visible != null && event.sessionId == visible && !summarized -> "visible"
                 summarized -> "summarized"
                 else -> "replaced"
             }
@@ -81,7 +86,8 @@ class AttentionNotifier(
             .setShowWhen(true)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .setContentIntent(Notifications.openApp(context))
+            // A session's notification opens its conversation; others open the session list (design D8).
+            .setContentIntent(event.sessionId?.let { Notifications.openSession(context, it) } ?: Notifications.openApp(context, MainActivity.ACTION_OPEN_SESSIONS))
             .setOnlyAlertOnce(!alert)
             .setSilent(!alert)
         Notifications.post(context, key, ID, builder.build())
@@ -98,7 +104,7 @@ class AttentionNotifier(
                 .setContentTitle("Agents needed you")
                 .setContentText(text)
                 .setAutoCancel(true)
-                .setContentIntent(Notifications.openApp(context))
+                .setContentIntent(Notifications.openApp(context, MainActivity.ACTION_OPEN_SESSIONS))
                 .build(),
         )
     }

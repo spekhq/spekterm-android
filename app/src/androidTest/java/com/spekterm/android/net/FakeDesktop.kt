@@ -66,6 +66,8 @@ class DesktopSocket(private val answer: (method: String, id: Long) -> String?) :
     @Volatile var socket: WebSocket? = null
     val received = mutableListOf<String>()
     var onOpen: (WebSocket) -> Unit = {}
+    /** When set, an answer holding this separator is sent as several frames, in order. */
+    var split: String? = null
 
     override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
         socket = webSocket
@@ -77,7 +79,9 @@ class DesktopSocket(private val answer: (method: String, id: Long) -> String?) :
         val frame = Frames.json.parseToJsonElement(text) as kotlinx.serialization.json.JsonObject
         val method = (frame["m"] as kotlinx.serialization.json.JsonPrimitive).content
         val id = (frame["id"] as kotlinx.serialization.json.JsonPrimitive).content.toLong()
-        answer(method, id)?.let { webSocket.send(it) }
+        val text = answer(method, id) ?: return
+        val separator = split
+        if (separator == null) webSocket.send(text) else text.split(separator).forEach { webSocket.send(it) }
     }
 
     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {

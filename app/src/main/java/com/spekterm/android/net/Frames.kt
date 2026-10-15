@@ -93,22 +93,38 @@ object Frames {
         if (after != null) put("after", json.encodeToJsonElement(after))
     }
 
+    fun sessionsWake(sessionId: String): JsonObject = buildJsonObject { put("sessionId", sessionId) }
+
+    /** `afterUuid` is omitted when nothing is held: the desktop then sends the last 400 entries, replacing. */
+    fun conversationWatch(sessionId: String, afterUuid: String?): JsonObject = buildJsonObject {
+        put("sessionId", sessionId)
+        if (afterUuid != null) put("afterUuid", afterUuid)
+    }
+
+    fun conversationSend(sessionId: String, text: String): JsonObject = buildJsonObject {
+        put("sessionId", sessionId)
+        put("text", text)
+    }
+
     /** `detail.supported` of an `UNSUPPORTED_VERSION` error: the desktop's versions. */
     fun supportedVersions(error: RemoteError): List<Int> =
         ((error.detail?.get("supported")) as? JsonArray)?.mapNotNull { it.jsonPrimitive.intOrNull } ?: emptyList()
 }
 
 sealed interface ServerFrame {
+    /** Arrival order within one connection, stamped on the reader thread; 0 before stamping (design D2). */
+    val seq: Long
+
     /**
      * `{ t: 'res', id, ok, r | e }`. [id] is `null` when the desktop could not read one, or answered before
      * any request (a throttled address: `THROTTLED` at accept time).
      */
-    data class Response(val id: Long?, val result: JsonElement?, val error: RemoteError?) : ServerFrame {
+    data class Response(val id: Long?, val result: JsonElement?, val error: RemoteError?, override val seq: Long = 0) : ServerFrame {
         val ok: Boolean get() = error == null
     }
 
     /** `{ t: 'evt', k, d }`. */
-    data class Event(val kind: String, val data: JsonElement) : ServerFrame
+    data class Event(val kind: String, val data: JsonElement, override val seq: Long = 0) : ServerFrame
 }
 
 /** `{ code, message, detail? }`. Branch on [code]; [message] is for display as a detail only. */
@@ -122,6 +138,15 @@ data class RemoteError(val code: String, val message: String = "", val detail: J
         const val THROTTLED = "THROTTLED"
         const val TOO_MANY_CONNECTIONS = "TOO_MANY_CONNECTIONS"
         const val NOT_FOUND = "NOT_FOUND"
+        const val BAD_PARAMS = "BAD_PARAMS"
+        const val UNKNOWN_OPERATION = "UNKNOWN_OPERATION"
+        const val NO_WINDOW = "NO_WINDOW"
+        const val NO_CONVERSATION = "NO_CONVERSATION"
+        const val NOT_WATCHING = "NOT_WATCHING"
+        const val WAIT_STATE = "WAIT_STATE"
+        const val CREATE_FAILED = "CREATE_FAILED"
+        const val TIMEOUT = "TIMEOUT"
+        const val INTERNAL = "INTERNAL"
     }
 }
 

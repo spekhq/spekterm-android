@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -49,6 +50,20 @@ object Notifications {
         context,
         action.hashCode(),
         Intent(context, MainActivity::class.java).setAction(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    /**
+     * Opens [sessionId]'s conversation. The session id is the intent's data, so each session's `PendingIntent` is
+     * distinct and `FLAG_UPDATE_CURRENT` never overwrites another session's (design D8).
+     */
+    fun openSession(context: Context, sessionId: String): PendingIntent = PendingIntent.getActivity(
+        context,
+        0,
+        Intent(context, MainActivity::class.java)
+            .setAction(MainActivity.ACTION_OPEN_SESSION)
+            .setData(Uri.fromParts(MainActivity.SESSION_SCHEME, sessionId, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
@@ -107,7 +122,8 @@ object Notifications {
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setAutoCancel(true)
-            .setContentIntent(openApp(context, action))
+            // Status notifications open the connection status, unless they carry their own action (resume).
+            .setContentIntent(openApp(context, action ?: MainActivity.ACTION_OPEN_STATUS))
             .build(),
     )
 }

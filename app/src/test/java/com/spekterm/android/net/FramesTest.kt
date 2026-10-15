@@ -117,4 +117,76 @@ class FramesTest {
         assertNull(Frames.decode("""{"t":"evt"}"""))
         assertNotNull(Frames.decode("""{"t":"res","id":1,"ok":false}""")) // malformed error still surfaces
     }
+
+    @Test
+    fun decodesASessionListAndSkipsAMalformedSession() {
+        val list = SessionList.decode(
+            Json.parseToJsonElement(
+                """{"window":true,"folders":[{"id":"f1","name":"repo","branch":"main","pinned":false,"hasOpenSpec":true,"extra":1}],
+                "sessions":[
+                  {"id":"s1","folderId":"f1","target":"claude","label":"A","running":true,"wait":"ready","lifecycle":"working","lineage":{"parentId":"p","title":"T"}},
+                  {"id":"s2","folderId":null,"target":"shell","label":"B","running":false},
+                  {"folderId":"f1","target":"claude"}
+                ]}""",
+            ),
+        )!!
+        assertTrue(list.window)
+        assertEquals("repo", list.folders.single().name)
+        assertEquals(listOf("s1", "s2"), list.sessions.map { it.id })
+        assertEquals("ready", list.sessions[0].wait)
+        assertEquals("working", list.sessions[0].lifecycle)
+        assertEquals("T", list.sessions[0].lineage!!.title)
+        assertNull(list.sessions[1].folderId)
+        assertFalse(list.sessions[1].isAgent)
+        assertNull(SessionList.decode(Json.parseToJsonElement("""{"sessions":[]}""")))
+    }
+
+    @Test
+    fun decodesEveryEntryKindAndSkipsAnUnknownOne() {
+        val update = ConversationUpdate.decode(
+            Json.parseToJsonElement(
+                """{"sessionId":"s1","status":"ok","truncated":true,"reset":false,"events":[
+                  {"kind":"user","uuid":"u1","at":1,"text":"hi","meta":false},
+                  {"kind":"text","uuid":"u2","at":2,"text":"**hello**"},
+                  {"kind":"thinking","uuid":"u2","at":2,"text":"hmm"},
+                  {"kind":"tool","uuid":"u2","at":2,"id":"t1","name":"Bash","arg":"ls"},
+                  {"kind":"future","uuid":"u3","at":3},
+                  {"kind":"result","uuid":"u4","at":4.0,"id":"t1","text":"out","error":true},
+                  {"kind":"user","uuid":"u5","at":5,"text":"<x>","meta":true,"newKey":1}
+                ]}""",
+            ),
+        )!!
+        assertEquals("s1", update.sessionId)
+        assertTrue(update.truncated)
+        assertFalse(update.reset)
+        assertEquals(6, update.events.size)
+        assertEquals(Entry.User("u1", 1, "hi", false), update.events[0])
+        assertEquals(Entry.Tool("u2", 2, "t1", "Bash", "ls"), update.events[3])
+        assertEquals(Entry.Result("u4", 4, "t1", "out", true), update.events[4])
+        assertTrue((update.events[5] as Entry.User).meta)
+    }
+
+    @Test
+    fun decodesWaitEndedAndSendResult() {
+        val wait = Frames.decodeOrNull<ConversationWait>(
+            Json.parseToJsonElement("""{"sessionId":"s1","state":"awaiting-choice","pending":{"tool":"Bash","arg":"touch /tmp/x"}}"""),
+        )!!
+        assertEquals("awaiting-choice", WaitState.of(wait.state))
+        assertEquals(Pending("Bash", "touch /tmp/x"), wait.pending)
+        assertNull(Frames.decodeOrNull<ConversationWait>(Json.parseToJsonElement("""{"sessionId":"s1","state":"ready","pending":null}"""))!!.pending)
+        assertEquals(WaitState.UNKNOWN, WaitState.of("something-new"))
+        assertEquals("window", Frames.decodeOrNull<ConversationEnded>(Json.parseToJsonElement("""{"sessionId":"s1","reason":"window"}"""))!!.reason)
+        assertEquals(SendResult.FILLED_NOT_SUBMITTED, Frames.decodeOrNull<SendResult>(Json.parseToJsonElement("""{"outcome":"filled-not-submitted"}"""))!!.outcome)
+    }
+
+    @Test
+    fun encodesTheConversationPayloads() {
+        val watch = parse(Frames.request(1, "conversation.watch", Frames.conversationWatch("s1", null)))["p"]!!.jsonObject
+        assertEquals(setOf("sessionId"), watch.keys)
+        val resume = parse(Frames.request(1, "conversation.watch", Frames.conversationWatch("s1", "u9")))["p"]!!.jsonObject
+        assertEquals("u9", resume["afterUuid"]!!.jsonPrimitive.content)
+        val send = parse(Frames.request(1, "conversation.send", Frames.conversationSend("s1", "a\nb")))["p"]!!.jsonObject
+        assertEquals("a\nb", send["text"]!!.jsonPrimitive.content)
+        assertEquals("s1", parse(Frames.request(1, "sessions.wake", Frames.sessionsWake("s1")))["p"]!!.jsonObject["sessionId"]!!.jsonPrimitive.content)
+    }
 }

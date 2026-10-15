@@ -41,6 +41,7 @@ fun StatusScreen(
     onResume: () -> Unit,
     onUnpair: () -> Unit,
     onPairAgain: () -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val status by StatusBoard.status.collectAsStateWithLifecycle()
@@ -49,6 +50,7 @@ fun StatusScreen(
     val batteryExempt = context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
 
     Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        onBack?.let { TextButton(onClick = it) { Text("‹ Sessions") } }
         Text(pairing.desktopName.ifEmpty { "spekterm" }, style = MaterialTheme.typography.headlineSmall)
         Text(stateText(status, announcements.paused, time))
         status.lastClose?.let { Text("Last disconnect: $it", style = MaterialTheme.typography.bodySmall) }

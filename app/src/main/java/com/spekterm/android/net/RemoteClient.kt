@@ -92,6 +92,7 @@ class ConnectionClosedException(val info: CloseInfo) : IOException("connection c
 
 class RemoteConnection internal constructor() {
     private val nextId = AtomicLong(1)
+    private val arrivals = AtomicLong(0)
     private val pending = ConcurrentHashMap<Long, CompletableDeferred<ServerFrame.Response>>()
     @Volatile private var socket: WebSocket? = null
     @Volatile private var unsolicitedError: RemoteError? = null
@@ -168,12 +169,14 @@ class RemoteConnection internal constructor() {
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            // OkHttp delivers messages on one reader thread, in wire order: the stamp is that order (design D2).
+            val seq = arrivals.incrementAndGet()
             when (val frame = Frames.decode(text)) {
                 is ServerFrame.Response -> {
                     val waiter = frame.id?.let { pending.remove(it) }
-                    if (waiter != null) waiter.complete(frame) else if (frame.error != null) unsolicitedError = frame.error
+                    if (waiter != null) waiter.complete(frame.copy(seq = seq)) else if (frame.error != null) unsolicitedError = frame.error
                 }
-                is ServerFrame.Event -> events.trySend(frame)
+                is ServerFrame.Event -> events.trySend(frame.copy(seq = seq))
                 null -> Unit
             }
         }

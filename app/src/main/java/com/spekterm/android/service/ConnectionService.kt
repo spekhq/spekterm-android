@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import com.spekterm.android.app
 import com.spekterm.android.attention.AttentionNotifier
 import com.spekterm.android.attention.AttentionPolicy
+import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.log.ConnectionLog.Kind
 import com.spekterm.android.net.Attention
 import com.spekterm.android.net.CloseInfo
@@ -38,12 +39,14 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -236,6 +239,7 @@ class ConnectionService : Service() {
     /** One authenticated connection, from `hello` to its end. Returns how it ended and `hello`'s error, if any. */
     private suspend fun session(connection: RemoteConnection, pairing: Pairing, address: String): Pair<CloseInfo, RemoteError?> {
         current = connection
+        var attached = false
         try {
             val hello = connection.call("hello", Frames.hello(pairing.deviceId, pairing.deviceSecret))
             if (!hello.ok) {
@@ -259,7 +263,8 @@ class ConnectionService : Service() {
             }
             val notifier = AttentionNotifier(this, pairing.deviceId, app.positions, log, alive = ::alive)
             val answer = watchAnswer(watch.result)
-            notifier.apply(AttentionPolicy.onAnswer(answer), answer.events, "answer")
+            val visibleAtAnswer = Desktop.visibleSession
+            notifier.apply(AttentionPolicy.onAnswer(answer, visibleAtAnswer), answer.events, "answer", visibleAtAnswer)
             log.write(Kind.WATCHING, "events" to answer.events.size, "complete" to answer.complete)
             backoff.reset()
             if (alive()) {
@@ -271,16 +276,24 @@ class ConnectionService : Service() {
                 }
             }
             refreshOngoing()
+            attached = true
+            Desktop.attach(connection)
             for (event in connection.events) {
-                if (event.kind != "attention") continue
+                if (event.kind != "attention") {
+                    // Sessions and the watched conversation (`session-conversation`), in arrival order.
+                    Desktop.onEvent(connection, event)
+                    continue
+                }
                 val attention = Frames.decodeOrNull<Attention>(event.data) ?: continue
-                notifier.apply(AttentionPolicy.onLive(attention), listOf(attention), "live")
+                val visible = Desktop.visibleSession
+                notifier.apply(AttentionPolicy.onLive(attention, visible), listOf(attention), "live", visible)
             }
             return connection.closed.await() to null
         } catch (_: ConnectionClosedException) {
             return connection.closed.await() to null
         } finally {
             current = null
+            if (attached) withContext(NonCancellable) { Desktop.detach(connection) }
         }
     }
 
@@ -305,6 +318,7 @@ class ConnectionService : Service() {
         if (app.credentials.deleteIf(pairing.deviceId)) {
             log.write(Kind.UNPAIRED)
             app.positions.delete()
+            Desktop.clear()
             app.announcements.update { it.copy(pairAgain = true, identityChanged = false) }
             Notifications.status(this, Notifications.ID_PAIR_AGAIN, "Pair again with $desktopName", "The desktop no longer accepts this phone. Scan a new pairing code.")
         }

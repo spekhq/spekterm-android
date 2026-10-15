@@ -2,6 +2,7 @@ package com.spekterm.android
 
 import android.app.Application
 import kotlinx.coroutines.flow.MutableStateFlow
+import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.log.ConnectionLog
 import com.spekterm.android.service.Notifications
 import com.spekterm.android.store.AnnouncementStore
@@ -27,6 +28,7 @@ class App : Application() {
         positions = PositionStore(this)
         announcements = AnnouncementStore(this) { changes.value++ }
         log = ConnectionLog.forApp(this)
+        Desktop.log = { kind, fields -> log.write(kind, *fields) }
         Notifications.createChannels(this)
     }
 }

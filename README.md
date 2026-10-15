@@ -4,8 +4,25 @@ The companion Android app for [spekterm](https://github.com/spekhq/spekterm), th
 workbench. It connects **directly** to a spekterm you have paired with — over your LAN, Tailscale, or a port
 you forward — with no relay and no push service in between.
 
-**Status: in development.** A validation spike (pairing, a held connection, attention notifications) is being
-tested on a real phone; nothing is published yet. Findings: [`docs/spike-findings.md`](docs/spike-findings.md).
+**Status: in development.** Nothing is published yet. Findings from the phone tests:
+[`docs/spike-findings.md`](docs/spike-findings.md) (connection) and
+[`docs/conversation-findings.md`](docs/conversation-findings.md) (sessions and conversations).
+
+## What it does
+
+- **Pairing** by scanning the desktop's pairing QR code, or pasting its link.
+- **Notifications** when an agent waits for you, asks for a choice, finishes a handoff, or an inbox item
+  arrives — over the app's own held connection. Tapping one about a session opens its conversation.
+- **Sessions**: the desktop's sessions by folder, with each agent's state (waiting for you, working, asks for a
+  choice) or dormant, kept live.
+- **Conversations**: an agent session's messages, thinking, tool calls and results; a dormant session can be
+  woken. Agent text is Markdown that loads nothing from the network.
+- **Replies**: free text to the agent while it waits or works, shown as unconfirmed until it appears in the
+  conversation. A permission prompt is not answered on the phone: the app shows what is asked and says to
+  answer it on the desktop.
+
+Not yet: the terminal view (shell sessions, answering prompts), the inbox, handoffs, OpenSpec browsing, and
+creating sessions.
 
 ## How it talks to spekterm
 

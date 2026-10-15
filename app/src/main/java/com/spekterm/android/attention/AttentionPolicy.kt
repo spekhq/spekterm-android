@@ -23,19 +23,28 @@ object AttentionPolicy {
         data class Store(val position: Position) : Action
     }
 
+    /** The notification key of a session's events. */
+    fun sessionKey(sessionId: String) = "session:$sessionId"
+
     /** A session's events replace each other; inbox items are keyed by item; anything else by position. */
     fun key(event: Attention): String = when {
-        event.sessionId != null -> "session:${event.sessionId}"
+        event.sessionId != null -> sessionKey(event.sessionId)
         event.intake != null -> "intake:${event.intake.adapter}:${event.intake.id}"
         else -> "pos:${event.pos.epoch}:${event.pos.seq}"
     }
 
-    fun onLive(event: Attention): List<Action> = listOf(
-        if (event.suppressed) Action.Cancel(key(event)) else Action.Notify(key(event), event, alert = true),
+    /**
+     * Whether no notification is raised for [event]: the desktop suppressed it, or its conversation is [visible]
+     * on the phone (`attention-notifications`, design D8 of `session-conversation`).
+     */
+    fun quiet(event: Attention, visible: String?): Boolean = event.suppressed || (visible != null && event.sessionId == visible)
+
+    fun onLive(event: Attention, visible: String? = null): List<Action> = listOf(
+        if (quiet(event, visible)) Action.Cancel(key(event)) else Action.Notify(key(event), event, alert = true),
         Action.Store(event.pos),
     )
 
-    fun onAnswer(answer: WatchAnswer): List<Action> {
+    fun onAnswer(answer: WatchAnswer, visible: String? = null): List<Action> {
         if (answer.events.isEmpty()) return emptyList()
         // Only each key's latest event: Android silently drops bursts of updates to one notification, which
         // could leave a stale `choice` showing over the `waiting` that followed it.
@@ -49,7 +58,7 @@ object AttentionPolicy {
         if (answer.complete) {
             var alerted = false
             for ((key, event) in latest) {
-                if (event.suppressed) {
+                if (quiet(event, visible)) {
                     actions += Action.Cancel(key)
                 } else {
                     actions += Action.Notify(key, event, alert = !alerted)
@@ -57,7 +66,8 @@ object AttentionPolicy {
                 }
             }
         } else {
-            for ((key, event) in latest) if (event.suppressed) actions += Action.Cancel(key)
+            for ((key, event) in latest) if (quiet(event, visible)) actions += Action.Cancel(key)
+            // The summary counts what the desktop did not suppress, visible conversation included (the spike's rule).
             val unsuppressed = answer.events.count { !it.suppressed }
             if (unsuppressed > 0) actions += Action.Summarize(unsuppressed)
         }

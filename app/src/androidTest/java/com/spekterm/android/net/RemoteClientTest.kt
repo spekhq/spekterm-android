@@ -7,6 +7,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -90,5 +91,28 @@ class RemoteClientTest {
         assertEquals(listOf(2), Frames.supportedVersions(answer.error))
         connection.close()
         withTimeout(5_000) { connection.closed.await() }
+    }
+
+    @Test
+    fun stampsAnswersAndEventsInWireOrder() = runBlocking<Unit> {
+        val desktop = DesktopSocket { method, id ->
+            if (method == "sessions.list") {
+                // An event, the answer, and another event, written back to back (design D2).
+                """{"t":"evt","k":"sessions.changed","d":{"window":true,"folders":[],"sessions":[]}}""" + "\u0000" +
+                    """{"t":"res","id":$id,"ok":true,"r":{"window":true,"folders":[],"sessions":[]}}""" + "\u0000" +
+                    """{"t":"evt","k":"sessions.changed","d":{"window":false,"folders":[],"sessions":[]}}"""
+            } else {
+                null
+            }
+        }
+        desktop.split = "\u0000"
+        server.enqueue(desktop.response())
+        val connection = open()
+        val answer = connection.call("sessions.list")
+        val first = withTimeout(5_000) { connection.events.receive() }
+        val second = withTimeout(5_000) { connection.events.receive() }
+        assertTrue(first.seq < answer.seq)
+        assertTrue(answer.seq < second.seq)
+        connection.close()
     }
 }

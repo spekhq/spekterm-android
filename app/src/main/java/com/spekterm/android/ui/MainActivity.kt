@@ -15,11 +15,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.spekterm.android.app
+import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.log.ConnectionLog
 import com.spekterm.android.service.ConnectionService
 import com.spekterm.android.service.Notifications
@@ -29,14 +32,39 @@ import com.spekterm.android.store.StoreUnavailableException
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 
-/** Two screens: pairing when nothing is paired, status otherwise (design D8). */
+/** Where an intent asks the paired app to go (`session-conversation` design D8). */
+private sealed interface Nav {
+    data class Conversation(val sessionId: String) : Nav
+
+    data object Sessions : Nav
+
+    data object Status : Nav
+}
+
+@Serializable private data object SessionsRoute
+
+@Serializable private data class ConversationRoute(val sessionId: String)
+
+@Serializable private data object StatusRoute
+
+/**
+ * Pairing when nothing is paired (outside the navigation graph); otherwise the session list, a session's
+ * conversation, and the connection status (`session-conversation` design D8).
+ */
 class MainActivity : ComponentActivity() {
     private var pairing by mutableStateOf<Pairing?>(null)
     private var announcements by mutableStateOf(Announcements())
     /** Pairing again while paired: the current pairing stays until the new one succeeds (`device-pairing`). */
     private var repairing by mutableStateOf(false)
+    /** Set by an intent (a notification tap), consumed by the navigation graph. */
+    private var pendingNav by mutableStateOf<Nav?>(null)
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,17 +88,62 @@ class MainActivity : ComponentActivity() {
                             onCancel = if (current != null) ({ repairing = false }) else null,
                         )
                     } else {
-                        StatusScreen(
-                            pairing = current,
-                            announcements = announcements,
-                            onAnnouncements = { change -> announcements = app.announcements.update(change) },
-                            onPause = { pause() },
-                            onResume = { resume() },
-                            onUnpair = { unpair() },
-                            onPairAgain = { repairing = true },
-                        )
+                        Paired(current)
                     }
                 }
+            }
+        }
+    }
+
+    @Composable
+    private fun Paired(pairing: Pairing) {
+        val nav = rememberNavController()
+        val target = pendingNav
+        LaunchedEffect(target) {
+            when (target) {
+                null -> return@LaunchedEffect
+                // Over the session list, replacing any conversation already open.
+                is Nav.Conversation -> nav.navigate(ConversationRoute(target.sessionId)) { popUpTo<SessionsRoute>() }
+                Nav.Sessions -> nav.popBackStack<SessionsRoute>(inclusive = false)
+                Nav.Status -> nav.navigate(StatusRoute) {
+                    popUpTo<SessionsRoute>()
+                    launchSingleTop = true
+                }
+            }
+            pendingNav = null
+        }
+        val desktopName = pairing.desktopName.ifEmpty { "spekterm" }
+        NavHost(nav, startDestination = SessionsRoute) {
+            composable<SessionsRoute> {
+                SessionsScreen(
+                    desktopName = desktopName,
+                    announcements = announcements,
+                    onOpen = { nav.navigate(ConversationRoute(it.id)) },
+                    onStatus = { nav.navigate(StatusRoute) { launchSingleTop = true } },
+                    onResume = { resume() },
+                )
+            }
+            composable<ConversationRoute> { entry ->
+                ConversationScreen(
+                    sessionId = entry.toRoute<ConversationRoute>().sessionId,
+                    owner = entry.id,
+                    announcements = announcements,
+                    onBack = { nav.popBackStack() },
+                    onStatus = { nav.navigate(StatusRoute) { launchSingleTop = true } },
+                    onResume = { resume() },
+                )
+            }
+            composable<StatusRoute> {
+                StatusScreen(
+                    pairing = pairing,
+                    announcements = announcements,
+                    onAnnouncements = { change -> announcements = app.announcements.update(change) },
+                    onPause = { pause() },
+                    onResume = { resume() },
+                    onUnpair = { unpair() },
+                    onPairAgain = { repairing = true },
+                    onBack = { nav.popBackStack() },
+                )
             }
         }
     }
@@ -88,10 +161,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handle(intent: Intent?) {
-        if (intent?.action == ACTION_RESUME) {
-            app.announcements.update { it.copy(paused = false, connectionStopped = false) }
-            intent.action = null
+        when (intent?.action) {
+            ACTION_RESUME -> {
+                app.announcements.update { it.copy(paused = false, connectionStopped = false) }
+                pendingNav = Nav.Sessions
+            }
+            ACTION_OPEN_SESSION -> intent.data?.takeIf { it.scheme == SESSION_SCHEME }?.schemeSpecificPart?.let { pendingNav = Nav.Conversation(it) }
+            ACTION_OPEN_SESSIONS -> pendingNav = Nav.Sessions
+            ACTION_OPEN_STATUS -> pendingNav = Nav.Status
+            else -> return
         }
+        // Handled once: returning from recents must not navigate again.
+        intent.action = null
     }
 
     private fun reload() {
@@ -109,6 +190,7 @@ class MainActivity : ComponentActivity() {
         ConnectionService.stop(this)
         app.credentials.save(paired)
         app.positions.delete()
+        Desktop.clear()
         announcements = app.announcements.update { Announcements() }
         for (id in listOf(Notifications.ID_PAIR_AGAIN, Notifications.ID_IDENTITY, Notifications.ID_STOPPED)) {
             Notifications.cancel(this, Notifications.TAG_STATUS, id)
@@ -136,6 +218,7 @@ class MainActivity : ComponentActivity() {
         ConnectionService.stop(this)
         app.credentials.delete()
         app.positions.delete()
+        Desktop.clear()
         announcements = app.announcements.update { Announcements() }
         app.log.write(ConnectionLog.Kind.UNPAIRED, "by" to "user")
         pairing = null
@@ -143,5 +226,9 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val ACTION_RESUME = "com.spekterm.android.RESUME"
+        const val ACTION_OPEN_SESSION = "com.spekterm.android.OPEN_SESSION"
+        const val ACTION_OPEN_SESSIONS = "com.spekterm.android.OPEN_SESSIONS"
+        const val ACTION_OPEN_STATUS = "com.spekterm.android.OPEN_STATUS"
+        const val SESSION_SCHEME = "spekterm-session"
     }
 }

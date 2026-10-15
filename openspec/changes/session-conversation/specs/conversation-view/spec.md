@@ -45,7 +45,8 @@ reports, and SHALL disappear when the agent stops working.
 
 Agent and user text MAY be rendered as Markdown, but rendering SHALL NOT fetch anything over the network:
 images SHALL NOT be loaded, and nothing in the text SHALL cause a request without the user acting. HTML in the
-text SHALL NOT be rendered as HTML. A link SHALL open only when the user taps it, only for `http` and `https`
+text SHALL NOT be rendered as HTML, and SHALL NOT be dropped either: tags and HTML blocks SHALL be shown as the
+text they are. A link SHALL open only when the user taps it, only for `http` and `https`
 addresses, and only in a separate browser; links of any other scheme SHALL do nothing. Tool arguments, thinking
 and tool results SHALL be shown as plain text.
 
@@ -53,6 +54,12 @@ and tool results SHALL be shown as plain text.
 
 - **WHEN** an agent message contains a Markdown image pointing to a web address
 - **THEN** the phone makes no request to that address
+
+#### Scenario: Angle brackets in agent text
+
+- **WHEN** an agent message mentions `Vec<T>`, or a user entry holds a slash command recorded as
+  `<command-name>/opsx:continue</command-name>`
+- **THEN** the text shows those characters as written, and nothing of it is missing
 
 #### Scenario: A link of another scheme
 
@@ -93,14 +100,28 @@ visible again, or the connection returns while it is visible, the app SHALL watc
 holds, so that it receives only the entries it missed, none repeated and none lost; when the desktop can no
 longer resume from that entry, the app SHALL replace what it holds with what the desktop sends. When the
 desktop replaces the conversation (for example, the user cleared it in the agent), the app SHALL replace what
-it holds. Conversation content SHALL be held in memory only: never written to the phone's storage, the
-connection log, or a notification.
+it holds. Entries delivered again after a resume SHALL NOT be shown twice. Whether older entries are not shown
+SHALL be judged from the desktop's replacing deliveries and from what the phone itself dropped, not from
+appended ones. The app SHALL NOT write conversation content — entries, replies or drafts — to the phone's
+storage, the connection log, or a notification; it holds them in memory only.
 
 #### Scenario: Wi-Fi drops while reading
 
 - **WHEN** the phone loses its connection while a conversation is on screen, the agent writes two messages,
   and the connection returns
 - **THEN** both messages appear once, in order, and no earlier entry is repeated
+
+#### Scenario: Leaving and returning quickly
+
+- **WHEN** the user turns the screen off and on again while a conversation is open, and the agent writes a
+  message meanwhile
+- **THEN** every entry is shown once, and the new message appears
+
+#### Scenario: A long conversation grows
+
+- **WHEN** the desktop delivered a conversation whose older entries were not loaded, and the agent then writes
+  a message
+- **THEN** the screen still says older entries are not shown
 
 #### Scenario: Leaving the screen stops watching
 
@@ -109,9 +130,9 @@ connection log, or a notification.
 
 #### Scenario: The desktop's window reloads
 
-- **WHEN** the desktop's window reloads while a conversation is on screen
-- **THEN** the screen says the desktop's window went away, and when the desktop lists the session as running
-  again the conversation resumes without the user doing anything
+- **WHEN** the desktop's window reloads while a conversation is on screen, which stops the session
+- **THEN** the screen says the desktop's window went away, then shows the session as dormant with a way to wake
+  it, and after waking the conversation resumes from where it was
 
 ### Requirement: A dormant session shows as dormant and can be woken
 
@@ -119,8 +140,13 @@ A session that is not running SHALL be shown as dormant, with a way to wake it, 
 empty conversation. Waking SHALL start the session on the desktop without taking over the desktop's display;
 once the desktop reports it running, its conversation SHALL be shown. When waking fails, the screen SHALL say
 why: the desktop has no open window, the desktop could not start the session (with the desktop's reason), the
-desktop did not answer in time, or the session no longer exists. A session that is closed on the desktop while
-its conversation is open SHALL be shown as closed.
+desktop did not answer in time, or the session no longer exists. A watched session that stops running — put
+to sleep, or its process ended — SHALL be shown as dormant, and its conversation SHALL be watched again once it
+runs. A session that is closed on the desktop while its conversation is open SHALL be shown as closed, judged only from the desktop's current list; while
+the desktop has no open window it lists no sessions, and that SHALL NOT be taken for the session being closed.
+Once the desktop has a window again, the screen SHALL show the session as its list does.
+When several of these hold, the screen SHALL say first that the phone is not connected, then that the desktop
+has no open window, then that the session was closed, then that it is dormant.
 
 #### Scenario: Waking a dormant session
 
@@ -137,37 +163,18 @@ its conversation is open SHALL be shown as closed.
 - **WHEN** the user wakes a session while the desktop has no open window
 - **THEN** the screen says spekterm has no open window on the desktop
 
-### Requirement: A session's notification opens its conversation
+#### Scenario: The session is hibernated while being read
 
-Tapping an attention notification about a session SHALL open that session's conversation, with the session list
-behind it. Notifications about different sessions SHALL each open their own session. Notifications not about a
-session (a new inbox item, a summary of missed events) SHALL open the session list. This refines where the app
-opens; tapping a notification still opens the app (`attention-notifications`).
+- **WHEN** the user hibernates a session on the desktop while its conversation is on the phone's screen, and
+  then wakes it
+- **THEN** the phone shows the session as dormant, and then shows its conversation again, new entries included
 
-#### Scenario: Tapping a waiting notification
+#### Scenario: Closed on the desktop
 
-- **WHEN** the user taps the notification saying an agent is waiting for input
-- **THEN** that session's conversation opens, and going back shows the session list
+- **WHEN** the user closes a session on the desktop while its conversation is on the phone's screen
+- **THEN** the phone says the session was closed on the desktop
 
-#### Scenario: Two sessions' notifications
+#### Scenario: The desktop's window closes
 
-- **WHEN** two sessions have notifications and the user taps the older one
-- **THEN** the conversation of that older notification's session opens
-
-### Requirement: No notification for the conversation on screen
-
-While a session's conversation is visible on the phone, the app SHALL raise no attention notification for that
-session, and SHALL remove any it shows for that session when the conversation becomes visible; it SHALL still
-record the event as handled, as for a suppressed event (`attention-notifications`). Once the conversation is no
-longer visible, notifications for that session SHALL resume.
-
-#### Scenario: The agent finishes while the user reads
-
-- **WHEN** an agent finishes its turn while its conversation is visible on the phone
-- **THEN** the phone raises no notification for it
-
-#### Scenario: Opening a conversation clears its notification
-
-- **WHEN** the user opens a session's conversation from the session list while a notification for that session
-  is shown
-- **THEN** that notification is removed
+- **WHEN** the desktop's window closes while a conversation is on the phone's screen
+- **THEN** the phone says spekterm has no open window on the desktop, not that the session was closed

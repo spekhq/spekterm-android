@@ -62,6 +62,8 @@ class ConnectionLog(
         SERVICE_START, SERVICE_STOP, ATTEMPT, PIN_MISMATCH, UNREACHABLE, AUTHENTICATED, WATCHING, DISCONNECTED,
         BACKOFF, NETWORK, IDLE_MODE, POWER_SAVE, ATTENTION, UNPAIRED, PAUSED, RESUMED, RESTART_REFUSED,
         STORE_UNAVAILABLE, ERROR,
+        // `session-conversation`: codes and outcomes of the desktop requests, never text or labels.
+        LIST, CONVERSATION, WAKE, SEND,
     }
 
     companion object {

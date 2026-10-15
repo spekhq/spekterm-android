@@ -53,7 +53,10 @@ SHALL also show its handoff state.
 The session list SHALL say, instead of presenting the list as current:
 
 - that the phone is not connected to the desktop, while it is not — keeping the last list received, marked
-  with when it was received, or saying that no list has been received yet;
+  with when it was received, or saying that no list has been received yet — together with the reason the
+  connection status knows (connecting or waiting to retry, remote access off or the desktop quit, the
+  desktop's identity changed, a version the other side does not support, the connection stopped) and a way to
+  the connection status screen;
 - that the user paused the connection, with a way to resume it;
 - that the desktop has no open window and so lists no sessions, when the desktop reports none.
 
@@ -61,6 +64,16 @@ The session list SHALL say, instead of presenting the list as current:
 
 - **WHEN** the phone loses its connection while the session list is on screen
 - **THEN** the screen says the phone is not connected and that the list is the one received at that time
+
+#### Scenario: Remote access turned off
+
+- **WHEN** the user turns remote access off on the desktop while the session list is on screen
+- **THEN** the screen says remote access is off or the desktop quit, and offers the connection status
+
+#### Scenario: Reconnected
+
+- **WHEN** the phone reconnects after being disconnected while the desktop's sessions changed
+- **THEN** the list shows the desktop's current sessions and no longer says it is not current
 
 #### Scenario: Paused
 
