@@ -5,7 +5,7 @@ is still unverified. Test phone: Google Pixel 7, Android 17 (API 37), build CP3A
 Wi-Fi as the desktop (192.168.50.0/24), no Tailscale on the phone. Desktop: spekterm run from
 source (`npm run dev`, profile `~/.config/spekterm-dev`) on the maintainer's Linux machine.
 
-Status: **complete** for this change. The overnight run (task 6.4) was not done: the user deferred it on 2026-10-15,
+Status: **complete** for this change. The overnight run was taken out of this change on 2026-10-15, to be run later,
 so question 2 is answered only for forced idle (see below).
 
 ## 1. Does the phone accept spekterm's certificate when pinned by fingerprint?
@@ -47,9 +47,9 @@ time minus the desktop's `at`; corrected delays below subtract the offset.
 
 Forced idle is not a night: the overnight run below is what counts.
 
-### Overnight run (6.4)
+### Overnight run (not run)
 
-**Not run.** The user deferred it on 2026-10-15 ("過夜測試我覺得沒什麼好測的 這個之後再說吧"). The tools for
+**Not run.** The user took it out of this change on 2026-10-15, to be run later ("過夜測試我覺得沒什麼好測的 這個之後再說吧"). The tools for
 it remain: `tools/drop-intake.mjs --every 30` drops an inbox item every 30 minutes, and `tools/analyze-log.mjs`
 summarizes the exported connection log (`--offset-ms` corrects the clock offset). Before the run, reset
 `dumpsys batterystats`; after it, collect the report.
@@ -179,7 +179,7 @@ change for spekterm and a separate change here.
 - Whether a sticky restart is refused on other Android versions or after a vendor's kill: on the Pixel 7
   (Android 17) it was allowed, in the background, with battery optimization on.
 - Whether OkHttp's ping timer adds wake-ups while the CPU sleeps, and the battery cost of the held connection —
-  not measured: the overnight run (6.4) was deferred.
+  not measured: the overnight run was taken out of this change.
 - Whether Conscrypt wraps a plain `X509TrustManager` with its own endpoint identification — not tested; the app
   implements `X509ExtendedTrustManager`, which makes the question moot for it.
 - Android's notification update rate limit and per-app cap (about 5 per second, about 50) — from memory of
