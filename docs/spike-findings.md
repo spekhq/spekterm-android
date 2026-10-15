@@ -5,7 +5,8 @@ is still unverified. Test phone: Google Pixel 7, Android 17 (API 37), build CP3A
 Wi-Fi as the desktop (192.168.50.0/24), no Tailscale on the phone. Desktop: spekterm run from
 source (`npm run dev`, profile `~/.config/spekterm-dev`) on the maintainer's Linux machine.
 
-Status: **in progress** — sections marked _pending_ are filled in as the runs happen.
+Status: **complete** for this change. The overnight run (task 6.4) was not done: the user deferred it on 2026-10-15,
+so question 2 is answered only for forced idle (see below).
 
 ## 1. Does the phone accept spekterm's certificate when pinned by fingerprint?
 
@@ -48,18 +49,16 @@ Forced idle is not a night: the overnight run below is what counts.
 
 ### Overnight run (6.4)
 
-_pending_.
+**Not run.** The user deferred it on 2026-10-15 ("過夜測試我覺得沒什麼好測的 這個之後再說吧"). The tools for
+it remain: `tools/drop-intake.mjs --every 30` drops an inbox item every 30 minutes, and `tools/analyze-log.mjs`
+summarizes the exported connection log (`--offset-ms` corrects the clock offset). Before the run, reset
+`dumpsys batterystats`; after it, collect the report.
 
-| Measure | Value |
-|---|---|
-| Android version / security patch | _pending_ |
-| Time connected over the night | _pending_ |
-| Disconnections and causes | _pending_ |
-| Reconnection times | _pending_ |
-| Delivery delay per inbox item (receive time − `at`) | _pending_ |
-| Every item notified? | _pending_ |
-| Battery used overall, app's share, wake-ups | _pending_ |
-| Clock offsets (desktop `chronyc tracking`, phone automatic time) | _pending_ |
+**Answer: partly.** The held connection survived forced deep Doze and the `rare` and `restricted` standby buckets,
+with inbox items delivered within about a second. A sticky restart after a kill was allowed in the background. The
+connection also came back by itself after network changes, a desktop restart and a reboot (scenario table below).
+**Not answered, because the overnight run was not done:** whether the connection holds through a real night of
+idle maintenance windows, what it costs in battery, and whether OkHttp's 30-second ping adds wake-ups.
 
 ## 3. Which foreground service type, and what does Google Play need?
 
@@ -112,8 +111,7 @@ the desktop's notifications, with a persistent notification that can pause it.
 
 ## Scenario outcomes (6.2)
 
-Every scenario of the three specs, run on the Pixel 7 against spekterm from source. _pending_ rows are still to
-run.
+Every scenario of the three specs, run on the Pixel 7 against spekterm from source.
 
 | Scenario | Outcome |
 |---|---|
@@ -180,12 +178,13 @@ change for spekterm and a separate change here.
 - Whether Google Play accepts `specialUse` for this use — only the first upload can tell.
 - Whether a sticky restart is refused on other Android versions or after a vendor's kill: on the Pixel 7
   (Android 17) it was allowed, in the background, with battery optimization on.
-- Whether OkHttp's ping timer adds wake-ups while the CPU sleeps — _pending_ (6.4, batterystats).
+- Whether OkHttp's ping timer adds wake-ups while the CPU sleeps, and the battery cost of the held connection —
+  not measured: the overnight run (6.4) was deferred.
 - Whether Conscrypt wraps a plain `X509TrustManager` with its own endpoint identification — not tested; the app
   implements `X509ExtendedTrustManager`, which makes the question moot for it.
 - Android's notification update rate limit and per-app cap (about 5 per second, about 50) — from memory of
   `NotificationManagerService`, not checked; the app coalesces replays regardless.
 - Behavior on API levels other than the Pixel 7's — only one phone is tested.
 - Backoff waits run on a monotonic clock that stops while the CPU sleeps, so in Doze a wait can stretch past its
-  nominal length; "reconnects within one backoff cap" is a property of an awake phone. The overnight log shows
-  how long reconnections actually took.
+  nominal length; "reconnects within one backoff cap" is a property of an awake phone. How long reconnections take
+  overnight is not measured.
