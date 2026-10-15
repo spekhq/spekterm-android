@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.DropdownMenu
@@ -153,7 +155,10 @@ fun SessionsScreen(
             for (group in groups) {
                 val folded = group.key in collapsed
                 stickyHeader(key = "group:${group.key}") {
-                    GroupHeading(group, folded) { setCollapsed(if (folded) collapsed - group.key else collapsed + group.key) }
+                    Column {
+                        GroupHeading(group, folded) { setCollapsed(if (folded) collapsed - group.key else collapsed + group.key) }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
                 }
                 if (!folded) {
                     items(group.rows, key = { "session:${it.session.id}" }) { row ->
@@ -227,31 +232,34 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onToggle: (
             .heightIn(min = 48.dp)
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(if (folded) "▸" else "▾", style = MaterialTheme.typography.titleSmall)
-            Text(
-                when {
-                    group.global -> "Global"
-                    group.name != null -> group.name
-                    else -> "Other folders"
-                },
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            group.branch?.let {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (folded) "▸" else "▾", Modifier.width(20.dp), style = MaterialTheme.typography.titleSmall)
+            // Name and branch take the rest of the line, so the count always sits at the end.
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    it,
+                    when {
+                        group.global -> "Global"
+                        group.name != null -> group.name
+                        else -> "Other folders"
+                    },
                     Modifier.weight(1f, fill = false),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                group.branch?.let {
+                    Text(
+                        it,
+                        Modifier.widthIn(max = 140.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            Box(Modifier.weight(1f))
-            Text("${group.rows.size}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${group.rows.size}", Modifier.padding(start = 12.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (folded) {
             val parts = listOfNotNull(
