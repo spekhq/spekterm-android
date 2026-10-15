@@ -153,3 +153,19 @@ Change `folders-and-new-sessions`, 2026-10-15.
 | JVM unit tests, including group keys / branches / summaries, folder choices, `canCreate`, `CreateOutcome` for every answer, `CreateTracker` (answer then list, list first, listed not yet running, another connection's list, detach, timeout, an earlier create's timer, an answer after its connection detached, refusal, leaving the list), and the global item's explicit `"folderId":null` on the wire | host | pass |
 | `DesktopTest` (18, nine new): answer then list → opened; list before the answer → opened at once; listed not running → still starting, opened once running; no list in time → unlisted; detach while waiting → unlisted; detach before the answer → unknown, and the next connection receives no `sessions.create`; a second create while starting sends nothing; `clear()` mid-create writes nothing; the desktop's `CREATE_FAILED` reason shown | emulator (AVD `Pixel_9`, Android 16), the Pixel disconnected from adb | pass |
 | `CollapsedStoreTest`: round trip, another pairing reads nothing, delete; and the earlier instrumented suites (38 tests in all) | emulator | pass |
+
+On the Pixel 7 against the maintainer's installed spekterm 0.2.5, installed with `adb install -r` (pairing kept).
+The maintainer looked through the screens; the outcomes below are what they reported and what the exported
+connection log shows. Items not exercised are listed as such.
+
+| Scenario (spec) | Outcome |
+|---|---|
+| Top bar shows only "New" and "⋮"; "⋮ › Settings" opens the settings screen, connection first; back returns (session-list) | pass (maintainer) |
+| Headings with name, branch and count stay on top while a long group scrolls; tapping collapses and expands; a collapsed group shows its waiting count; collapse all / expand all (session-list) | pass (maintainer) |
+| A collapsed group still collapsed after `am force-stop` and reopening (session-list) | pass (maintainer) |
+| Starting a session in a folder and in the global item: the conversation opened 0.25–0.27 s after the answer (log `create … outcome=created`, then `create event=listed`, then `conversation event=watch`); the log holds no folder name (session-create) | pass |
+| How long the new agent's wait state stays unknown; a first reply from the phone reaching the agent (session-create, conversation-reply) | not run — no `send` in the log |
+| The desktop's selection and keyboard focus unchanged; the session in the chosen folder on the rail (session-create) | not checked |
+| Going to another conversation right after choosing a folder: no navigation, "Open" offered afterwards (session-create) | not run — carried by `CreateTrackerTest` (`leftList`) only |
+| Remote access turned off while the folder sheet is open: the sheet closes (session-create) | not run — carried by `canCreate` tests only |
+| What the desktop shows when the chosen empty folder is itself selected (design risk) | not run |
