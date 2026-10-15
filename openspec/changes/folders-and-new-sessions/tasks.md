@@ -19,7 +19,7 @@
 
 ## 4. On the phone
 
-- [ ] 4.1 Install on the Pixel with `adb install -r` (keeping the pairing) and run against a spekterm desktop at 0.2.5 or later, recording each outcome in `docs/conversation-findings.md` under a new section:
+- [x] 4.1 Install on the Pixel with `adb install -r` (keeping the pairing) and run against a spekterm desktop at 0.2.5 or later, recording each outcome in `docs/conversation-findings.md` under a new section:
   - the top bar shows "New" and "⋮" only; "⋮ › Settings" opens the settings screen with the connection first, and back returns to the list; the not-connected notice's "Details" still opens it;
   - headings show name, branch and count, and stay at the top while a long group scrolls;
   - collapsing a group hides its rows; an agent in it that asks for a choice or finishes its turn shows on the collapsed heading; collapse all / expand all; a collapsed group is still collapsed after force-stopping and reopening the app;

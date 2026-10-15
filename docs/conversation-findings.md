@@ -164,8 +164,8 @@ connection log shows. Items not exercised are listed as such.
 | Headings with name, branch and count stay on top while a long group scrolls; tapping collapses and expands; a collapsed group shows its waiting count; collapse all / expand all (session-list) | pass (maintainer) |
 | A collapsed group still collapsed after `am force-stop` and reopening (session-list) | pass (maintainer) |
 | Starting a session in a folder and in the global item: the conversation opened 0.25–0.27 s after the answer (log `create … outcome=created`, then `create event=listed`, then `conversation event=watch`); the log holds no folder name (session-create) | pass |
-| How long the new agent's wait state stays unknown; a first reply from the phone reaching the agent (session-create, conversation-reply) | not run — no `send` in the log |
-| The desktop's selection and keyboard focus unchanged; the session in the chosen folder on the rail (session-create) | not checked |
+| A first reply from a session started on the phone: started in a folder at 08:43:15.0 Z, listed and opened 0.18 s later, "hi" sent 7.1 s after opening (`send outcome=Submitted`; the 7.1 s include typing, so the wait state left unknown within that), and the agent's turn ended 3.3 s later (`attention kind=waiting outcome=visible`) (session-create, conversation-reply) | pass |
+| The desktop's selection unchanged; the session in the chosen folder on the rail (session-create) | pass (maintainer) |
 | Going to another conversation right after choosing a folder: no navigation, "Open" offered afterwards (session-create) | not run — carried by `CreateTrackerTest` (`leftList`) only |
 | Remote access turned off while the folder sheet is open: the sheet closes (session-create) | not run — carried by `canCreate` tests only |
 | What the desktop shows when the chosen empty folder is itself selected (design risk) | not run |
