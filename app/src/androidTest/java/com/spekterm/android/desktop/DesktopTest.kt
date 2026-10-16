@@ -3,9 +3,11 @@ package com.spekterm.android.desktop
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.spekterm.android.net.Fixture
 import com.spekterm.android.net.Frames
+import com.spekterm.android.net.Operations
 import com.spekterm.android.net.RemoteClient
 import com.spekterm.android.net.RemoteConnection
 import com.spekterm.android.net.WaitState
+import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +26,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -89,10 +92,10 @@ class DesktopTest {
     }
 
     /** Connects to the scripted desktop and feeds Desktop as the service does. */
-    private suspend fun connect(desktop: Scripted): RemoteConnection {
+    private suspend fun connect(desktop: Scripted, operations: Set<String> = emptySet()): RemoteConnection {
         server.enqueue(desktop.response())
         val connection = (RemoteClient.open("127.0.0.1", server.port, Fixture.fingerprint) as RemoteClient.OpenResult.Open).connection
-        Desktop.attach(connection)
+        Desktop.attach(connection, operations)
         pump.launch {
             for (event in connection.events) Desktop.onEvent(connection, event)
             Desktop.detach(connection)
@@ -403,5 +406,299 @@ class DesktopTest {
         connect(desktop)
         Desktop.create("f1", "alpha")
         assertEquals(Creation.Failed("alpha", Creation.Reason.CREATE_FAILED, "folder gone"), creationUntil { it is Creation.Failed })
+    }
+
+    // ---- `prompts-attachments-rename` ----
+
+    private val all = setOf(
+        Operations.ANSWER, Operations.ATTACH, Operations.RENAME, Operations.HIBERNATE, Operations.CLOSE, Operations.WAKE,
+    )
+
+    private fun promptWait(id: String) = evt(
+        "conversation.wait",
+        """{"sessionId":"s1","state":"awaiting-choice","pending":{"tool":"Bash","arg":"ls"},"prompt":{"id":"$id","kind":"question","answerable":true,"open":1,"questions":[{"question":"q","header":"h","multiSelect":true,"options":[{"label":"a"},{"label":"b"}]}]}}""",
+    )
+
+    /** A standard desktop that answers [method] with [answer] (or nothing when it returns null). */
+    private fun Scripted.answering(method: String, answer: (Scripted.Req, WebSocket) -> Unit) {
+        standard { req, ws ->
+            ws.send(promptWait("p1"))
+            ws.send(update(user("u1", "hi"), reset = true))
+            ws.send(ok(req.id, """{"sessionId":"s1"}"""))
+        }
+        val base = handle
+        handle = { req, ws -> if (req.method == method) answer(req, ws) else base(req, ws) }
+    }
+
+    @Test
+    fun operationsAreKeptAcrossADetachAndForgottenByClear() = runBlocking<Unit> {
+        val connection = connect(Scripted().apply { standard() }, all)
+        assertEquals(all, Desktop.operations.value)
+        connection.cancel()
+        withTimeout(5_000) { Desktop.connected.first { !it } }
+        assertEquals(all, Desktop.operations.value)
+        Desktop.clear()
+        withTimeout(5_000) { Desktop.operations.first { it.isEmpty() } }
+    }
+
+    @Test
+    fun anAnswerNamesThePromptAndRecordsItsOutcome() = runBlocking<Unit> {
+        var reply: (() -> Unit)? = null
+        val desktop = Scripted().apply { answering("conversation.answer") { req, ws -> reply = { ws.send(ok(req.id, """{"outcome":"partial"}""")) } } }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching && it.prompt?.id == "p1" }
+        assertFalse("another prompt id sends nothing", Desktop.answer("s1", "p9", "deny"))
+        assertTrue(Desktop.answer("s1", "p1", "answer", listOf(listOf(0, 1))))
+        assertFalse("one answer in flight per prompt", Desktop.answer("s1", "p1", "deny"))
+        withTimeout(5_000) { while (reply == null) delay(20) }
+        val sent = desktop.requests.single { it.method == "conversation.answer" }.params
+        assertEquals("p1", (sent["promptId"] as JsonPrimitive).content)
+        assertEquals("answer", (sent["decision"] as JsonPrimitive).content)
+        assertEquals("[[0,1]]", sent["selections"].toString())
+        reply!!()
+        until { it.answer?.outcome == AnswerOutcome.Partial }
+    }
+
+    @Test
+    fun aDetachDuringAnAnswerIsUnknown() = runBlocking<Unit> {
+        val desktop = Scripted().apply { answering("conversation.answer") { _, _ -> } }
+        val connection = connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.prompt?.id == "p1" && it.watch == Watch.Watching }
+        assertTrue(Desktop.answer("s1", "p1", "deny"))
+        withTimeout(5_000) { while (desktop.count("conversation.answer") == 0) delay(20) }
+        connection.cancel()
+        until { it.answer?.outcome == AnswerOutcome.Unknown }
+    }
+
+    @Test
+    fun leavingWhileAnAnswerIsInFlightStillRecordsItsOutcome() = runBlocking<Unit> {
+        var reply: (() -> Unit)? = null
+        val desktop = Scripted().apply { answering("conversation.answer") { req, ws -> reply = { ws.send(ok(req.id, """{"outcome":"sent"}""")) } } }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.prompt?.id == "p1" && it.watch == Watch.Watching }
+        assertTrue(Desktop.answer("s1", "p1", "deny"))
+        withTimeout(5_000) { while (reply == null) delay(20) }
+        Desktop.unfocus("o1")
+        until { it.watch == Watch.Idle }
+        reply!!()
+        until { it.answer?.outcome == AnswerOutcome.Done }
+        // Back on screen with a new prompt: it can be answered.
+        desktop.handle.let { base -> desktop.handle = { req, ws -> if (req.method == "conversation.watch") { ws.send(promptWait("p2")); ws.send(ok(req.id, """{"sessionId":"s1"}""")) } else base(req, ws) } }
+        Desktop.focus("o2", "s1")
+        until { it.prompt?.id == "p2" && it.watch == Watch.Watching }
+        assertTrue(Desktop.answer("s1", "p2", "deny"))
+    }
+
+    // ---- Attachments ----
+
+    private val context get() = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+
+    private fun fileOf(bytes: Int): File = File(context.cacheDir, "test-" + System.nanoTime()).apply { writeBytes(ByteArray(bytes) { (it % 251).toByte() }) }
+
+    private fun Scripted.Req.long(key: String) = (params[key] as JsonPrimitive).content.toLong()
+
+    private fun Scripted.Req.decoded() = java.util.Base64.getDecoder().decode((params["data"] as JsonPrimitive).content).size
+
+    /** Answers chunks as a desktop holding upload "a1" would. */
+    private fun putOk(req: Scripted.Req): String {
+        val received = req.long("offset") + req.decoded()
+        return ok(req.id, """{"attachmentId":"a1","received":$received,"complete":${received == req.long("size")}}""")
+    }
+
+    private suspend fun attach(file: File, name: String = "a.bin"): Long {
+        val id = Desktop.addAttachments("s1", listOf(name)).single()
+        Desktop.prepared(id, file, name, file.length(), converted = false)
+        return id
+    }
+
+    @Test
+    fun aFileUploadsInChunksWithTheIdFromTheSecondOn() = runBlocking<Unit> {
+        val desktop = Scripted().apply { answering("attachments.put") { req, ws -> ws.send(putOk(req)) } }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        attach(fileOf(150 * 1024))
+        until { it.attachments.singleOrNull()?.state is AttachmentState.Ready }
+        val puts = desktop.requests.filter { it.method == "attachments.put" }
+        assertEquals(listOf(0L, 65536L, 131072L), puts.map { it.long("offset") })
+        assertEquals(listOf(65536, 65536, 22528), puts.map { it.decoded() })
+        assertNull(puts[0].params["attachmentId"])
+        assertEquals(listOf("a1", "a1"), puts.drop(1).map { (it.params["attachmentId"] as JsonPrimitive).content })
+    }
+
+    @Test
+    fun anUploadResumesFromWhereTheDesktopSaysAfterAReconnect() = runBlocking<Unit> {
+        var drop = true
+        val first = Scripted().apply {
+            answering("attachments.put") { req, ws ->
+                // Takes the first chunk, then the connection drops before the second is answered.
+                if (req.long("offset") == 0L) ws.send(putOk(req)) else if (drop) { drop = false; ws.cancel() }
+            }
+        }
+        connect(first, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        attach(fileOf(150 * 1024))
+        until { (it.attachments.single().state as? AttachmentState.Uploading)?.unanswered == 1 }
+        val second = Scripted().apply {
+            answering("attachments.put") { req, ws ->
+                if (req.long("offset") == 65536L) {
+                    ws.send("""{"t":"res","id":${req.id},"ok":false,"e":{"code":"BAD_PARAMS","message":"m","detail":{"received":131072}}}""")
+                } else {
+                    ws.send(putOk(req))
+                }
+            }
+        }
+        connect(second, all)
+        until { it.attachments.single().state is AttachmentState.Ready }
+        assertEquals(listOf(65536L, 131072L), second.requests.filter { it.method == "attachments.put" }.map { it.long("offset") })
+    }
+
+    @Test
+    fun notFoundMidUploadStartsAgainWithoutAnId() = runBlocking<Unit> {
+        var lost = false
+        val desktop = Scripted().apply {
+            answering("attachments.put") { req, ws ->
+                if (req.long("offset") == 65536L && !lost) {
+                    lost = true
+                    ws.send(err(req.id, "NOT_FOUND"))
+                } else {
+                    ws.send(putOk(req))
+                }
+            }
+        }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        attach(fileOf(150 * 1024))
+        until { it.attachments.single().state is AttachmentState.Ready }
+        val puts = desktop.requests.filter { it.method == "attachments.put" }
+        assertEquals(listOf(0L, 65536L, 0L, 65536L, 131072L), puts.map { it.long("offset") })
+        assertNull(puts[2].params["attachmentId"])
+    }
+
+    @Test
+    fun tooManyFailsWithTheLimit() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            answering("attachments.put") { req, ws -> ws.send("""{"t":"res","id":${req.id},"ok":false,"e":{"code":"TOO_MANY","message":"m","detail":{"limit":10}}}""") }
+        }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        attach(fileOf(10))
+        assertEquals(AttachmentState.Failed("TOO_MANY", 10), until { it.attachments.single().state is AttachmentState.Failed }.attachments.single().state)
+    }
+
+    @Test
+    fun focusingAnotherSessionDropsTheAttachmentAndItsFile() = runBlocking<Unit> {
+        val desktop = Scripted().apply { answering("attachments.put") { _, _ -> } }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        val file = fileOf(10)
+        attach(file)
+        until { it.attachments.isNotEmpty() }
+        Desktop.focus("o2", "s2")
+        withTimeout(5_000) { while (file.exists()) delay(20) }
+    }
+
+    @Test
+    fun aSendCarriesTheIdsAndIsConfirmedByWhatTheDesktopWrote() = runBlocking<Unit> {
+        // Kept free of newlines and quotes, which the scripted frames do not escape.
+        val written = "look (The user attached 1 file from their phone; read it with the Read tool: `/s/a1-a.bin`)"
+        val desktop = Scripted().apply {
+            standard()
+            val base = handle
+            handle = { req, ws ->
+                when (req.method) {
+                    "attachments.put" -> ws.send(putOk(req))
+                    "conversation.send" -> ws.send(ok(req.id, """{"outcome":"submitted","text":"$written"}"""))
+                    else -> base(req, ws)
+                }
+            }
+        }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching && it.wait == WaitState.READY }
+        val file = fileOf(10)
+        attach(file)
+        until { it.attachments.singleOrNull()?.state is AttachmentState.Ready }
+        assertTrue(Desktop.send("s1", "look"))
+        until { it.replies.singleOrNull()?.state == Reply.State.SUBMITTED }
+        val sent = desktop.requests.single { it.method == "conversation.send" }.params
+        assertEquals("[\"a1\"]", sent["attachments"].toString())
+        withTimeout(5_000) { while (file.exists()) delay(20) }
+        desktop.socket!!.send(update(user("u9", written), reset = false))
+        until { it.replies.isEmpty() }
+    }
+
+    // ---- The session menu ----
+
+    @Test
+    fun renameHibernateAndCloseSendTheirPayloads() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            standard()
+            val base = handle
+            handle = { req, ws ->
+                when (req.method) {
+                    "sessions.rename" -> ws.send(err(req.id, "NO_WINDOW"))
+                    "sessions.hibernate" -> ws.send(
+                        if (req.params["force"] == null) """{"t":"res","id":${req.id},"ok":false,"e":{"code":"SESSION_BUSY","message":"m","detail":{"reason":"working"}}}""" else ok(req.id, """{"sessionId":"s1"}"""),
+                    )
+                    "sessions.close" -> ws.send(ok(req.id, """{"sessionId":"s1"}"""))
+                    else -> base(req, ws)
+                }
+            }
+        }
+        connect(desktop, all)
+        withTimeout(5_000) { Desktop.sessions.first { it.current } }
+        assertEquals("NO_WINDOW", Desktop.rename("s1", "")!!.code)
+        assertEquals("", (desktop.requests.single { it.method == "sessions.rename" }.params["name"] as JsonPrimitive).content)
+        val busy = Desktop.hibernate("s1", force = false)!!
+        assertEquals("SESSION_BUSY", busy.code)
+        assertEquals("working", busy.detailString("reason"))
+        assertNull(Desktop.hibernate("s1", force = true))
+        val hibernates = desktop.requests.filter { it.method == "sessions.hibernate" }.map { it.params.keys }
+        assertEquals(listOf(setOf("sessionId"), setOf("sessionId", "force")), hibernates)
+        assertNull(Desktop.close("s1", force = false))
+        assertEquals(setOf("sessionId"), desktop.requests.single { it.method == "sessions.close" }.params.keys)
+    }
+
+    @Test
+    fun hibernatedIsDormantNotWindowGoneAndClosedDropsTheAttachments() = runBlocking<Unit> {
+        val desktop = Scripted().apply { answering("attachments.put") { req, ws -> ws.send(putOk(req)) } }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        desktop.socket!!.send(evt("conversation.ended", """{"sessionId":"s1","reason":"hibernated"}"""))
+        val hibernated = until { it.watch == Watch.Idle }
+        assertTrue(hibernated.notRunning)
+        assertEquals(Phase.IDLE, hibernated.phase)
+
+        val file = fileOf(10)
+        attach(file)
+        until { it.attachments.singleOrNull()?.state is AttachmentState.Ready }
+        // A list without the session arrives before the end: the attachments go all the same.
+        desktop.socket!!.send(evt("sessions.changed", list(present = false)))
+        until { it.closed && it.attachments.isEmpty() }
+        withTimeout(5_000) { while (file.exists()) delay(20) }
+    }
+
+    @Test
+    fun closedEndsTheWatchAndDropsTheAttachments() = runBlocking<Unit> {
+        val desktop = Scripted().apply { answering("attachments.put") { req, ws -> ws.send(putOk(req)) } }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        val file = fileOf(10)
+        attach(file)
+        until { it.attachments.singleOrNull()?.state is AttachmentState.Ready }
+        desktop.socket!!.send(evt("conversation.ended", """{"sessionId":"s1","reason":"closed"}"""))
+        val closed = until { it.closed }
+        assertEquals(Screen.Closed, Screen.of(true, false, Desktop.sessions.value, closed, "s1"))
+        withTimeout(5_000) { while (file.exists()) delay(20) }
     }
 }

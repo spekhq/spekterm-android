@@ -1,9 +1,11 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.net.ConversationEnded
 import com.spekterm.android.net.ConversationUpdate
 import com.spekterm.android.net.Entry
 import com.spekterm.android.net.Folder
 import com.spekterm.android.net.Pending
+import com.spekterm.android.net.Prompt
 import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.Session
 import com.spekterm.android.net.SessionList
@@ -154,10 +156,83 @@ class ConversationReducerTest {
 
     @Test
     fun endedIsClearedByAListWithAWindow() {
-        val ended = ConversationReducer.ended(ConversationReducer.answered(ConversationReducer.requested(empty), null))
+        val ended = ConversationReducer.ended(ConversationReducer.answered(ConversationReducer.requested(empty), null), ConversationEnded.WINDOW)
         assertEquals(Phase.WINDOW_GONE, ended.phase)
         assertEquals(Phase.WINDOW_GONE, ConversationReducer.listed(ended, SessionList(false, emptyList(), emptyList())).phase)
         val back = ConversationReducer.listed(ended, SessionList(true, listOf(Folder("f")), listOf(Session("s1", "f", "claude", running = false))))
         assertEquals(Phase.IDLE, back.phase)
+    }
+
+    // ---- `prompts-attachments-rename` ----
+
+    private fun permission(id: String) = Prompt.Permission(id, "Bash", "ls", canAllow = true, answerable = true, open = 1)
+    private val watched get() = ConversationReducer.answered(ConversationReducer.requested(empty), null)
+
+    @Test
+    fun thePromptIsReplacedByEachWaitAndClearedWithTheWatch() {
+        var c = ConversationReducer.waited(watched, WaitState.AWAITING_CHOICE, null, 0, permission("p1"))
+        assertEquals("p1", c.prompt!!.id)
+        c = ConversationReducer.waited(c, WaitState.AWAITING_CHOICE, null, 0, permission("p2"))
+        assertEquals("p2", c.prompt!!.id)
+        assertNull(ConversationReducer.waited(c, WaitState.BUSY, null, 0, null).prompt)
+        assertNull(ConversationReducer.requested(c).prompt)
+        assertNull(ConversationReducer.unwatched(c).prompt)
+        assertNull(ConversationReducer.disconnected(c).prompt)
+        assertNull(ConversationReducer.ended(c, ConversationEnded.WINDOW).prompt)
+        // Held `pending` folding is unchanged by a prompt.
+        val asked = ConversationReducer.waited(watched, WaitState.AWAITING_CHOICE, Pending("Bash", "ls"), 0, permission("p1"))
+        assertEquals(Pending("Bash", "ls"), ConversationReducer.waited(asked, WaitState.AWAITING_CHOICE, null, 0, permission("p1")).pending)
+    }
+
+    @Test
+    fun anAnswerInFlightBecomesUnknownOnDisconnect() {
+        val c = watched.copy(answer = AnswerState("p1", Prompt.ALLOW))
+        assertEquals(AnswerOutcome.Unknown, ConversationReducer.disconnected(c).answer!!.outcome)
+        val done = watched.copy(answer = AnswerState("p1", Prompt.ALLOW, AnswerOutcome.Partial))
+        assertEquals(AnswerOutcome.Partial, ConversationReducer.disconnected(done).answer!!.outcome)
+    }
+
+    @Test
+    fun aNewPromptClearsANoteButKeepsAWarning() {
+        val gone = watched.copy(answer = AnswerState("p1", Prompt.ALLOW, AnswerOutcome.Gone))
+        assertNull(ConversationReducer.waited(gone, WaitState.AWAITING_CHOICE, null, 0, permission("p2")).answer)
+        assertEquals(gone.answer, ConversationReducer.waited(gone, WaitState.AWAITING_CHOICE, null, 0, permission("p1")).answer)
+        val partial = watched.copy(answer = AnswerState("p1", Prompt.ANSWER, AnswerOutcome.Partial))
+        assertEquals(partial.answer, ConversationReducer.waited(partial, WaitState.AWAITING_CHOICE, null, 0, permission("p2")).answer)
+        val inFlight = watched.copy(answer = AnswerState("p1", Prompt.ALLOW))
+        assertEquals(inFlight.answer, ConversationReducer.waited(inFlight, WaitState.AWAITING_CHOICE, null, 0, permission("p2")).answer)
+    }
+
+    @Test
+    fun eachEndReason() {
+        val window = ConversationReducer.ended(watched, ConversationEnded.WINDOW)
+        assertEquals(Phase.WINDOW_GONE, window.phase)
+        assertFalse(window.notRunning)
+        for (reason in listOf(ConversationEnded.HIBERNATED, "", "something-new")) {
+            val c = ConversationReducer.ended(watched, reason)
+            assertEquals(reason, Watch.Idle, c.watch)
+            assertTrue(reason, c.notRunning)
+            assertFalse(reason, c.closed)
+            assertEquals(reason, Phase.IDLE, c.phase)
+        }
+        val attached = watched.copy(attachments = listOf(Attachment(1, "a.jpg")))
+        for (reason in listOf(ConversationEnded.CLOSED, ConversationEnded.EXITED)) {
+            val c = ConversationReducer.ended(attached, reason)
+            assertTrue(reason, c.closed)
+            assertEquals(reason, emptyList<Attachment>(), c.attachments)
+            assertEquals(reason, Phase.IDLE, c.phase)
+        }
+    }
+
+    @Test
+    fun afterHibernationOnlyATurnToRunningOrAWakeWatchesAgain() {
+        val listed = { running: Boolean -> SessionList(true, emptyList(), listOf(Session("s1", null, "claude", running = running))) }
+        val hibernated = ConversationReducer.ended(ConversationReducer.listed(watched, listed(true)), ConversationEnded.HIBERNATED)
+        assertFalse(ConversationReducer.listed(ConversationReducer.listed(hibernated, listed(false)), listed(true)).notRunning)
+        assertFalse(ConversationReducer.cleared(hibernated).notRunning)
+        // An unknown reason while lists keep showing it running: no watch by itself (no loop).
+        var unknown = ConversationReducer.ended(ConversationReducer.listed(watched, listed(true)), "something-new")
+        repeat(3) { unknown = ConversationReducer.listed(unknown, listed(true)) }
+        assertTrue(unknown.notRunning)
     }
 }

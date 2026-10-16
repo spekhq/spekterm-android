@@ -108,9 +108,54 @@ object Frames {
         if (afterUuid != null) put("afterUuid", afterUuid)
     }
 
-    fun conversationSend(sessionId: String, text: String): JsonObject = buildJsonObject {
+    /** `attachments` only when there are some: an older desktop knows no such key. */
+    fun conversationSend(sessionId: String, text: String, attachments: List<String> = emptyList()): JsonObject = buildJsonObject {
         put("sessionId", sessionId)
         put("text", text)
+        if (attachments.isNotEmpty()) put("attachments", JsonArray(attachments.map(::JsonPrimitive)))
+    }
+
+    /** An empty [name] hands naming back to the session's own title. */
+    fun sessionsRename(sessionId: String, name: String): JsonObject = buildJsonObject {
+        put("sessionId", sessionId)
+        put("name", name)
+    }
+
+    /** `force` only when true: a first request never forces (obligation 12). */
+    fun sessionsHibernate(sessionId: String, force: Boolean): JsonObject = sessionAction(sessionId, force)
+
+    fun sessionsClose(sessionId: String, force: Boolean): JsonObject = sessionAction(sessionId, force)
+
+    private fun sessionAction(sessionId: String, force: Boolean): JsonObject = buildJsonObject {
+        put("sessionId", sessionId)
+        if (force) put("force", true)
+    }
+
+    /** `selections` only with the `answer` decision: one list of option indexes per question. */
+    fun conversationAnswer(sessionId: String, promptId: String, decision: String, selections: List<List<Int>>? = null): JsonObject = buildJsonObject {
+        put("sessionId", sessionId)
+        put("promptId", promptId)
+        put("decision", decision)
+        if (selections != null) put("selections", JsonArray(selections.map { q -> JsonArray(q.map(::JsonPrimitive)) }))
+    }
+
+    /** One chunk; `attachmentId` from the second chunk on. [data] is base64. */
+    fun attachmentsPut(sessionId: String, name: String, size: Long, offset: Long, data: String, attachmentId: String?): JsonObject = buildJsonObject {
+        put("sessionId", sessionId)
+        put("name", name)
+        put("size", size)
+        put("offset", offset)
+        put("data", data)
+        if (attachmentId != null) put("attachmentId", attachmentId)
+    }
+
+    /**
+     * `operations` of a `hello` or `pair` answer (design D1): what the desktop accepts besides authentication.
+     * Absent or not an array (a desktop before 29a5d0a) is none; non-string elements are skipped.
+     */
+    fun operations(element: JsonElement?): Set<String> {
+        val array = (element as? JsonObject)?.get("operations") as? JsonArray ?: return emptySet()
+        return array.mapNotNullTo(LinkedHashSet()) { (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content }
     }
 
     /**
@@ -150,6 +195,12 @@ sealed interface ServerFrame {
 /** `{ code, message, detail? }`. Branch on [code]; [message] is for display as a detail only. */
 @Serializable
 data class RemoteError(val code: String, val message: String = "", val detail: JsonObject? = null) {
+    /** A numeric field of [detail] (`received`, `limit`, `open`); `null` when absent or not a number. */
+    fun detailLong(key: String): Long? = (detail?.get(key) as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull
+
+    /** A string field of [detail] (`reason`); `null` when absent or not a string. */
+    fun detailString(key: String): String? = (detail?.get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content
+
     companion object {
         const val BAD_FRAME = "BAD_FRAME"
         const val UNSUPPORTED_VERSION = "UNSUPPORTED_VERSION"
@@ -167,7 +218,23 @@ data class RemoteError(val code: String, val message: String = "", val detail: J
         const val CREATE_FAILED = "CREATE_FAILED"
         const val TIMEOUT = "TIMEOUT"
         const val INTERNAL = "INTERNAL"
+        const val PROMPT_GONE = "PROMPT_GONE"
+        const val NOT_ANSWERABLE = "NOT_ANSWERABLE"
+        const val TOO_LARGE = "TOO_LARGE"
+        const val TOO_MANY = "TOO_MANY"
+        const val UNSUPPORTED_TYPE = "UNSUPPORTED_TYPE"
+        const val SESSION_BUSY = "SESSION_BUSY"
     }
+}
+
+/** The operations a control depends on (`desktop-connection`, "Offer a control only when the desktop accepts its operation"). */
+object Operations {
+    const val RENAME = "sessions.rename"
+    const val HIBERNATE = "sessions.hibernate"
+    const val CLOSE = "sessions.close"
+    const val WAKE = "sessions.wake"
+    const val ATTACH = "attachments.put"
+    const val ANSWER = "conversation.answer"
 }
 
 @Serializable

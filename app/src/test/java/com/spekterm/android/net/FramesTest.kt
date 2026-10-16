@@ -168,12 +168,12 @@ class FramesTest {
 
     @Test
     fun decodesWaitEndedAndSendResult() {
-        val wait = Frames.decodeOrNull<ConversationWait>(
+        val wait = ConversationWait.decode(
             Json.parseToJsonElement("""{"sessionId":"s1","state":"awaiting-choice","pending":{"tool":"Bash","arg":"touch /tmp/x"}}"""),
         )!!
         assertEquals("awaiting-choice", WaitState.of(wait.state))
         assertEquals(Pending("Bash", "touch /tmp/x"), wait.pending)
-        assertNull(Frames.decodeOrNull<ConversationWait>(Json.parseToJsonElement("""{"sessionId":"s1","state":"ready","pending":null}"""))!!.pending)
+        assertNull(ConversationWait.decode(Json.parseToJsonElement("""{"sessionId":"s1","state":"ready","pending":null}"""))!!.pending)
         assertEquals(WaitState.UNKNOWN, WaitState.of("something-new"))
         assertEquals("window", Frames.decodeOrNull<ConversationEnded>(Json.parseToJsonElement("""{"sessionId":"s1","reason":"window"}"""))!!.reason)
         assertEquals(SendResult.FILLED_NOT_SUBMITTED, Frames.decodeOrNull<SendResult>(Json.parseToJsonElement("""{"outcome":"filled-not-submitted"}"""))!!.outcome)
@@ -240,5 +240,65 @@ class FramesTest {
         val p = parse(Frames.request(4, "sessions.create", Frames.sessionsCreate("f1")))["p"]!!.jsonObject
         assertEquals("f1", p["folderId"]!!.jsonPrimitive.content)
         assertEquals("claude", p["target"]!!.jsonPrimitive.content)
+    }
+
+    // ---- `prompts-attachments-rename` ----
+
+    private fun p(params: JsonObject, method: String = "m"): JsonObject = parse(Frames.request(1, method, params))["p"]!!.jsonObject
+
+    @Test
+    fun readsOperations() {
+        assertEquals(setOf("sessions.rename", "attachments.put"), Frames.operations(result("""{"t":"res","id":1,"ok":true,"r":{"protocol":1,"operations":["sessions.rename",7,null,"attachments.put"]}}""")))
+        assertEquals(emptySet<String>(), Frames.operations(result("""{"t":"res","id":1,"ok":true,"r":{"protocol":1}}""")))
+        assertEquals(emptySet<String>(), Frames.operations(result("""{"t":"res","id":1,"ok":true,"r":{"operations":"sessions.rename"}}""")))
+        assertEquals(emptySet<String>(), Frames.operations(null))
+    }
+
+    @Test
+    fun encodesTheNewPayloadsWithOptionalKeysOnlyWhenGiven() {
+        assertEquals(setOf("sessionId", "text"), p(Frames.conversationSend("s1", "x")).keys)
+        val send = p(Frames.conversationSend("s1", "", listOf("a1", "a2")))
+        assertEquals(listOf("a1", "a2"), send["attachments"]!!.jsonArray.map { it.jsonPrimitive.content })
+        assertEquals("", send["text"]!!.jsonPrimitive.content)
+
+        val rename = p(Frames.sessionsRename("s1", ""))
+        assertEquals("", rename["name"]!!.jsonPrimitive.content)
+        assertEquals(setOf("sessionId", "name"), rename.keys)
+
+        assertEquals(setOf("sessionId"), p(Frames.sessionsHibernate("s1", false)).keys)
+        assertEquals(setOf("sessionId"), p(Frames.sessionsClose("s1", false)).keys)
+        assertEquals("true", p(Frames.sessionsHibernate("s1", true))["force"]!!.jsonPrimitive.content)
+        assertEquals("true", p(Frames.sessionsClose("s1", true))["force"]!!.jsonPrimitive.content)
+
+        val deny = p(Frames.conversationAnswer("s1", "p1", "deny"))
+        assertEquals(setOf("sessionId", "promptId", "decision"), deny.keys)
+        val answer = p(Frames.conversationAnswer("s1", "p1", "answer", listOf(listOf(0), listOf(1, 3))))
+        assertEquals(listOf(listOf(0L), listOf(1L, 3L)), answer["selections"]!!.jsonArray.map { q -> q.jsonArray.map { it.jsonPrimitive.long } })
+
+        val first = p(Frames.attachmentsPut("s1", "a.jpg", 10, 0, "AAAA", null))
+        assertEquals(setOf("sessionId", "name", "size", "offset", "data"), first.keys)
+        val later = p(Frames.attachmentsPut("s1", "a.jpg", 10, 3, "AAAA", "x1"))
+        assertEquals("x1", later["attachmentId"]!!.jsonPrimitive.content)
+        assertEquals(3L, later["offset"]!!.jsonPrimitive.long)
+    }
+
+    @Test
+    fun readsDetailFieldsOfAnError() {
+        val e = (Frames.decode("""{"t":"res","id":1,"ok":false,"e":{"code":"BAD_PARAMS","message":"m","detail":{"received":524288,"limit":"10","reason":"working","open":2}}}""") as ServerFrame.Response).error!!
+        assertEquals(524288L, e.detailLong("received"))
+        assertNull(e.detailLong("limit"))
+        assertEquals(2L, e.detailLong("open"))
+        assertEquals("working", e.detailString("reason"))
+        assertNull(e.detailString("open"))
+        assertNull(e.detailString("missing"))
+        assertNull(RemoteError("SESSION_BUSY").detailString("reason"))
+    }
+
+    @Test
+    fun decodesTheNewResults() {
+        assertNull(Frames.decodeOrNull<SendResult>(Json.parseToJsonElement("""{"outcome":"submitted"}"""))!!.text)
+        assertEquals("hi\n\n(x)", Frames.decodeOrNull<SendResult>(Json.parseToJsonElement("""{"outcome":"submitted","text":"hi\n\n(x)"}"""))!!.text)
+        assertEquals(PutResult("a1", 65536, false), Frames.decodeOrNull<PutResult>(Json.parseToJsonElement("""{"attachmentId":"a1","received":65536,"complete":false}""")))
+        assertEquals(AnswerResult.PARTIAL, Frames.decodeOrNull<AnswerResult>(Json.parseToJsonElement("""{"outcome":"partial"}"""))!!.outcome)
     }
 }

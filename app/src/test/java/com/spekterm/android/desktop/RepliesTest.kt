@@ -207,4 +207,115 @@ class RepliesTest {
         // Just under the limit once encoded: accepted.
         assertFalse(Replies.tooLong("x".repeat(Replies.MAX_FRAME_BYTES - 400)))
     }
+
+    // ---- `prompts-attachments-rename` (design D7) ----
+
+    private fun ready(localId: Long, id: String, completedAt: Long = 0, presumed: Boolean = false) =
+        Attachment(localId, "f$localId.jpg", 10, state = AttachmentState.Ready(id, completedAt, presumed))
+    private fun blocked(text: String, attachments: List<Attachment>) =
+        Replies.blocked(true, false, Watch.Watching, WaitState.READY, null, false, text, attachments)
+
+    @Test
+    fun attachmentsInTheGate() {
+        assertEquals(Blocked.Attaching, blocked("hi", listOf(Attachment(1, "a"))))
+        assertEquals(Blocked.Attaching, blocked("hi", listOf(Attachment(1, "a", state = AttachmentState.Uploading()))))
+        assertEquals(Blocked.AttachmentFailed, blocked("hi", listOf(ready(1, "x"), Attachment(2, "b", state = AttachmentState.Failed("TOO_MANY")))))
+        assertNull(blocked("", listOf(ready(1, "x"))))
+        assertEquals(Blocked.Empty, blocked("", emptyList()))
+        assertEquals(Blocked.Attaching, blocked("", listOf(Attachment(1, "a", state = AttachmentState.Queued))))
+    }
+
+    @Test
+    fun sendingTakesTheAttachmentsOutOfTheComposer() {
+        val c = watching().copy(attachments = listOf(ready(1, "x1"), ready(2, "x2")))
+        val sent = Replies.sent(c, 1, "look", c.attachments)
+        assertEquals(emptyList<Attachment>(), sent.attachments)
+        assertEquals(listOf("x1", "x2"), sent.replies.single().attachmentIds)
+    }
+
+    @Test
+    fun confirmedByWhatTheDesktopWroteNotByTheTypedTextAlone() {
+        val written = "look\n\n(The user attached 1 file from their phone; read it with the Read tool: `/s/x1-a.jpg`)"
+        val c = Replies.answered(Replies.sent(watching(), 1, "look", listOf(ready(1, "x1"))), 1, SendOutcome.Submitted, 0, written)
+        assertEquals(1, ConversationReducer.apply(c, update(user("u1", "look")), 0).replies.size)
+        assertEquals(0, ConversationReducer.apply(c, update(user("u1", written)), 0).replies.size)
+    }
+
+    @Test
+    fun anOlderAnswerWithoutTextStillConfirmsByTheTypedText() {
+        val c = send(watching(), "hello")
+        assertEquals(0, ConversationReducer.apply(c, update(user("u1", "hello")), 0).replies.size)
+    }
+
+    @Test
+    fun aLostAnswerWithAttachmentsIsConfirmedByTextAndEveryId() {
+        val c = Replies.answered(Replies.sent(watching(), 1, "two", listOf(ready(1, "x1"), ready(2, "x2"))), 1, SendOutcome.Unknown, 0)
+        val missing = user("u1", "two\n\n(The user attached 2 files: `/s/x1-a.jpg`)")
+        assertEquals(1, ConversationReducer.apply(c, update(missing), 0).replies.size)
+        val both = user("u2", "two\n\n(The user attached 2 files: `/s/x1-a.jpg`, `/s/x2-b.jpg`)")
+        assertEquals(0, ConversationReducer.apply(c, update(both), 0).replies.size)
+    }
+
+    @Test
+    fun anAttachmentsOnlyReplyIsNotConfirmedByAnEmptyEntry() {
+        val c = Replies.sent(watching(), 1, "", listOf(ready(1, "x1")))
+        assertEquals(1, ConversationReducer.apply(c, update(user("u1", "")), 0).replies.size)
+        assertEquals(0, ConversationReducer.apply(c, update(user("u2", "(The user attached 1 file: `/s/x1-a.jpg`)")), 0).replies.size)
+    }
+
+    @Test
+    fun theEntryArrivingBeforeTheAnswerConfirmsAReplyWithAttachments() {
+        val written = "see\n\n(… `/s/x1-a.jpg`)"
+        var c = Replies.sent(watching(), 1, "see", listOf(ready(1, "x1")))
+        // The entry arrives while the reply is still sending; the answer then finds it among the entries held.
+        c = c.copy(entries = c.entries + user("u9", written))
+        c = Replies.answered(c, 1, SendOutcome.Submitted, 0, written)
+        assertEquals(0, c.replies.size)
+    }
+
+    @Test
+    fun twoIdenticalPlainRepliesAreNotBothConfirmedByOneEntry() {
+        var c = send(watching(), "same", id = 1)
+        c = send(c, "same", id = 2)
+        assertEquals(1, ConversationReducer.apply(c, update(user("u1", "same")), 0).replies.size)
+    }
+
+    @Test
+    fun aRefusalReturnsTextAndReadyAttachments() {
+        val c = Replies.answered(Replies.sent(watching(), 1, "hi", listOf(ready(1, "x1"))), 1, SendOutcome.Refused(RemoteError.WAIT_STATE), 0)
+        assertEquals("hi", c.draft)
+        assertEquals(listOf("x1"), c.attachments.map { it.ready!!.attachmentId })
+        assertNull(c.attachNote)
+    }
+
+    @Test
+    fun notFoundReturnsThemReadyThenFailsTheDoubtfulOnesAtTheSecond() {
+        val now = 1_000L
+        val three = listOf(ready(1, "x1", completedAt = now), ready(2, "x2", presumed = true, completedAt = now), ready(3, "x3", completedAt = now))
+        var c = Replies.answered(Replies.sent(watching(), 1, "hi", three), 1, SendOutcome.Refused(RemoteError.NOT_FOUND), now)
+        assertEquals(AttachNote.SEND_NOT_FOUND, c.attachNote)
+        assertTrue(c.attachments.all { it.state is AttachmentState.Ready })
+        c = Replies.answered(Replies.sent(c, 2, "hi", c.attachments), 2, SendOutcome.Refused(RemoteError.NOT_FOUND), now)
+        assertEquals(listOf(false, true, false), c.attachments.map { it.state is AttachmentState.Failed })
+
+        val sure = listOf(ready(1, "x1", completedAt = now), ready(3, "x3", completedAt = now))
+        var d = Replies.answered(Replies.sent(watching(), 1, "hi", sure), 1, SendOutcome.Refused(RemoteError.NOT_FOUND), now)
+        d = Replies.answered(Replies.sent(d, 2, "hi", d.attachments), 2, SendOutcome.Refused(RemoteError.NOT_FOUND), now)
+        assertTrue(d.attachments.all { it.state == AttachmentState.Failed(Uploads.GONE) })
+    }
+
+    @Test
+    fun anUnknownOutcomeKeepsTheAttachmentsOnTheReply() {
+        val c = Replies.answered(Replies.sent(watching(), 1, "hi", listOf(ready(1, "x1"))), 1, SendOutcome.Unknown, 0)
+        assertEquals(emptyList<Attachment>(), c.attachments)
+        assertEquals(1, c.replies.single().attachments.size)
+    }
+
+    @Test
+    fun aRefusalAfterTheSessionIsGoneReturnsNoAttachments() {
+        val sent = Replies.sent(watching(), 1, "hi", listOf(ready(1, "x1")))
+        val c = Replies.answered(ConversationReducer.gone(sent), 1, SendOutcome.Refused(RemoteError.NOT_FOUND), 0)
+        assertEquals(emptyList<Attachment>(), c.attachments)
+        assertEquals("hi", c.draft)
+    }
 }

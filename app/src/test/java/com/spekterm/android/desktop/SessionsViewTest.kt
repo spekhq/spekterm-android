@@ -1,5 +1,6 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.net.ConversationEnded
 import com.spekterm.android.net.Folder
 import com.spekterm.android.net.Session
 import com.spekterm.android.net.SessionList
@@ -89,7 +90,7 @@ class SessionsViewTest {
 
     @Test
     fun afterAWindowReloadTheSessionShowsDormantNotNoWindow() {
-        val ended = ConversationReducer.ended(Conversation("a1", watch = Watch.Watching))
+        val ended = ConversationReducer.ended(Conversation("a1", watch = Watch.Watching), ConversationEnded.WINDOW)
         val back = ConversationReducer.listed(ended, list)
         assertEquals(Screen.Dormant, screen(id = "a1", conversation = back))
     }
@@ -136,5 +137,25 @@ class SessionsViewTest {
         assertFalse(SessionsView.canCreate(true, false, SessionsState(SessionList(false, emptyList(), emptyList()), current = true), null))
         assertFalse(SessionsView.canCreate(true, false, SessionsState(), null))
         assertFalse(SessionsView.canCreate(true, false, current, Creation.Starting("a")))
+    }
+
+    // ---- `prompts-attachments-rename` (design D10) ----
+
+    private fun watched(id: String) = ConversationReducer.answered(ConversationReducer.requested(Conversation(id)), null)
+
+    @Test
+    fun closedOrExitedShowsClosedAtOnceWhileTheListStillHoldsTheSession() {
+        for (reason in listOf(ConversationEnded.CLOSED, ConversationEnded.EXITED)) {
+            val ended = ConversationReducer.ended(watched("g1"), reason)
+            assertEquals(reason, Screen.Closed, screen(conversation = ended))
+        }
+    }
+
+    @Test
+    fun hibernatedShowsDormantNeverNoWindow() {
+        val ended = ConversationReducer.ended(watched("g1"), ConversationEnded.HIBERNATED)
+        assertEquals(Screen.Dormant, screen(conversation = ended))
+        val unknown = ConversationReducer.ended(watched("g1"), "something-new")
+        assertEquals(Screen.Dormant, screen(conversation = unknown))
     }
 }

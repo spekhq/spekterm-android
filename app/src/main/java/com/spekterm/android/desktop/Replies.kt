@@ -28,6 +28,10 @@ data class Reply(
      * is not a stop). Cleared by a report of it working again within the grace (`addresses-and-mid-turn-replies` D6).
      */
     val stoppedAt: Long? = null,
+    /** The attachments it carries, taken out of the composer (design D7). */
+    val attachments: List<Attachment> = emptyList(),
+    /** Exactly what the desktop wrote (`r.text`); `null` before the answer, or from a desktop before 29a5d0a. */
+    val written: String? = null,
 ) {
     enum class State { SENDING, SUBMITTED, MAY_NOT_HAVE_BEEN_SENT, NOT_SUBMITTED }
 
@@ -66,6 +70,9 @@ data class Reply(
 
     /** A typed-but-withheld reply is never submitted by the desktop, so nothing can confirm it. */
     val matchable: Boolean get() = state != State.NOT_SUBMITTED
+
+    /** The ids of its attachments on the desktop. */
+    val attachmentIds: List<String> get() = attachments.mapNotNull { it.ready?.attachmentId }
 }
 
 /** How the desktop answered a `conversation.send`, as the screen treats it (design D6). */
@@ -113,6 +120,12 @@ sealed interface Blocked {
 
     data object InFlight : Blocked
 
+    /** An attachment is still being prepared or uploaded. */
+    data object Attaching : Blocked
+
+    /** An attachment failed: retry or remove it first. */
+    data object AttachmentFailed : Blocked
+
     /** The text is empty once the desktop's cleaning and trimming are applied. */
     data object Empty : Blocked
 
@@ -142,6 +155,7 @@ object Replies {
         pending: Pending?,
         inFlight: Boolean,
         text: String,
+        attachments: List<Attachment> = emptyList(),
     ): Blocked? = when {
         paused -> Blocked.Paused
         !connected -> Blocked.NotConnected
@@ -149,7 +163,10 @@ object Replies {
         wait == WaitState.AWAITING_CHOICE -> Blocked.AwaitingChoice(pending)
         wait != WaitState.READY && wait != WaitState.BUSY -> Blocked.Unknown
         inFlight -> Blocked.InFlight
-        jsTrim(clean(text)).isEmpty() -> Blocked.Empty
+        attachments.any { it.state is AttachmentState.Failed } -> Blocked.AttachmentFailed
+        attachments.any { it.state !is AttachmentState.Ready } -> Blocked.Attaching
+        // Empty text is sendable when it carries an attachment: the desktop writes its sentence alone.
+        jsTrim(clean(text)).isEmpty() && attachments.isEmpty() -> Blocked.Empty
         tooLong(text) -> Blocked.TooLong
         else -> null
     }
@@ -164,46 +181,90 @@ object Replies {
         return frame.toByteArray(Charsets.UTF_8).size >= MAX_FRAME_BYTES
     }
 
-    /** A new reply, sent now, in state SENDING. */
-    fun sent(c: Conversation, id: Long, text: String): Conversation {
+    /** A new reply, sent now, in state SENDING, carrying [attachments] out of the composer. */
+    fun sent(c: Conversation, id: Long, text: String, attachments: List<Attachment> = emptyList()): Conversation {
         val reply = Reply(
             id = id,
             text = text,
             sentWhile = c.wait,
             held = c.entries.mapNotNullTo(HashSet()) { it.uuid.takeIf(String::isNotEmpty) },
             anchor = ConversationReducer.keys(c.entries).lastOrNull(),
+            attachments = attachments,
         )
-        return c.copy(replies = c.replies + reply, draft = "")
+        val sentIds = attachments.map { it.localId }.toSet()
+        return c.copy(replies = c.replies + reply, draft = "", attachments = c.attachments.filter { it.localId !in sentIds }, attachNote = null)
     }
 
-    /** The desktop answered reply [id]. A refusal removes it and returns its text to the draft. */
-    fun answered(c: Conversation, id: Long, outcome: SendOutcome, now: Long): Conversation {
+    /**
+     * The desktop answered reply [id], having written [written]. A refusal removes it and returns its text to the
+     * draft and its attachments to the composer, still ready (design D7) — unless the session is gone.
+     */
+    fun answered(c: Conversation, id: Long, outcome: SendOutcome, now: Long, written: String? = null): Conversation {
         val reply = c.replies.firstOrNull { it.id == id } ?: return c
         val others = c.replies - reply
         return when (outcome) {
-            SendOutcome.Submitted -> c.copy(replies = others + reply.copy(state = Reply.State.SUBMITTED, submittedAt = now))
-            SendOutcome.NotSubmitted -> c.copy(replies = others + reply.copy(state = Reply.State.NOT_SUBMITTED))
-            SendOutcome.Unknown -> c.copy(replies = others + reply.copy(state = Reply.State.MAY_NOT_HAVE_BEEN_SENT))
-            is SendOutcome.Refused -> c.copy(
-                replies = others,
-                draft = if (c.draft.isEmpty()) reply.text else reply.text + "\n" + c.draft,
-                draftReturns = c.draftReturns + 1,
-            )
+            SendOutcome.Submitted -> rematch(c.copy(replies = others + reply.copy(state = Reply.State.SUBMITTED, submittedAt = now, written = written)), id)
+            SendOutcome.NotSubmitted -> c.copy(replies = others + reply.copy(state = Reply.State.NOT_SUBMITTED, written = written))
+            SendOutcome.Unknown -> rematch(c.copy(replies = others + reply.copy(state = Reply.State.MAY_NOT_HAVE_BEEN_SENT)), id)
+            is SendOutcome.Refused -> {
+                val notFound = outcome.code == RemoteError.NOT_FOUND
+                val back = if (c.closed) emptyList() else returned(reply.attachments, notFound, now)
+                c.copy(
+                    replies = others,
+                    draft = if (c.draft.isEmpty()) reply.text else reply.text + "\n" + c.draft,
+                    draftReturns = c.draftReturns + 1,
+                    attachments = back + c.attachments,
+                    attachNote = if (notFound && back.isNotEmpty()) AttachNote.SEND_NOT_FOUND else c.attachNote,
+                )
+            }
         }.let { next -> next.copy(replies = next.replies.sortedBy(Reply::id)) }
     }
 
     /**
-     * Confirms replies by the user entries of an update (design D6): a non-meta user entry, not held when the
-     * reply was sent, whose text equals the reply's after the desktop's cleaning, both trimmed. Each entry
-     * confirms at most one reply, oldest first; a confirmed reply disappears.
+     * Attachments of a refused send, back in the composer. On `NOT_FOUND` each counts it; at an attachment's
+     * second, the doubtful ones of that send fail, or all of them when none is doubtful (design D7).
+     */
+    private fun returned(attachments: List<Attachment>, notFound: Boolean, now: Long): List<Attachment> {
+        if (!notFound) return attachments
+        val counted = attachments.map { it.copy(notFoundSends = it.notFoundSends + 1) }
+        val second = counted.filter { it.notFoundSends >= 2 }
+        if (second.isEmpty()) return counted
+        val doubtful = second.filter { Uploads.doubtful(it, now) }
+        val failing = (doubtful.ifEmpty { second }).map { it.localId }.toSet()
+        return counted.map { if (it.localId in failing) it.copy(state = AttachmentState.Failed(Uploads.GONE), notFoundSends = 0) else it }
+    }
+
+    /**
+     * Whether [entry] confirms [reply] (design D7): equal to what the desktop wrote; without that, equal to the
+     * cleaned text — or, for a reply with attachments, starting with it and naming every attachment's id.
+     */
+    fun matches(reply: Reply, entry: Entry): Boolean {
+        if (entry !is Entry.User || entry.meta || !reply.matchable || entry.uuid in reply.held) return false
+        val text = jsTrim(entry.text)
+        reply.written?.let { return text == jsTrim(it) }
+        if (reply.attachments.isEmpty()) return text == jsTrim(clean(reply.text))
+        val ids = reply.attachmentIds
+        return ids.isNotEmpty() && text.startsWith(jsTrim(clean(reply.text))) && ids.all { it in text }
+    }
+
+    /**
+     * A reply with attachments may be in the conversation before its answer: match it against the entries held now
+     * that were not held when it was sent. Only such a reply: its ids make the match unique.
+     */
+    private fun rematch(c: Conversation, id: Long): Conversation {
+        val reply = c.replies.firstOrNull { it.id == id }?.takeIf { it.attachments.isNotEmpty() } ?: return c
+        return if (c.entries.any { matches(reply, it) }) c.copy(replies = c.replies - reply) else c
+    }
+
+    /**
+     * Confirms replies by the user entries of an update (design D6, D7). Each entry confirms at most one reply,
+     * oldest first; a confirmed reply disappears.
      */
     fun confirm(c: Conversation, arrived: List<Entry>, @Suppress("UNUSED_PARAMETER") now: Long): Conversation {
         if (c.replies.isEmpty()) return c
         var remaining = c.replies
         for (entry in arrived) {
-            if (entry !is Entry.User || entry.meta) continue
-            val text = jsTrim(entry.text)
-            val match = remaining.firstOrNull { it.matchable && entry.uuid !in it.held && jsTrim(clean(it.text)) == text } ?: continue
+            val match = remaining.firstOrNull { matches(it, entry) } ?: continue
             remaining = remaining - match
         }
         return if (remaining.size == c.replies.size) c else c.copy(replies = remaining)

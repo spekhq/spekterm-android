@@ -169,3 +169,13 @@ connection log shows. Items not exercised are listed as such.
 | Going to another conversation right after choosing a folder: no navigation, "Open" offered afterwards (session-create) | not run — carried by `CreateTrackerTest` (`leftList`) only |
 | Remote access turned off while the folder sheet is open: the sheet closes (session-create) | not run — carried by `canCreate` tests only |
 | What the desktop shows when the chosen empty folder is itself selected (design risk) | not run |
+
+## Prompts, attachments and the session menu
+
+Change `prompts-attachments-rename`, 2026-10-16, against the protocol of spekterm 9b02f53.
+
+| Check | Where | Outcome |
+|---|---|---|
+| `./gradlew test assembleDebug`: 179 JVM tests, including `FramesTest` (operations, the new payloads with their optional keys, `detail` fields, results), `PromptTest`, `AnswersTest`, `AttachmentKindTest`, `UploadsTest`, `RenameTest`, `SessionActionsTest`, and the new cases of `RepliesTest`, `ConversationReducerTest` and `SessionsViewTest` | host | pass |
+| `DesktopTest` (31, thirteen new): operations kept across a detach and forgotten by `clear()`; an answer names its prompt and records `partial`; another prompt id and a second answer in flight send nothing; a detach mid-answer → unknown; leaving while an answer is in flight still records it, and the next prompt can be answered; a 150 KiB file in three chunks (64 + 64 + 22 KiB, the id from the second); resume from `detail.received` after a reconnect; `NOT_FOUND` mid-upload restarts without an id; `TOO_MANY` with its limit; focusing another session deletes the file; a send carries the ids and is confirmed by `r.text`; rename / hibernate / close payloads, `force` only when agreed; `hibernated` → dormant, not window-gone; a list without the session, or `closed`, drops the attachments and their files | emulator (AVD `Pixel_9`, Android 16), only the emulator listed by `adb devices` | pass |
+| `PreparerTest` (7): a HEIC sample becomes an upright JPEG; a JPEG with EXIF orientation 6 is re-encoded upright; an upright JPEG is copied byte for byte; a PNG of noise over 10 MiB becomes a JPEG under 10 MiB; a ZIP and an empty file are refused; a 3 KB UTF-8 text passes; a 25 MB PDF stream is refused after reading just over 10 MiB; and the earlier instrumented suites (58 tests in all) | emulator | pass |

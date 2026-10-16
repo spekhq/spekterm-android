@@ -2,6 +2,7 @@ package com.spekterm.android
 
 import android.app.Application
 import kotlinx.coroutines.flow.MutableStateFlow
+import com.spekterm.android.attach.Attach
 import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.log.ConnectionLog
 import com.spekterm.android.service.Notifications
@@ -34,6 +35,7 @@ class App : Application() {
         log = ConnectionLog.forApp(this)
         Desktop.log = { kind, fields -> log.write(kind, *fields) }
         Notifications.createChannels(this)
+        Attach.clearCache(this)
     }
 }
 

@@ -1,8 +1,10 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.net.ConversationEnded
 import com.spekterm.android.net.ConversationUpdate
 import com.spekterm.android.net.Entry
 import com.spekterm.android.net.Pending
+import com.spekterm.android.net.Prompt
 import com.spekterm.android.net.SessionList
 import com.spekterm.android.net.WaitState
 
@@ -57,6 +59,16 @@ data class Conversation(
     /** Bumped whenever a refused reply's text is put back into [draft], so the composer takes it. */
     val draftReturns: Int = 0,
     val replies: List<Reply> = emptyList(),
+    /** The open prompt as the desktop last stated it (design D2). */
+    val prompt: Prompt? = null,
+    /** The latest answer from the phone and its outcome (design D4). */
+    val answer: AnswerState? = null,
+    /** The composer's attachments, in pick order (design D6). */
+    val attachments: List<Attachment> = emptyList(),
+    /** What the screen says about attaching, until the next pick or send. */
+    val attachNote: AttachNote? = null,
+    /** The session is no longer on the desktop: closed, or its process ended (design D10). */
+    val closed: Boolean = false,
 ) {
     /** The uuid to resume from: the last held entry's, or none when nothing is held. */
     val afterUuid: String? get() = entries.lastOrNull()?.uuid?.takeIf { it.isNotEmpty() }
@@ -106,7 +118,7 @@ object ConversationReducer {
     }
 
     /** A watch is being sent: catching up, and nothing known about the wait state yet. */
-    fun requested(c: Conversation) = c.copy(watch = Watch.Requested, phase = Phase.CATCHING_UP, wait = WaitState.UNKNOWN, pending = null, notRunning = false)
+    fun requested(c: Conversation) = c.copy(watch = Watch.Requested, phase = Phase.CATCHING_UP, wait = WaitState.UNKNOWN, pending = null, prompt = null, notRunning = false)
 
     fun answered(c: Conversation, errorCode: String?): Conversation = when (errorCode) {
         null -> c.copy(watch = Watch.Watching)
@@ -115,7 +127,7 @@ object ConversationReducer {
         else -> c.copy(watch = Watch.Refused(errorCode), phase = Phase.IDLE)
     }
 
-    fun unwatched(c: Conversation) = c.copy(watch = Watch.Idle, phase = if (c.phase == Phase.WINDOW_GONE) c.phase else Phase.IDLE, wait = WaitState.UNKNOWN, pending = null)
+    fun unwatched(c: Conversation) = c.copy(watch = Watch.Idle, phase = if (c.phase == Phase.WINDOW_GONE) c.phase else Phase.IDLE, wait = WaitState.UNKNOWN, pending = null, prompt = null)
 
     fun disconnected(c: Conversation) = Replies.disconnected(
         c.copy(
@@ -125,24 +137,44 @@ object ConversationReducer {
             phase = Phase.DISCONNECTED,
             wait = WaitState.UNKNOWN,
             pending = null,
+            prompt = null,
+            // An answer still waiting may or may not have been written.
+            answer = c.answer?.let { if (it.inFlight) it.copy(outcome = AnswerOutcome.Unknown) else it },
         ),
     )
 
-    fun ended(c: Conversation) = c.copy(watch = Watch.Idle, phase = Phase.WINDOW_GONE, wait = WaitState.UNKNOWN, pending = null)
+    /**
+     * The desktop ended the watch, saying why (design D10): the window went away; the session was closed or its
+     * process ended (the desktop then removes it); or it was hibernated — and any reason not known is taken as
+     * the process not running, which never re-watches by itself.
+     */
+    fun ended(c: Conversation, reason: String): Conversation {
+        val idle = c.copy(watch = Watch.Idle, wait = WaitState.UNKNOWN, pending = null, prompt = null)
+        return when (reason) {
+            ConversationEnded.WINDOW -> idle.copy(phase = Phase.WINDOW_GONE)
+            ConversationEnded.CLOSED, ConversationEnded.EXITED -> gone(idle.copy(phase = Phase.IDLE))
+            else -> idle.copy(phase = Phase.IDLE, notRunning = true)
+        }
+    }
+
+    /** The session is no longer on the desktop: its attachments went with it (the caller deletes their files). */
+    fun gone(c: Conversation) = c.copy(closed = true, attachments = emptyList(), attachNote = null)
 
     /**
      * The desktop reports one prompt more than once, and only its first report names the tool (a later
      * `Notification` for the same prompt folds to no request), so a report without a tool keeps the one held
      * while the agent still asks for a choice.
      */
-    fun waited(c: Conversation, state: String, pending: Pending?, now: Long): Conversation {
+    fun waited(c: Conversation, state: String, pending: Pending?, now: Long, prompt: Prompt? = null): Conversation {
         val wait = WaitState.of(state)
         val asked = when {
             wait != WaitState.AWAITING_CHOICE -> null
             pending?.tool.isNullOrBlank() && c.wait == WaitState.AWAITING_CHOICE && c.pending != null -> c.pending
             else -> pending
         }
-        return Replies.waited(c.copy(wait = wait, pending = asked), wait, now)
+        // A note about an answer to a prompt no longer shown goes; a warning stays until dismissed (design D4).
+        val answer = c.answer?.takeUnless { a -> a.promptId != prompt?.id && a.outcome != null && !a.outcome.warning }
+        return Replies.waited(c.copy(wait = wait, pending = asked, prompt = prompt, answer = answer), wait, now)
     }
 
     /**

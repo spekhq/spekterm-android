@@ -1,17 +1,23 @@
 package com.spekterm.android.desktop
 
 import com.spekterm.android.log.ConnectionLog.Kind
+import com.spekterm.android.net.AnswerResult
 import com.spekterm.android.net.ConnectionClosedException
 import com.spekterm.android.net.ConversationEnded
 import com.spekterm.android.net.CreateResult
 import com.spekterm.android.net.ConversationUpdate
 import com.spekterm.android.net.ConversationWait
 import com.spekterm.android.net.Frames
+import com.spekterm.android.net.Operations
+import com.spekterm.android.net.PutResult
 import com.spekterm.android.net.RemoteConnection
 import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.SendResult
 import com.spekterm.android.net.ServerFrame
 import com.spekterm.android.net.SessionList
+import java.io.File
+import java.io.RandomAccessFile
+import java.util.Base64
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,6 +28,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -57,6 +64,17 @@ object Desktop {
     /** Whether a connection is attached (authenticated, attention watch answered). */
     val connected: StateFlow<Boolean> = mutableConnected
 
+    private val mutableOperations = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * The operations the desktop listed at the last authentication (design D1): kept across a detach, so controls
+     * stay in place while unusable; replaced at the next authentication, emptied by [clear].
+     */
+    val operations: StateFlow<Set<String>> = mutableOperations
+
+    /** Bumped at every attach: an upload that got no answer waits for the next connection (design D6). */
+    private val attachments = MutableStateFlow(0L)
+
     private val mutableCreation = MutableStateFlow<Creation?>(null)
 
     /** A session being started from the phone, and its outcome until dismissed (`session-create`). */
@@ -84,18 +102,23 @@ object Desktop {
     private var pendingCreate: CreateTracker.Pending? = null
     private var createTimer: Job? = null
     private var nextCreateId = 0L
+    private var nextAttachmentId = 0L
+    private var uploadJob: Job? = null
 
     /** Bumped when everything is dropped ([clear]): a create of an older generation writes nothing. */
     private var generation = 0L
 
     // ---- Hooks for the service ----
 
-    suspend fun attach(connection: RemoteConnection) = withContext(dispatcher) {
+    suspend fun attach(connection: RemoteConnection, operations: Set<String> = emptySet()) = withContext(dispatcher) {
         attached?.scope?.cancel()
         val a = Attached(connection, CoroutineScope(SupervisorJob(scope.coroutineContext[Job]) + dispatcher))
         attached = a
         clock.reset()
+        mutableOperations.value = operations
         mutableConnected.value = true
+        attachments.value++
+        pumpUploads()
         a.scope.launch {
             val answer = request(a, "sessions.list") ?: return@launch
             if (answer.ok) SessionList.decode(answer.result)?.let { applyList(a, answer.seq, it) }
@@ -111,13 +134,13 @@ object Desktop {
             "conversation.update" -> ConversationUpdate.decode(event.data)?.let { update ->
                 change(update.sessionId) { ConversationReducer.apply(it, update, now()) }
             }
-            "conversation.wait" -> Frames.decodeOrNull<ConversationWait>(event.data)?.let { wait ->
-                change(wait.sessionId) { ConversationReducer.waited(it, wait.state, wait.pending, now()) }
+            "conversation.wait" -> ConversationWait.decode(event.data)?.let { wait ->
+                change(wait.sessionId) { ConversationReducer.waited(it, wait.state, wait.pending, now(), wait.prompt) }
             }
             "conversation.ended" -> Frames.decodeOrNull<ConversationEnded>(event.data)?.let { ended ->
                 val c = mutableConversation.value
                 if (c != null && c.sessionId == ended.sessionId && c.watch.active) {
-                    mutableConversation.value = ConversationReducer.ended(c)
+                    setHeld(ConversationReducer.ended(c, ended.reason))
                     log(Kind.CONVERSATION, "event" to "ended", "reason" to ended.reason)
                 }
             }
@@ -146,7 +169,7 @@ object Desktop {
             if (c == null || c.sessionId != sessionId) {
                 // Another session: drop what was held for the previous one, after unwatching it.
                 if (c != null && c.watch.active) unwatch(c)
-                mutableConversation.value = Conversation(sessionId, listedRunning = listedRunning(sessionId))
+                setHeld(Conversation(sessionId, listedRunning = listedRunning(sessionId)))
             }
             reconcile()
         }
@@ -165,6 +188,33 @@ object Desktop {
     /** Keeps the draft of [sessionId] across leaving its screen. */
     fun setDraft(sessionId: String, text: String) {
         scope.launch { change(sessionId, requireWatch = false) { it.copy(draft = text) } }
+    }
+
+    /** Renames [sessionId] (design D8); `""` hands naming back. `null` on success; the label follows the list. */
+    suspend fun rename(sessionId: String, name: String): RemoteError? = withContext(dispatcher) {
+        val a = attached ?: return@withContext RemoteError(NOT_CONNECTED)
+        val answer = a.scope.async { request(a, "sessions.rename", Frames.sessionsRename(sessionId, name)) }.await()
+        log(Kind.RENAME, "cleared" to name.isEmpty(), "error" to (answer?.error?.code ?: if (answer == null) NOT_CONNECTED else null))
+        answer?.error ?: if (answer == null) RemoteError(NOT_CONNECTED) else null
+    }
+
+    /** Hibernates [sessionId] (design D9); [force] only after a busy refusal the user agreed to override. */
+    suspend fun hibernate(sessionId: String, force: Boolean): RemoteError? =
+        sessionAction(Kind.HIBERNATE, "sessions.hibernate", Frames.sessionsHibernate(sessionId, force), force)
+
+    /** Closes [sessionId] (design D9), after the user confirmed. Its attachments go with it on success. */
+    suspend fun close(sessionId: String, force: Boolean): RemoteError? {
+        val error = sessionAction(Kind.CLOSE, "sessions.close", Frames.sessionsClose(sessionId, force), force)
+        if (error == null) withContext(dispatcher) { change(sessionId, requireWatch = false) { ConversationReducer.gone(it) } }
+        return error
+    }
+
+    private suspend fun sessionAction(kind: Kind, method: String, params: kotlinx.serialization.json.JsonObject, force: Boolean): RemoteError? = withContext(dispatcher) {
+        val a = attached ?: return@withContext RemoteError(NOT_CONNECTED)
+        val answer = a.scope.async { request(a, method, params) }.await()
+        val error = answer?.error ?: if (answer == null) RemoteError(NOT_CONNECTED) else null
+        log(kind, "force" to force, "error" to error?.code, "reason" to error?.detailString("reason"))
+        error
     }
 
     /** Wakes a dormant session. `null` on success, else the desktop's error, or [NOT_CONNECTED]. */
@@ -188,16 +238,121 @@ object Desktop {
         val a = attached
         val c = mutableConversation.value?.takeIf { it.sessionId == sessionId } ?: return@withContext false
         val inFlight = c.replies.any { it.state == Reply.State.SENDING }
-        if (a == null || Replies.blocked(true, false, c.watch, c.wait, c.pending, inFlight, text) != null) return@withContext false
+        if (a == null || Replies.blocked(true, false, c.watch, c.wait, c.pending, inFlight, text, c.attachments) != null) return@withContext false
         val id = ++nextReplyId
-        mutableConversation.value = Replies.sent(c, id, text)
+        val carried = c.attachments
+        val ids = carried.mapNotNull { it.ready?.attachmentId }
+        mutableConversation.value = Replies.sent(c, id, text, carried)
         a.scope.launch {
-            val answer = request(a, "conversation.send", Frames.conversationSend(sessionId, text), SEND_TIMEOUT_MS)
-            val outcome = SendOutcome.of(answer?.result?.let { Frames.decodeOrNull<SendResult>(it) }?.outcome, answer?.error?.code)
-            log(Kind.SEND, "outcome" to outcome.javaClass.simpleName, "error" to answer?.error?.code, "length" to text.length)
-            change(sessionId, requireWatch = false) { Replies.answered(it, id, outcome, now()) }
+            val answer = request(a, "conversation.send", Frames.conversationSend(sessionId, text, ids), SEND_TIMEOUT_MS)
+            val result = answer?.result?.let { Frames.decodeOrNull<SendResult>(it) }
+            val outcome = SendOutcome.of(result?.outcome, answer?.error?.code)
+            log(Kind.SEND, "outcome" to outcome.javaClass.simpleName, "error" to answer?.error?.code, "length" to text.length, "attachments" to ids.size)
+            change(sessionId, requireWatch = false) { Replies.answered(it, id, outcome, now(), result?.text) }
+            // Files of attachments that were spent, or that did not come back to the composer, are not needed.
+            dropFilesNotHeld(carried)
+            if (outcome is SendOutcome.Refused) pumpUploads()
         }
         true
+    }
+
+    /**
+     * Answers the held prompt [promptId] of the watched [sessionId] (design D4). Never retried. Returns false when
+     * the gate refuses: another prompt is held, an answer to it is in flight, or the desktop does not answer.
+     */
+    suspend fun answer(sessionId: String, promptId: String, decision: String, selections: List<List<Int>>? = null): Boolean = withContext(dispatcher) {
+        val a = attached ?: return@withContext false
+        val c = mutableConversation.value?.takeIf { it.sessionId == sessionId } ?: return@withContext false
+        val prompt = c.prompt?.takeIf { it.id == promptId } ?: return@withContext false
+        if (c.watch != Watch.Watching || Operations.ANSWER !in mutableOperations.value) return@withContext false
+        if (c.answer?.let { it.promptId == promptId && it.inFlight } == true) return@withContext false
+        mutableConversation.value = c.copy(answer = AnswerState(promptId, decision))
+        val kind = when (prompt) {
+            is com.spekterm.android.net.Prompt.Permission -> "permission"
+            is com.spekterm.android.net.Prompt.Question -> "question"
+            is com.spekterm.android.net.Prompt.Plan -> "plan"
+        }
+        a.scope.launch {
+            val answer = request(a, "conversation.answer", Frames.conversationAnswer(sessionId, promptId, decision, selections), ANSWER_TIMEOUT_MS)
+            val outcome = AnswerOutcome.of(answer?.result?.let { Frames.decodeOrNull<AnswerResult>(it) }?.outcome, answer?.error?.code)
+            log(Kind.ANSWER, "kind" to kind, "decision" to decision, "outcome" to outcome.javaClass.simpleName, "error" to answer?.error?.code, "open" to prompt.open)
+            // Written back also when the screen was left meanwhile (design D4); a newer answer is not overwritten.
+            change(sessionId, requireWatch = false) { held ->
+                val mine = held.answer?.takeIf { it.promptId == promptId && it.inFlight } ?: return@change held
+                held.copy(answer = mine.copy(outcome = outcome))
+            }
+        }
+        true
+    }
+
+    /** The user dismissed the note about the last answer. */
+    fun dismissAnswer(sessionId: String) {
+        scope.launch { change(sessionId, requireWatch = false) { c -> if (c.answer?.inFlight == true) c else c.copy(answer = null) } }
+    }
+
+    // ---- Attachments (design D5, D6) ----
+
+    /**
+     * Makes room for picks named [names] in [sessionId]'s composer: as many as fit under the reply's limit, each
+     * `Preparing`. Returns their ids in order; the rest are dropped, and the composer says so.
+     */
+    suspend fun addAttachments(sessionId: String, names: List<String>): List<Long> = withContext(dispatcher) {
+        val c = mutableConversation.value?.takeIf { it.sessionId == sessionId && !it.closed } ?: return@withContext emptyList()
+        val room = (Uploads.MAX_ATTACHMENTS - c.attachments.size).coerceAtLeast(0)
+        val added = names.take(room).map { Attachment(++nextAttachmentId, it) }
+        mutableConversation.value = c.copy(
+            attachments = c.attachments + added,
+            attachNote = if (names.size > room) AttachNote.TOO_MANY_PICKED else null,
+        )
+        added.map { it.localId }
+    }
+
+    /** [localId] was prepared into [file]. A preparation for an attachment no longer held deletes its output. */
+    fun prepared(localId: Long, file: File, name: String, size: Long, converted: Boolean) {
+        scope.launch {
+            val held = heldAttachment(localId)
+            if (held == null || held.state != AttachmentState.Preparing) {
+                deleteFiles(listOf(file))
+                return@launch
+            }
+            updateAttachment(localId) { it.copy(name = name, size = size, file = file, converted = converted, state = AttachmentState.Queued) }
+            log(Kind.ATTACH, "event" to (if (converted) "converted" else "prepared"), "bytes" to size)
+            pumpUploads()
+        }
+    }
+
+    /** [localId] could not be attached: it leaves the composer, which says why. */
+    fun prepareFailed(localId: Long, note: AttachNote) {
+        scope.launch {
+            val c = mutableConversation.value ?: return@launch
+            if (c.attachments.none { it.localId == localId }) return@launch
+            mutableConversation.value = c.copy(attachments = c.attachments.filter { it.localId != localId }, attachNote = note)
+            log(Kind.ATTACH, "event" to "refused", "error" to note.name)
+        }
+    }
+
+    /** Removes [localId] from the composer; its upload stops and its file is deleted. */
+    fun removeAttachment(localId: Long) {
+        scope.launch {
+            val c = mutableConversation.value ?: return@launch
+            val gone = c.attachments.firstOrNull { it.localId == localId } ?: return@launch
+            mutableConversation.value = c.copy(attachments = c.attachments - gone)
+            deleteFiles(listOfNotNull(gone.file))
+            log(Kind.ATTACH, "event" to "removed")
+        }
+    }
+
+    /** Uploads a failed attachment again, from the start. */
+    fun retryAttachment(localId: Long) {
+        scope.launch {
+            if (heldAttachment(localId)?.state !is AttachmentState.Failed) return@launch
+            updateAttachment(localId) { it.copy(state = if (it.file == null) it.state else AttachmentState.Queued, notFoundSends = 0) }
+            pumpUploads()
+        }
+    }
+
+    fun dismissAttachNote(sessionId: String) {
+        scope.launch { change(sessionId, requireWatch = false) { it.copy(attachNote = null) } }
     }
 
     /**
@@ -259,8 +414,9 @@ object Desktop {
             visibleSession = null
             clock.reset()
             mutableConnected.value = false
+            mutableOperations.value = emptySet()
             mutableSessions.value = SessionsState()
-            mutableConversation.value = null
+            setHeld(null)
             dropCreation()
         }
     }
@@ -274,8 +430,9 @@ object Desktop {
         clock.reset()
         nextReplyId = 0
         mutableConnected.value = false
+        mutableOperations.value = emptySet()
         mutableSessions.value = SessionsState()
-        mutableConversation.value = null
+        setHeld(null)
         dropCreation()
         listOnScreen = false
         createWaitMs = 10_000L
@@ -314,8 +471,112 @@ object Desktop {
         if (attached !== a || !clock.accept(seq)) return
         mutableSessions.value = SessionsState(list, current = true, receivedAt = now())
         track(CreateTracker.listed(trackerState(), list, a, listOnScreen))
-        mutableConversation.value?.let { mutableConversation.value = ConversationReducer.listed(it, list) }
+        mutableConversation.value?.let { held ->
+            var next = ConversationReducer.listed(held, list)
+            // A list with a window that no longer holds the session: closed, or its process ended (design D10).
+            if (list.window && list.sessions.none { it.id == held.sessionId } && (!held.closed || held.attachments.isNotEmpty())) {
+                next = ConversationReducer.gone(next)
+            }
+            setHeld(next)
+        }
         reconcile()
+    }
+
+    /**
+     * Replaces the held conversation. Attachments it no longer holds — another session's conversation, or a gone
+     * session — lose their upload and their file.
+     */
+    private fun setHeld(next: Conversation?) {
+        val before = mutableConversation.value
+        mutableConversation.value = next
+        if (before != null && (next == null || next.sessionId != before.sessionId)) {
+            uploadJob?.cancel()
+            uploadJob = null
+        }
+        dropFilesNotHeld(before?.attachments.orEmpty())
+    }
+
+    /** Deletes the files of [candidates] the held conversation no longer holds, in its composer or a reply. */
+    private fun dropFilesNotHeld(candidates: List<Attachment> = emptyList()) {
+        val c = mutableConversation.value
+        val kept = c?.let { held -> (held.attachments + held.replies.filter { it.state == Reply.State.SENDING }.flatMap { it.attachments }).mapNotNull { it.file } }.orEmpty().toSet()
+        deleteFiles(candidates.mapNotNull { it.file }.filter { it !in kept })
+    }
+
+    private fun deleteFiles(files: List<File>) {
+        if (files.isEmpty()) return
+        scope.launch(Dispatchers.IO) { files.forEach { runCatching { it.delete() } } }
+    }
+
+    private fun heldAttachment(localId: Long): Attachment? = mutableConversation.value?.attachments?.firstOrNull { it.localId == localId }
+
+    private fun updateAttachment(localId: Long, transform: (Attachment) -> Attachment) {
+        val c = mutableConversation.value ?: return
+        if (c.attachments.none { it.localId == localId }) return
+        mutableConversation.value = c.copy(attachments = c.attachments.map { if (it.localId == localId) transform(it) else it })
+    }
+
+    /** Starts the upload worker unless it runs: one attachment at a time, in pick order (design D6). */
+    private fun pumpUploads() {
+        if (uploadJob?.isActive == true) return
+        val c = mutableConversation.value ?: return
+        if (c.attachments.none { it.state is AttachmentState.Queued || it.state is AttachmentState.Uploading }) return
+        uploadJob = scope.launch { uploadLoop(c.sessionId) }
+    }
+
+    private suspend fun uploadLoop(sessionId: String) {
+        while (true) {
+            val c = mutableConversation.value?.takeIf { it.sessionId == sessionId } ?: return
+            val next = c.attachments.firstOrNull { it.state is AttachmentState.Queued || it.state is AttachmentState.Uploading } ?: return
+            val a = attached
+            if (a == null || a.connection.closed.isCompleted) {
+                // Wait for the next connection: the current state, not an attach that may already have happened.
+                val gen = attachments.value
+                attachments.first { it != gen }
+                continue
+            }
+            val file = next.file ?: return
+            val up = next.state as? AttachmentState.Uploading ?: AttachmentState.Uploading()
+            if (next.state == AttachmentState.Queued) updateAttachment(next.localId) { it.copy(state = up) }
+            val length = Uploads.chunkLength(next.size, up.received)
+            val data = withContext(Dispatchers.IO) { runCatching { readChunk(file, up.received, length) }.getOrNull() }
+            if (data == null) {
+                if (heldAttachment(next.localId)?.state is AttachmentState.Uploading) updateAttachment(next.localId) { it.copy(state = AttachmentState.Failed(Uploads.FILE)) }
+                log(Kind.ATTACH, "event" to "failed", "error" to Uploads.FILE)
+                continue
+            }
+            val gen = attachments.value
+            val answer = request(
+                a,
+                "attachments.put",
+                Frames.attachmentsPut(sessionId, next.name, next.size, up.received, Base64.getEncoder().encodeToString(data), up.attachmentId),
+                PUT_TIMEOUT_MS,
+            )
+            val reply = when {
+                answer == null -> Uploads.Answer.None
+                answer.ok -> answer.result?.let { Frames.decodeOrNull<PutResult>(it) }?.let { Uploads.Answer.Ok(it) }
+                    ?: Uploads.Answer.Error(RemoteError(RemoteError.INTERNAL))
+                else -> Uploads.Answer.Error(answer.error!!)
+            }
+            // Removed, retried or dropped meanwhile: this answer is not its own any more.
+            if (heldAttachment(next.localId)?.state != up) continue
+            val after = Uploads.next(up, next.size, length, reply, now())
+            updateAttachment(next.localId) { it.copy(state = after) }
+            when {
+                after is AttachmentState.Ready -> log(Kind.ATTACH, "event" to "complete", "bytes" to next.size, "presumed" to after.presumed)
+                after is AttachmentState.Failed -> log(Kind.ATTACH, "event" to "failed", "error" to after.code, "limit" to after.limit)
+                after is AttachmentState.Uploading && reply is Uploads.Answer.Error -> log(Kind.ATTACH, "event" to "resumed", "error" to reply.error.code, "bytes" to after.received)
+            }
+            // No answer: the call ended this connection; wait for the next one.
+            if (reply == Uploads.Answer.None && after is AttachmentState.Uploading) attachments.first { it != gen }
+        }
+    }
+
+    private fun readChunk(file: File, offset: Long, length: Int): ByteArray = RandomAccessFile(file, "r").use { raf ->
+        val bytes = ByteArray(length)
+        raf.seek(offset)
+        raf.readFully(bytes)
+        bytes
     }
 
     /**
@@ -337,7 +598,7 @@ object Desktop {
             return
         }
         val watchable = list != null && list.window && session != null && session.running && session.isAgent
-        if (!watchable || c.watch != Watch.Idle || c.notRunning) return
+        if (!watchable || c.watch != Watch.Idle || c.notRunning || c.closed) return
         val sessionId = c.sessionId
         val after = c.afterUuid
         mutableConversation.value = ConversationReducer.requested(c)
@@ -366,7 +627,7 @@ object Desktop {
     private inline fun change(sessionId: String, requireWatch: Boolean = true, transform: (Conversation) -> Conversation) {
         val c = mutableConversation.value ?: return
         if (c.sessionId != sessionId || (requireWatch && !c.watch.active)) return
-        mutableConversation.value = transform(c)
+        setHeld(transform(c))
     }
 
     private fun listedRunning(sessionId: String): Boolean? {
@@ -392,4 +653,10 @@ object Desktop {
 
     /** Above the desktop's own 15 s limit for its interface, so a slow create answers `TIMEOUT` first. */
     const val CREATE_TIMEOUT_MS = 20_000L
+
+    /** Above the worst answer (37 keys 250 ms apart, 3 s of confirmation, a queued reply); never retried. */
+    const val ANSWER_TIMEOUT_MS = 30_000L
+
+    /** One 64 KiB chunk on a slow link (design D6). */
+    const val PUT_TIMEOUT_MS = 30_000L
 }

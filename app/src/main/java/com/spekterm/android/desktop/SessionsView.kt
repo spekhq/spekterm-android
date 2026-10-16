@@ -128,7 +128,8 @@ sealed interface Screen {
             val list = sessions.list?.takeIf { sessions.current }
             if (list?.window == false || conversation?.phase == Phase.WINDOW_GONE) return NoWindow
             val session = list?.sessions?.firstOrNull { it.id == sessionId }
-            if (list != null && session == null) return Closed
+            // Closed by the desktop's word (design D10), or missing from a current list with a window.
+            if (conversation?.closed == true || (list != null && session == null)) return Closed
             if (session != null && !session.isAgent) return Shell
             if (session?.running == false || conversation?.notRunning == true) return Dormant
             return Content

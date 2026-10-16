@@ -128,26 +128,154 @@ data class ConversationUpdate(
 @Serializable
 data class Pending(val tool: String = "", val arg: String? = null)
 
-/** `conversation.wait`: whether a reply can be sent. */
-@Serializable
-data class ConversationWait(val sessionId: String, val state: String, val pending: Pending? = null)
+/**
+ * `conversation.wait`: whether a reply can be sent, and the open prompt. Decoded by hand, so a malformed or unknown
+ * [prompt] never drops the event that carries it (design D2).
+ */
+data class ConversationWait(val sessionId: String, val state: String, val pending: Pending?, val prompt: Prompt?) {
+    companion object {
+        fun decode(element: JsonElement?): ConversationWait? {
+            val o = element as? JsonObject ?: return null
+            return ConversationWait(
+                sessionId = o.string("sessionId") ?: return null,
+                state = o.string("state") ?: return null,
+                pending = (o["pending"] as? JsonObject)?.let { Frames.decodeOrNull<Pending>(it) },
+                prompt = o["prompt"]?.let { runCatching { Prompt.decode(it) }.getOrNull() },
+            )
+        }
+    }
+}
 
-/** `conversation.ended`. */
+/**
+ * The agent's first open request, as the desktop states it (`docs/remote-protocol.md`, `conversation.watch`).
+ * [answerable] is the desktop's word, false when missing; [open] is how many requests are open.
+ */
+sealed interface Prompt {
+    val id: String
+    val answerable: Boolean
+    val open: Int
+
+    /** [canAllow]: the tool's prompt puts a one-time "Yes" first. */
+    data class Permission(
+        override val id: String,
+        val tool: String,
+        val arg: String?,
+        val canAllow: Boolean,
+        override val answerable: Boolean,
+        override val open: Int,
+    ) : Prompt
+
+    /** The agent's question tool. [answerable] is also false when the phone's own guard ([fits]) fails. */
+    data class Question(
+        override val id: String,
+        val questions: List<Item>,
+        val desktopAnswerable: Boolean,
+        override val open: Int,
+    ) : Prompt {
+        data class Item(val question: String, val header: String, val multiSelect: Boolean, val options: List<Option>)
+
+        data class Option(val label: String, val description: String)
+
+        /** One to four questions of one to eight options: the phone never renders an unbounded form. */
+        val fits: Boolean get() = questions.size in 1..4 && questions.all { it.options.size in 1..8 }
+
+        override val answerable: Boolean get() = desktopAnswerable && fits
+    }
+
+    /** [choices] holds only the known decisions the desktop offers for it. */
+    data class Plan(
+        override val id: String,
+        val plan: String?,
+        val choices: List<String>,
+        override val answerable: Boolean,
+        override val open: Int,
+    ) : Prompt
+
+    companion object {
+        const val ALLOW = "allow"
+        const val DENY = "deny"
+        const val ANSWER = "answer"
+        const val APPROVE = "approve"
+        const val APPROVE_AUTO = "approve-auto"
+
+        private val PLAN_CHOICES = setOf(APPROVE, APPROVE_AUTO, DENY)
+
+        /** A prompt, or `null` for none, an unknown kind or a malformed one (no id). */
+        fun decode(element: JsonElement): Prompt? {
+            val o = element as? JsonObject ?: return null
+            val id = o.string("id")?.takeIf { it.isNotEmpty() } ?: return null
+            val answerable = o.bool("answerable")
+            val open = (o["open"] as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull?.toInt() ?: 1
+            return when (o.string("kind")) {
+                "permission" -> Permission(id, o.string("tool") ?: "", o.string("arg"), o.bool("canAllow"), answerable, open)
+                "question" -> Question(
+                    id,
+                    each(o["questions"]) { q ->
+                        val item = q as? JsonObject ?: return@each null
+                        Question.Item(
+                            question = item.string("question") ?: "",
+                            header = item.string("header") ?: "",
+                            multiSelect = item.bool("multiSelect"),
+                            options = each(item["options"]) { opt ->
+                                val option = opt as? JsonObject ?: return@each null
+                                Question.Option(option.string("label") ?: return@each null, option.string("description") ?: "")
+                            },
+                        )
+                    },
+                    answerable,
+                    open,
+                )
+                "plan" -> Plan(
+                    id,
+                    o.string("plan"),
+                    each(o["choices"]) { (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content?.takeIf { c -> c in PLAN_CHOICES } },
+                    answerable,
+                    open,
+                )
+                else -> null
+            }
+        }
+    }
+}
+
+/** `conversation.ended`. Branch on [reason]; an unknown one is taken as the process not running (design D10). */
 @Serializable
-data class ConversationEnded(val sessionId: String, val reason: String = "")
+data class ConversationEnded(val sessionId: String, val reason: String = "") {
+    companion object {
+        const val WINDOW = "window"
+        const val EXITED = "exited"
+        const val HIBERNATED = "hibernated"
+        const val CLOSED = "closed"
+    }
+}
 
 /** The answer to `sessions.create` and `sessions.wake`. */
 @Serializable
 data class CreateResult(val sessionId: String)
 
-/** The answer to `conversation.send`. */
+/** The answer to `conversation.send`. [text] is exactly what the desktop wrote; absent before 29a5d0a. */
 @Serializable
-data class SendResult(val outcome: String) {
+data class SendResult(val outcome: String, val text: String? = null) {
     companion object {
         const val SUBMITTED = "submitted"
         const val FILLED_NOT_SUBMITTED = "filled-not-submitted"
     }
 }
+
+/** The answer to `conversation.answer`. */
+@Serializable
+data class AnswerResult(val outcome: String) {
+    companion object {
+        const val SENT = "sent"
+        const val PARTIAL = "partial"
+        const val CONFIRMED = "confirmed"
+        const val MISMATCH = "mismatch"
+    }
+}
+
+/** The answer to one `attachments.put` chunk. */
+@Serializable
+data class PutResult(val attachmentId: String, val received: Long, val complete: Boolean = false)
 
 /** The agent's wait states (`agent-input-bridge`); anything else is unknown. */
 object WaitState {

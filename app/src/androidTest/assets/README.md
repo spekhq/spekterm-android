@@ -24,3 +24,25 @@ writeFileSync('spekterm-fingerprint.txt', i.fingerprint.replace(/:/g, '') + '\n'
 "
 openssl x509 -in spekterm-cert.pem -noout -text   # Version 3, ecdsa-with-SHA256, no X509v3 lines
 ```
+
+# Test photos for the attachment preparer (`prompts-attachments-rename`)
+
+- `rotated.heic` — 400 × 200 stored, left half red and right half blue, turned upright (200 × 400, red on top) by its
+  orientation (pillow-heif writes it as the HEIF `irot` transform).
+- `rotated.jpg` — the same picture as a JPEG with EXIF orientation 6 (rotate 90° clockwise to view).
+- `upright.jpg` — a plain 64 × 32 green JPEG with no orientation tag.
+
+Made 2026-10-16 with Pillow 12.3.0 and pillow-heif 1.8.1 in a scratch virtualenv:
+
+```python
+from PIL import Image
+import pillow_heif
+pillow_heif.register_heif_opener()
+img = Image.new("RGB", (400, 200), (0, 0, 255))
+img.paste((255, 0, 0), (0, 0, 200, 200))
+exif = Image.Exif()
+exif[0x0112] = 6
+img.save("rotated.heic", format="HEIF", exif=exif.tobytes(), quality=90)
+img.save("rotated.jpg", format="JPEG", exif=exif.tobytes(), quality=90)
+Image.new("RGB", (64, 32), (0, 128, 0)).save("upright.jpg", format="JPEG", quality=90)
+```

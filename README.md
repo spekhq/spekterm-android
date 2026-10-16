@@ -15,15 +15,23 @@ you forward — with no relay and no push service in between.
   arrives — over the app's own held connection. Tapping one about a session opens its conversation.
 - **Sessions**: the desktop's sessions by folder, with each agent's state (waiting for you, working, asks for a
   choice) or dormant, kept live. Folders can be collapsed; a collapsed folder still shows what waits for you.
+  Long-pressing a session (or "⋮" on its screen) renames, hibernates, wakes or closes it. Closing asks first,
+  and so does stopping a session the desktop says is busy.
 - **New sessions**: start an agent session in any of the desktop's folders, quietly, and continue in its
   conversation on the phone.
 - **Conversations**: an agent session's messages, thinking, tool calls and results; a dormant session can be
   woken. Agent text is Markdown that loads nothing from the network.
-- **Replies**: free text to the agent while it waits or works, shown as unconfirmed until it appears in the
-  conversation. A permission prompt is not answered on the phone: the app shows what is asked and says to
-  answer it on the desktop.
+- **Replies**: free text to the agent while it waits or works, with photos (HEIC converted to JPEG), PDF or
+  text files attached, shown as unconfirmed until it appears in the conversation.
+- **Prompts**: a permission request, the agent's questions or a plan to approve is shown as plain text and,
+  when the desktop says it can be, answered from the phone — allow once or deny, the questions' options or
+  declining, approve or keep planning. "Tell Claude what to change" and a question's free-text answer are not
+  offered: decline, then reply.
 
-Not yet: the terminal view (shell sessions, answering prompts), the inbox, handoffs, and OpenSpec browsing.
+These need spekterm 29a5d0a or later (hibernating and closing: 9b02f53); against an older desktop the app shows
+none of them.
+
+Not yet: the terminal view (shell sessions), the inbox, handoffs, and OpenSpec browsing.
 
 ## How it talks to spekterm
 

@@ -3,6 +3,7 @@ package com.spekterm.android.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.spekterm.android.app
 import com.spekterm.android.desktop.Creation
 import com.spekterm.android.desktop.Desktop
+import com.spekterm.android.desktop.SessionActions
 import com.spekterm.android.desktop.SessionsView
 import com.spekterm.android.desktop.SessionsView.RowState
 import com.spekterm.android.service.StatusBoard
@@ -89,6 +93,9 @@ fun SessionsScreen(
     var picking by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     val groups = list?.let { SessionsView.groups(it) }.orEmpty()
+    val operations by Desktop.operations.collectAsStateWithLifecycle()
+    val actionsEnabled = SessionActions.enabled(connected, announcements.paused, sessions)
+    val dialogs = rememberSessionDialogs()
 
     // A created session opens by itself only while this screen is at the front (design D7).
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -162,13 +169,21 @@ fun SessionsScreen(
                 }
                 if (!folded) {
                     items(group.rows, key = { "session:${it.session.id}" }) { row ->
-                        SessionRow(row, onClick = { onOpen(row.session.id) })
+                        SessionRow(
+                            row,
+                            actions = SessionActions.of(row.session, operations),
+                            actionsEnabled = actionsEnabled,
+                            onClick = { onOpen(row.session.id) },
+                            onAction = { dialogs.choose(it, row.session) },
+                        )
                         HorizontalDivider()
                     }
                 }
             }
         }
     }
+
+    SessionDialogsHost(dialogs, actionsEnabled)
 
     if (picking && list != null) {
         ModalBottomSheet(onDismissRequest = { picking = false }) {
@@ -278,25 +293,48 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onToggle: (
     }
 }
 
+/** A tap opens the session; a long press opens its menu when the desktop offers an action (design D8). */
 @Composable
-private fun SessionRow(row: SessionsView.Row, onClick: () -> Unit) {
+private fun SessionRow(
+    row: SessionsView.Row,
+    actions: List<SessionActions.Action>,
+    actionsEnabled: Boolean,
+    onClick: () -> Unit,
+    onAction: (SessionActions.Action) -> Unit,
+) {
     val session = row.session
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(session.label.ifEmpty { session.id }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val second = listOfNotNull(
-                if (session.isAgent) "Agent" else "Shell",
-                session.lifecycle?.let { "handoff: $it" },
-            ).joinToString(" · ")
-            Text(second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val haptics = LocalHapticFeedback.current
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = if (actions.isEmpty()) null else {
+                        {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            menu = true
+                        }
+                    },
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(session.label.ifEmpty { session.id }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val second = listOfNotNull(
+                    if (session.isAgent) "Agent" else "Shell",
+                    session.lifecycle?.let { "handoff: $it" },
+                ).joinToString(" · ")
+                Text(second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            stateLabel(row.state)?.let { (text, color) ->
+                Text(text, style = MaterialTheme.typography.labelMedium, color = color ?: MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-        stateLabel(row.state)?.let { (text, color) ->
-            Text(text, style = MaterialTheme.typography.labelMedium, color = color ?: MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        SessionMenu(menu, { menu = false }, actions, actionsEnabled, onAction)
     }
 }
 

@@ -68,6 +68,9 @@ class ConnectionLog(
         ADDRESSES,
         // `folders-and-new-sessions`: starting a session (global or not, outcome, error code; never names).
         CREATE,
+        // `prompts-attachments-rename`: answers, attachments and session actions (codes, outcomes and sizes; never
+        // text, names or labels).
+        ANSWER, ATTACH, RENAME, HIBERNATE, CLOSE,
     }
 
     companion object {

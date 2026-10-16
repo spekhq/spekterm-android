@@ -278,7 +278,7 @@ class ConnectionService : Service() {
             }
             refreshOngoing()
             attached = true
-            Desktop.attach(connection)
+            Desktop.attach(connection, Frames.operations(hello.result))
             for (event in connection.events) {
                 when (EventRoute.of(event.kind)) {
                     EventRoute.ATTENTION -> {
