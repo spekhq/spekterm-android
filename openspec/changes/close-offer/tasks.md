@@ -22,7 +22,7 @@
 
 ## 5. On the phone
 
-- [ ] 5.1 Install on the Pixel with `adb install -r` (keeping the pairing) and run against a dev spekterm desktop (`npm run dev` in ~/git/spekterm, with `remote-close-offer` in its working tree, paired anew under `~/.config/spekterm-dev`), recording each outcome in `docs/conversation-findings.md` under a new section "Close offers":
+- [x] 5.1 Install on the Pixel with `adb install -r` (keeping the pairing) and run against a dev spekterm desktop (`npm run dev` in ~/git/spekterm, with `remote-close-offer` in its working tree, paired anew under `~/.config/spekterm-dev`), recording each outcome in `docs/conversation-findings.md` under a new section "Close offers":
   - an agent asked to close itself: when its turn ends, the row shows the sentence with "Close" and "Keep", and its conversation screen shows the card; a collapsed folder holding it says "1 asks to close";
   - "Keep" on the phone's row: the offer goes from the phone and the desktop's card goes; the session keeps running;
   - another offer, "Keep" on the conversation screen: the screen stays, the card goes from it and from the desktop;

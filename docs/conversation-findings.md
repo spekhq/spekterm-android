@@ -204,3 +204,40 @@ committed).
 |---|---|---|
 | `./gradlew testDebugUnitTest assembleDebug`: 184 JVM tests, including the new cases of `FramesTest` (`closeOffered` true only for the boolean `true`; absent, `false`, `null`, `"yes"`, `"true"`, `1`, `[]`, `{}` decode the session as not offered; the `sessions.keep` payload), `SessionActionsTest` (offered only for a running agent; Close / Keep per operation; an offer's Close starts unforced without confirming, its `SESSION_BUSY` still asks; Keep never busy, its texts; the menu's close still confirms) and `SessionsViewTest` (each row counted once: choice, then offer, then ready) | host | pass |
 | `DesktopTest` (`keepSendsItsPayloadAndTheOfferFollowsTheList`): Keep detached → `NOT_CONNECTED`; `sessions.keep` carries only `sessionId`; the mark follows `sessions.changed` and not Keep's answer; a refusal is returned; and the earlier instrumented suites (59 tests in all) | emulator (AVD `Pixel_9`, Android 16), only the emulator listed by `adb devices` | pass |
+
+On the Pixel 7 against a dev spekterm desktop (`npm run dev` in ~/git/spekterm with `remote-close-offer` in its
+working tree, profile `~/.config/spekterm-dev`, remote port 47616, paired anew), the app installed with
+`adb install -r`, over Tailscale. A first pass (13:18 Z) was interrupted; the run below was redone from the start at
+15:21–15:37 Z, driven over adb (taps, ADB Keyboard) and the desktop's DevTools port, with phone screenshots and the
+app's connection log as evidence. Each offer was made by asking a fresh Claude session in the `spekterm` folder to
+close its own session and waiting for its turn to end; the desktop's card appeared 9–12 s after the prompt.
+
+| Scenario (spec) | Outcome |
+|---|---|
+| The offered row: "The agent asked to close this session." with "Close" then "Keep" under the name, no "Waiting for you"; another session in the folder still "Waiting for you" (close-offer, session-list) | pass |
+| The folder collapsed: "1 asks to close · 1 waiting for you" (session-list) | pass |
+| The conversation screen: the card above the composer; the subtitle keeps "Waiting for you" (close-offer) | pass |
+| The menu's "Close session" on an offered session still asks "Close “…”?"; Cancel left it running and offered (session-hibernate-close) | pass |
+| "Keep" on the conversation screen: the screen stays, the card goes from it and from the desktop (15:22:52.652 Z `keep`) (close-offer) | pass |
+| A reply sent from the phone: the offer went from both sides within 1.5 s (the agent then made another) (close-offer) | pass |
+| "Keep" on the desktop's card: the phone's card went within 1.5 s (close-offer) | pass |
+| One key typed into the session on the desktop: the phone's card went within 1.5 s (close-offer) | pass |
+| Connection paused ("Settings › Pause"): the row and the conversation screen still show the offer with "Close" and "Keep" greyed; tapping "Keep" sent nothing (the desktop's card stayed); after "Resume" (15:32:14 Z reconnect) both buttons were usable (close-offer) | pass |
+| "Close" from the conversation screen: no confirmation, back to the list, the session gone from both (15:32:31.731 Z `close force=false`) (close-offer, session-hibernate-close) | pass |
+| "Close" from the list: no confirmation, the session gone from both (15:35:47.659 Z `close force=false`) (close-offer) | pass |
+| "Keep" on the list's row: the offer went from both, the session kept running (15:36:56.901 Z `keep`); the first pass's row Keep (13:18:25.608 Z `keep`) did the same (close-offer) | pass |
+| The connection log: `keep` and `close force=false` lines with no error and no session name or label (read from the app's log file, which "Export log" shares; the button itself not pressed) (close-offer) | pass |
+| An offered session that also awaits a choice | not produced — carried by `SessionsViewTest` (2.4) |
+| `SESSION_BUSY` after an offer's Close | not produced — carried by `SessionActionsTest` (2.2) |
+| An older desktop (no `sessions.keep`, no mark) | not run — the installed spekterm was not paired in this run; carried by `FramesTest` and `SessionActionsTest` (1.1, 2.1) |
+
+Seen on the desktop during the run, not in the phone's behavior (the phone showed what the list said each time):
+
+- After the row's Keep at 15:36:56 Z, the list marked the session busy ("Working" on the phone) for about 45 s,
+  though its terminal was idle, until the agent's next hook event at 15:37:40 Z set it back to ready. Not
+  diagnosed.
+- In the first pass, an offer made at 13:19 Z went from the desktop and the phone by 13:26 Z with no Keep in the
+  phone's log; Claude Code had written a "※ recap" line in that terminal. Not reproduced in the rerun; cause unknown.
+- The desktop switched a session to its conversation view by itself after the agent's turn. A prompt sent from that
+  view's composer stayed in the agent's input line unsubmitted ("尚未確認"), and was submitted only after switching
+  back to the terminal view and pressing Enter there.
