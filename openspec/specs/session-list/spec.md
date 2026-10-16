@@ -37,7 +37,8 @@ branch when the desktop reports one, and the number of sessions in the group. Wh
 are scrolled through, that group's heading SHALL stay visible at the top of the list. Each session SHALL show
 its label, whether it is an agent or a shell, and whether it is running or dormant. A running agent session
 SHALL show its wait state — waiting for input, working, or asking for a choice — and SHALL show no wait state
-when the desktop reports it as unknown. A session created by a handoff SHALL also show its handoff state.
+when the desktop reports it as unknown; a session whose agent offered to close it (`close-offer`) SHALL show the
+offer in place of waiting for input, and keep showing working or asking for a choice with the offer. A session created by a handoff SHALL also show its handoff state.
 
 #### Scenario: The list follows the desktop
 
@@ -64,6 +65,11 @@ when the desktop reports it as unknown. A session created by a handoff SHALL als
 
 - **WHEN** the user scrolls through a group with more sessions than fit on the screen
 - **THEN** that group's heading stays at the top of the list until the next group's heading reaches it
+
+#### Scenario: An agent that asks to close itself
+
+- **WHEN** an agent on the desktop finishes a turn in which it asked to close its own session
+- **THEN** its row shows the offer to close it instead of waiting for input
 
 ### Requirement: Say when the list is not current
 
@@ -118,11 +124,13 @@ anything.
 
 The user SHALL be able to collapse and expand each group, the global one included, by tapping its heading, and
 to collapse or expand every group at once from the session list. A collapsed group SHALL show only its
-heading. A collapsed heading SHALL say how many of its sessions ask for a choice and how many wait for input,
-when any do, so that collapsing hides no session that needs the user. Groups SHALL be expanded until the user
-collapses them. Which groups are collapsed SHALL be kept on the phone across restarts of the app and the
-phone, for the current pairing only: pairing again or unpairing SHALL forget it. A folder that is collapsed,
-disappears from the desktop and comes back with the same identity SHALL still be collapsed.
+heading. A collapsed heading SHALL say how many of its sessions ask for a choice, how many ask to close
+(`close-offer`) and how many wait for input, when any do, so that collapsing hides no session that needs the user;
+each session SHALL be counted once: as asking for a choice when it does, otherwise as asking to close when its agent
+offered to close it, otherwise as waiting for input when it does. Groups SHALL
+be expanded until the user collapses them. Which groups are collapsed SHALL be kept on the phone across restarts of
+the app and the phone, for the current pairing only: pairing again or unpairing SHALL forget it. A folder that is
+collapsed, disappears from the desktop and comes back with the same identity SHALL still be collapsed.
 
 #### Scenario: Collapsing a folder
 
@@ -133,6 +141,16 @@ disappears from the desktop and comes back with the same identity SHALL still be
 
 - **WHEN** an agent in a collapsed group starts asking for a choice
 - **THEN** the collapsed heading says that one session asks for a choice, without the user expanding it
+
+#### Scenario: An offer in a collapsed folder
+
+- **WHEN** an agent in a collapsed group asks to close its own session
+- **THEN** the collapsed heading says that one session asks to close, and does not count it as waiting
+
+#### Scenario: An offer that also asks for a choice, collapsed
+
+- **WHEN** a session in a collapsed group was offered for closing and its agent waits on a choice
+- **THEN** the collapsed heading counts it once, as asking for a choice
 
 #### Scenario: Collapsed across a restart
 
