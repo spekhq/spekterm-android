@@ -38,7 +38,7 @@
 
 ## 7. On the phone
 
-- [ ] 7.1 Install on the Pixel with `adb install -r` (keeping the pairing) and run against a dev spekterm desktop at commit 9b02f53 or later, recording each outcome in `docs/conversation-findings.md` under a new section:
+- [x] 7.1 Install on the Pixel with `adb install -r` (keeping the pairing) and run against a dev spekterm desktop at commit 9b02f53 or later, recording each outcome in `docs/conversation-findings.md` under a new section:
   - a Bash permission prompt: shown with its command; "Allow once" runs it; another one "Deny" → the agent waits, and a reply then reaches it;
   - a permission prompt for a tool that is not allowed once (e.g. an MCP tool or `Glob` outside the project): only "Deny" offered;
   - an AskUserQuestion with a single-choice and a several-choice question answered from the phone → `confirmed`, the agent uses the choices; "Decline" on another;

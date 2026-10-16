@@ -14,8 +14,10 @@ working. In every other case sending SHALL NOT be possible and the screen SHALL 
 paused; not watching yet; the agent asks for a choice (next requirement); or the wait state is unknown — then
 saying that spekterm cannot tell whether the agent can take a message now and that the user can reply on the
 desktop. The app SHALL NOT try to send while the wait state is unknown. Text that is empty once the desktop's
-cleaning would remove control characters SHALL NOT be sendable. Until the desktop has reported a wait state for
-the conversation, it SHALL be treated as unknown.
+cleaning would remove control characters SHALL NOT be sendable, unless the reply carries at least one
+attachment that is ready (`reply-attachments`). While an attachment of the reply is still being prepared or
+uploaded, or has failed, sending SHALL NOT be possible and the screen SHALL say so. Until the desktop has
+reported a wait state for the conversation, it SHALL be treated as unknown.
 
 #### Scenario: Replying while the agent waits
 
@@ -33,18 +35,39 @@ the conversation, it SHALL be treated as unknown.
 - **THEN** sending is not possible, and the screen says spekterm cannot tell whether the agent can take a message
   and that the user can reply on the desktop
 
+#### Scenario: Only an attachment
+
+- **WHEN** the agent waits for input, the user attached a photo that finished uploading, and the reply field is
+  empty
+- **THEN** the reply can be sent, and the agent receives the desktop's sentence naming the photo
+
+#### Scenario: An attachment still uploading
+
+- **WHEN** the user typed a reply and an attached file is still uploading
+- **THEN** sending is not possible until the upload completes, and the screen says the attachment is uploading
+
 ### Requirement: While the agent asks for a choice, show what it asks and refuse free text
 
-While the desktop reports that the agent asks for a choice, the app SHALL refuse free text, SHALL show what the
+While the desktop reports that the agent asks for a choice, the app SHALL refuse free text. When the desktop
+states the open prompt, the app SHALL show it as `prompt-answer` describes, and the composer SHALL point to it:
+to answer it above when the phone can answer it, otherwise to answer it on the desktop. When the desktop states
+no prompt (a desktop that does not report prompts, or a prompt it cannot describe), the app SHALL show what the
 agent asks — the tool and its argument as the desktop reports them, as plain text; a later report of the same
-choice that names no tool keeps the one shown — and SHALL say that the choice must be answered on the desktop. The app SHALL NOT offer any way to answer the choice: the desktop does
-not report the options shown to the user, so answering would mean guessing keys, and a wrong guess makes a
-decision the user never agreed to. When the desktop reports that the agent no longer asks for a choice,
-sending SHALL become possible again according to the wait state.
+choice that names no tool keeps the one shown — SHALL say that the choice must be answered on the desktop, and
+SHALL NOT offer any way to answer it. The app SHALL NOT answer a choice by typing into the agent's terminal.
+When the desktop reports that the agent no longer asks for a choice, sending SHALL become possible again
+according to the wait state.
 
 #### Scenario: A permission prompt appears
 
-- **WHEN** the agent raises a permission prompt to run a command while its conversation is on screen
+- **WHEN** the agent raises a permission prompt to run a command while its conversation is on screen, and the
+  desktop states the prompt and offers answering
+- **THEN** free text cannot be sent, the screen names the tool and the command, and the composer points to the
+  answers shown above it
+
+#### Scenario: A desktop that does not state prompts
+
+- **WHEN** the agent raises a permission prompt and the desktop reports the tool and command but no prompt
 - **THEN** sending is not possible, the screen names the tool and the command, says to answer on the desktop,
   and offers no way to answer
 
@@ -52,6 +75,12 @@ sending SHALL become possible again according to the wait state.
 
 - **WHEN** the user answers that prompt on the desktop and the agent goes on working
 - **THEN** sending becomes possible again on the phone
+
+#### Scenario: Denied from the phone
+
+- **WHEN** the user denies the agent's own permission prompt from the phone
+- **THEN** the desktop reports the agent waiting for input, and the user can send a reply saying what to do
+  instead
 
 ### Requirement: A reply is one message, sent as typed
 
@@ -69,23 +98,29 @@ back to it, unless another session's conversation was opened in between.
 ### Requirement: A sent reply is unconfirmed until it appears in the conversation
 
 A sent reply SHALL appear at once at the end of the conversation, marked as not yet confirmed, and SHALL stay so
-until a user message with the same text — compared after the desktop's cleaning, ignoring leading and trailing
-white space — appears in the conversation that was not there when the reply was sent; then the mark SHALL go
-and only the conversation's own message SHALL remain, wherever in the conversation that message appears (a
-reply the agent takes in while it works appears where it took it in). A reply sent while the agent waited for
-input that has not appeared within 30 seconds SHALL be marked as not in the conversation yet, pointing to the
-desktop. A reply sent while the agent was working SHALL instead be marked as waiting for the agent to take it,
-without a time limit, because the agent takes it only when it gets to it; a permission prompt the agent raises
-meanwhile SHALL NOT end that wait, because the agent continues its turn once the prompt is answered. When the
-desktop reports the agent ready for input, or reports its state as unknown, such a reply — sent while the agent
-was working, accepted by the desktop, and not yet appeared — SHALL be marked as not yet confirmed; if it has still
-not appeared 30 seconds after the first such report, it SHALL be marked as not in the conversation, pointing to
-the desktop. If the desktop reports the agent working or asking for a choice again within those 30 seconds, the
-reply SHALL again be marked as waiting for the agent to take it; a later report of the agent working SHALL NOT
-change the not-in-the-conversation mark. In every case the mark SHALL clear if the reply appears
-later. A reply still waiting SHALL be shown at the end of the conversation; once it is marked as not appearing,
-not in the conversation, possibly not sent, or not sent, it SHALL be shown where it was sent and SHALL NOT stay
-below newer entries.
+until a user message matching it — compared ignoring leading and trailing white space — appears in the
+conversation that was not there when the reply was sent; then the mark SHALL go and only the conversation's own
+message SHALL remain, wherever in the conversation that message appears (a reply the agent takes in while it
+works appears where it took it in). A reply matches the text the desktop answered that it wrote, which includes
+the sentence naming its attachments. Until such an answer exists — while it is being sent, when the connection
+ended before the answer, or with a desktop whose answer carries no text — a reply without attachments matches
+the text as typed after the desktop's cleaning, and a reply with attachments matches a message that begins with
+that text and names every one of its attachments; a reply of attachments alone SHALL NOT be confirmed by a
+message that only has the same empty text. A matching message that arrived before the desktop's answer SHALL
+confirm a reply with attachments once the answer arrives. A reply SHALL show the names of the attachments it carries. A reply sent
+while the agent waited for input that has not appeared within 30 seconds SHALL be marked as not in the
+conversation yet, pointing to the desktop. A reply sent while the agent was working SHALL instead be marked as
+waiting for the agent to take it, without a time limit, because the agent takes it only when it gets to it; a
+permission prompt the agent raises meanwhile SHALL NOT end that wait, because the agent continues its turn once
+the prompt is answered. When the desktop reports the agent ready for input, or reports its state as unknown,
+such a reply — sent while the agent was working, accepted by the desktop, and not yet appeared — SHALL be marked
+as not yet confirmed; if it has still not appeared 30 seconds after the first such report, it SHALL be marked as
+not in the conversation, pointing to the desktop. If the desktop reports the agent working or asking for a
+choice again within those 30 seconds, the reply SHALL again be marked as waiting for the agent to take it; a
+later report of the agent working SHALL NOT change the not-in-the-conversation mark. In every case the mark SHALL
+clear if the reply appears later. A reply still waiting SHALL be shown at the end of the conversation; once it
+is marked as not appearing, not in the conversation, possibly not sent, or not sent, it SHALL be shown where it
+was sent and SHALL NOT stay below newer entries.
 The app SHALL tell the user, and not show the reply as pending:
 
 - when the desktop typed the reply into the agent's input but withheld sending it because the agent's state
@@ -93,7 +128,7 @@ The app SHALL tell the user, and not show the reply as pending:
   finished on the desktop;
 - when the desktop refused the reply before typing anything — the agent could no longer take it, the session has
   no running process, or the desktop does not support replies — the text SHALL be returned to the reply field,
-  with the reason;
+  with the reason, and its attachments SHALL be returned to the reply as `reply-attachments` describes;
 - when the connection ended before the desktop answered, or the desktop answered with any other error — it is
   then unknown whether the reply was typed, which the screen SHALL say, while still clearing the mark if the
   reply appears in the conversation.
@@ -103,6 +138,19 @@ The app SHALL tell the user, and not show the reply as pending:
 - **WHEN** the user sends a reply while the agent waits for input, and the agent takes it
 - **THEN** the reply first shows as not yet confirmed, and once the conversation shows the user's message the
   mark is gone and the message is shown once
+
+#### Scenario: A reply with an attachment is confirmed
+
+- **WHEN** the user sends "look at this" with a photo, and the agent takes it
+- **THEN** the reply shows the photo's name while not yet confirmed, and the conversation's message — the text
+  followed by the desktop's sentence naming the stored photo — confirms it
+
+#### Scenario: A reply with an attachment whose answer was lost
+
+- **WHEN** the connection ends after the user sent a reply with a photo and before the desktop answered, and the
+  agent then takes the reply
+- **THEN** the reply is marked as possibly not sent until the conversation's message holding its text and naming
+  the photo appears, and then the mark clears
 
 #### Scenario: An identical earlier message does not confirm
 
