@@ -667,6 +667,37 @@ class DesktopTest {
         assertEquals(setOf("sessionId"), desktop.requests.single { it.method == "sessions.close" }.params.keys)
     }
 
+    // ---- `close-offer` ----
+
+    @Test
+    fun keepSendsItsPayloadAndTheOfferFollowsTheList() = runBlocking<Unit> {
+        assertEquals(Desktop.NOT_CONNECTED, Desktop.keep("s1")!!.code)
+        var refuse = false
+        val desktop = Scripted().apply {
+            standard()
+            val base = handle
+            handle = { req, ws ->
+                when (req.method) {
+                    "sessions.keep" -> ws.send(if (refuse) err(req.id, "TIMEOUT") else ok(req.id, """{"sessionId":"s1"}"""))
+                    else -> base(req, ws)
+                }
+            }
+        }
+        connect(desktop, all + Operations.KEEP)
+        withTimeout(5_000) { Desktop.sessions.first { it.current } }
+        val offered = """{"window":true,"folders":[],"sessions":[{"id":"s1","folderId":null,"target":"claude","label":"A","running":true,"wait":"ready","closeOffered":true}]}"""
+        desktop.socket!!.send(evt("sessions.changed", offered))
+        withTimeout(5_000) { Desktop.sessions.first { it.list?.sessions?.singleOrNull()?.closeOffered == true } }
+        assertNull(Desktop.keep("s1"))
+        assertEquals(setOf("sessionId"), desktop.requests.single { it.method == "sessions.keep" }.params.keys)
+        // Keeping changes nothing held: the list that drops the mark does.
+        assertTrue(Desktop.sessions.value.list!!.sessions.single().closeOffered)
+        desktop.socket!!.send(evt("sessions.changed", list()))
+        withTimeout(5_000) { Desktop.sessions.first { it.list?.sessions?.singleOrNull()?.closeOffered == false } }
+        refuse = true
+        assertEquals("TIMEOUT", Desktop.keep("s1")!!.code)
+    }
+
     @Test
     fun hibernatedIsDormantNotWindowGoneAndClosedDropsTheAttachments() = runBlocking<Unit> {
         val desktop = Scripted().apply { answering("attachments.put") { req, ws -> ws.send(putOk(req)) } }

@@ -142,6 +142,17 @@ class FramesTest {
     }
 
     @Test
+    fun aCloseOfferIsOnlyTheBooleanTrueAndNoValueDropsTheSession() {
+        val values = listOf("true", null, "false", "null", "\"yes\"", "\"true\"", "1", "[]", "{}")
+        val sessions = values.mapIndexed { i, v ->
+            """{"id":"s$i","target":"claude","running":true${v?.let { ",\"closeOffered\":$it" }.orEmpty()}}"""
+        }
+        val list = SessionList.decode(Json.parseToJsonElement("""{"window":true,"folders":[],"sessions":[${sessions.joinToString(",")}]}"""))!!
+        assertEquals(values.indices.map { "s$it" }, list.sessions.map { it.id })
+        assertEquals(listOf(true) + List(values.size - 1) { false }, list.sessions.map { it.closeOffered })
+    }
+
+    @Test
     fun decodesEveryEntryKindAndSkipsAnUnknownOne() {
         val update = ConversationUpdate.decode(
             Json.parseToJsonElement(
@@ -269,6 +280,7 @@ class FramesTest {
         assertEquals(setOf("sessionId"), p(Frames.sessionsClose("s1", false)).keys)
         assertEquals("true", p(Frames.sessionsHibernate("s1", true))["force"]!!.jsonPrimitive.content)
         assertEquals("true", p(Frames.sessionsClose("s1", true))["force"]!!.jsonPrimitive.content)
+        assertEquals("""{"sessionId":"s1"}""", Frames.sessionsKeep("s1").toString())
 
         val deny = p(Frames.conversationAnswer("s1", "p1", "deny"))
         assertEquals(setOf("sessionId", "promptId", "decision"), deny.keys)

@@ -157,6 +157,19 @@ fun ConversationScreen(
                 c?.let { answerNote(it) }?.let { Notice(it, "Dismiss", { Desktop.dismissAnswer(sessionId) }) }
                 val offer = c?.prompt?.let { Answers.offer(it, operations, connected, announcements.paused, c.watch, c.answer) }
                 if (offer != null) PromptCard(sessionId, c.prompt!!, offer)
+                // The agent's offer to close the session, from the last list held (close-offer D5).
+                if (session != null && SessionActions.offered(session)) {
+                    CloseOffer(
+                        SessionActions.offerActions(session, operations),
+                        actionsEnabled,
+                        { dialogs.answerOffer(it, session) },
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                            .padding(start = 12.dp, end = 4.dp),
+                    )
+                }
                 Composer(sessionId, c, connected, announcements.paused, offer is Offer.Answerable, Operations.ATTACH in operations && session?.isAgent != false)
             }
         }

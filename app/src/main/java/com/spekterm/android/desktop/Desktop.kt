@@ -198,6 +198,18 @@ object Desktop {
         answer?.error ?: if (answer == null) RemoteError(NOT_CONNECTED) else null
     }
 
+    /**
+     * Keeps [sessionId], whose agent offered to close it (`close-offer`, D4). Nothing held changes: the offer goes when
+     * the desktop's list drops the mark.
+     */
+    suspend fun keep(sessionId: String): RemoteError? = withContext(dispatcher) {
+        val a = attached ?: return@withContext RemoteError(NOT_CONNECTED)
+        val answer = a.scope.async { request(a, "sessions.keep", Frames.sessionsKeep(sessionId)) }.await()
+        val error = answer?.error ?: if (answer == null) RemoteError(NOT_CONNECTED) else null
+        log(Kind.KEEP, "error" to error?.code)
+        error
+    }
+
     /** Hibernates [sessionId] (design D9); [force] only after a busy refusal the user agreed to override. */
     suspend fun hibernate(sessionId: String, force: Boolean): RemoteError? =
         sessionAction(Kind.HIBERNATE, "sessions.hibernate", Frames.sessionsHibernate(sessionId, force), force)

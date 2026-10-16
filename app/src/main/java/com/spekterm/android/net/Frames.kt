@@ -126,6 +126,9 @@ object Frames {
 
     fun sessionsClose(sessionId: String, force: Boolean): JsonObject = sessionAction(sessionId, force)
 
+    /** Keeps a session whose agent offered to close it (`close-offer`). */
+    fun sessionsKeep(sessionId: String): JsonObject = buildJsonObject { put("sessionId", sessionId) }
+
     private fun sessionAction(sessionId: String, force: Boolean): JsonObject = buildJsonObject {
         put("sessionId", sessionId)
         if (force) put("force", true)
@@ -233,6 +236,7 @@ object Operations {
     const val HIBERNATE = "sessions.hibernate"
     const val CLOSE = "sessions.close"
     const val WAKE = "sessions.wake"
+    const val KEEP = "sessions.keep"
     const val ATTACH = "attachments.put"
     const val ANSWER = "conversation.answer"
 }

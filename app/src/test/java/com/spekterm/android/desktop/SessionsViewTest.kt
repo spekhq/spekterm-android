@@ -120,6 +120,26 @@ class SessionsViewTest {
     }
 
     @Test
+    fun aSummaryCountsEachSessionOnceChoiceThenOfferThenReady() {
+        val offers = SessionList(
+            true,
+            listOf(Folder("f1", "alpha")),
+            listOf(
+                Session("o", "f1", "claude", running = true, wait = "ready", closeOffered = true),
+                Session("r", "f1", "claude", running = true, wait = "ready"),
+                Session("c", "f1", "claude", running = true, wait = "awaiting-choice"),
+                Session("oc", "f1", "claude", running = true, wait = "awaiting-choice", closeOffered = true),
+                Session("ob", "f1", "claude", running = true, wait = "busy", closeOffered = true),
+                Session("od", "f1", "claude", running = false, wait = "ready", closeOffered = true),
+            ),
+        )
+        val group = SessionsView.groups(offers).single()
+        assertEquals(SessionsView.Summary(choice = 2, ready = 1, offers = 2), group.summary)
+        assertEquals(listOf(true, false, false, true, true, false), group.rows.map { it.offered })
+        assertEquals(SessionsView.RowState.DORMANT, group.rows.last().state)
+    }
+
+    @Test
     fun choicesHoldGlobalThenEveryFolderEvenWithoutSessions() {
         val choices = SessionsView.choices(list)
         assertEquals(listOf(null, "f1", "f2", "empty"), choices.map { it.folderId })

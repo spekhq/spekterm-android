@@ -47,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.spekterm.android.app
 import com.spekterm.android.desktop.Creation
 import com.spekterm.android.desktop.Desktop
+import com.spekterm.android.desktop.SessionAction
 import com.spekterm.android.desktop.SessionActions
 import com.spekterm.android.desktop.SessionsView
 import com.spekterm.android.desktop.SessionsView.RowState
@@ -172,9 +173,11 @@ fun SessionsScreen(
                         SessionRow(
                             row,
                             actions = SessionActions.of(row.session, operations),
+                            answers = SessionActions.offerActions(row.session, operations),
                             actionsEnabled = actionsEnabled,
                             onClick = { onOpen(row.session.id) },
                             onAction = { dialogs.choose(it, row.session) },
+                            onAnswer = { dialogs.answerOffer(it, row.session) },
                         )
                         HorizontalDivider()
                     }
@@ -279,6 +282,7 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onToggle: (
         if (folded) {
             val parts = listOfNotNull(
                 group.summary.choice.takeIf { it > 0 }?.let { (if (it == 1) "1 asks for a choice" else "$it ask for a choice") to MaterialTheme.colorScheme.error },
+                group.summary.offers.takeIf { it > 0 }?.let { (if (it == 1) "1 asks to close" else "$it ask to close") to MaterialTheme.colorScheme.primary },
                 group.summary.ready.takeIf { it > 0 }?.let { "$it waiting for you" to MaterialTheme.colorScheme.primary },
             )
             if (parts.isNotEmpty()) {
@@ -298,15 +302,17 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onToggle: (
 private fun SessionRow(
     row: SessionsView.Row,
     actions: List<SessionActions.Action>,
+    answers: List<SessionAction.Kind>,
     actionsEnabled: Boolean,
     onClick: () -> Unit,
     onAction: (SessionActions.Action) -> Unit,
+    onAnswer: (SessionAction.Kind) -> Unit,
 ) {
     val session = row.session
     val haptics = LocalHapticFeedback.current
     var menu by remember { mutableStateOf(false) }
     Box {
-        Row(
+        Column(
             Modifier
                 .fillMaxWidth()
                 .combinedClickable(
@@ -319,20 +325,22 @@ private fun SessionRow(
                     },
                 )
                 .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(session.label.ifEmpty { session.id }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val second = listOfNotNull(
-                    if (session.isAgent) "Agent" else "Shell",
-                    session.lifecycle?.let { "handoff: $it" },
-                ).joinToString(" · ")
-                Text(second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(session.label.ifEmpty { session.id }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val second = listOfNotNull(
+                        if (session.isAgent) "Agent" else "Shell",
+                        session.lifecycle?.let { "handoff: $it" },
+                    ).joinToString(" · ")
+                    Text(second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                // An offer takes the place of "Waiting for you" only; working or a choice still shows (close-offer D5).
+                stateLabel(row.state).takeUnless { row.offered && row.state == RowState.READY }?.let { (text, color) ->
+                    Text(text, style = MaterialTheme.typography.labelMedium, color = color ?: MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-            stateLabel(row.state)?.let { (text, color) ->
-                Text(text, style = MaterialTheme.typography.labelMedium, color = color ?: MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            if (row.offered) CloseOffer(answers, actionsEnabled, onAnswer, Modifier.fillMaxWidth().padding(top = 4.dp))
         }
         SessionMenu(menu, { menu = false }, actions, actionsEnabled, onAction)
     }

@@ -16,7 +16,8 @@ you forward — with no relay and no push service in between.
 - **Sessions**: the desktop's sessions by folder, with each agent's state (waiting for you, working, asks for a
   choice) or dormant, kept live. Folders can be collapsed; a collapsed folder still shows what waits for you.
   Long-pressing a session (or "⋮" on its screen) renames, hibernates, wakes or closes it. Closing asks first,
-  and so does stopping a session the desktop says is busy.
+  and so does stopping a session the desktop says is busy. When an agent asks to close its own session, its row
+  and its screen say so with "Close" and "Keep"; that Close is the answer, so it does not ask again.
 - **New sessions**: start an agent session in any of the desktop's folders, quietly, and continue in its
   conversation on the phone.
 - **Conversations**: an agent session's messages, thinking, tool calls and results; a dormant session can be
@@ -28,8 +29,8 @@ you forward — with no relay and no push service in between.
   declining, approve or keep planning. "Tell Claude what to change" and a question's free-text answer are not
   offered: decline, then reply.
 
-These need spekterm 29a5d0a or later (hibernating and closing: 9b02f53); against an older desktop the app shows
-none of them.
+These need spekterm 29a5d0a or later (hibernating and closing: 9b02f53; an agent's close offer: spekterm with
+`remote-close-offer`); against an older desktop the app shows none of them.
 
 Not yet: the terminal view (shell sessions), the inbox, handoffs, and OpenSpec browsing.
 

@@ -194,3 +194,13 @@ shows (times UTC).
 | Long-press menu: rename (three times) and clear the name (`rename cleared=true`), hibernate (`hibernate force=false`), close session (`close force=false`), with no busy refusal; the maintainer checked the desktop (session-rename, session-hibernate-close, session-list) | pass (maintainer) |
 | Hibernate then wake from the menu: `hibernate force=false` at 04:00:41, `wake` with no error 3.8 s later (session-hibernate-close) | pass |
 | A busy session (`SESSION_BUSY`) and forcing it; "Deny", "Decline", "Keep planning"; a tool that can only be denied; a prompt typed into on the desktop or two open requests (read-only); HEIC from the phone; a dropped connection mid-upload; an EXIF-rotated camera JPEG; a ZIP refused; picking 11 photos; the desktop hibernating or closing a watched session | not run on the phone yet — carried by `SessionActionsTest`, `AnswersTest`, `UploadsTest`, `PreparerTest` and `DesktopTest` only |
+
+## Close offers
+
+Change `close-offer`, 2026-10-16, against the protocol of spekterm with `remote-close-offer` (working tree, not yet
+committed).
+
+| Check | Where | Outcome |
+|---|---|---|
+| `./gradlew testDebugUnitTest assembleDebug`: 184 JVM tests, including the new cases of `FramesTest` (`closeOffered` true only for the boolean `true`; absent, `false`, `null`, `"yes"`, `"true"`, `1`, `[]`, `{}` decode the session as not offered; the `sessions.keep` payload), `SessionActionsTest` (offered only for a running agent; Close / Keep per operation; an offer's Close starts unforced without confirming, its `SESSION_BUSY` still asks; Keep never busy, its texts; the menu's close still confirms) and `SessionsViewTest` (each row counted once: choice, then offer, then ready) | host | pass |
+| `DesktopTest` (`keepSendsItsPayloadAndTheOfferFollowsTheList`): Keep detached → `NOT_CONNECTED`; `sessions.keep` carries only `sessionId`; the mark follows `sessions.changed` and not Keep's answer; a refusal is returned; and the earlier instrumented suites (59 tests in all) | emulator (AVD `Pixel_9`, Android 16), only the emulator listed by `adb devices` | pass |

@@ -71,6 +71,8 @@ class ConnectionLog(
         // `prompts-attachments-rename`: answers, attachments and session actions (codes, outcomes and sizes; never
         // text, names or labels).
         ANSWER, ATTACH, RENAME, HIBERNATE, CLOSE,
+        // `close-offer`: keeping a session whose agent offered to close it (error code only).
+        KEEP,
     }
 
     companion object {

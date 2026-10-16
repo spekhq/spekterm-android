@@ -1,6 +1,8 @@
 package com.spekterm.android.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -18,8 +20,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
 import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.desktop.Rename
 import com.spekterm.android.desktop.SessionAction
@@ -57,6 +61,11 @@ class SessionDialogs(private val scope: CoroutineScope, private val onDone: (Ses
         }
     }
 
+    /** Answers [session]'s close offer with [kind] (`close-offer` D3): sent at once, Close without asking again. */
+    fun answerOffer(kind: SessionAction.Kind, session: Session) {
+        run(SessionAction.fromOffer(kind, session.id, session.label.ifEmpty { session.id }))
+    }
+
     /** Sends [working]'s request. The request goes on if the screen is left; its outcome is then only in the list. */
     fun run(working: SessionAction.Working) {
         action = working
@@ -65,6 +74,7 @@ class SessionDialogs(private val scope: CoroutineScope, private val onDone: (Ses
                 SessionAction.Kind.HIBERNATE -> Desktop.hibernate(working.sessionId, working.force)
                 SessionAction.Kind.CLOSE -> Desktop.close(working.sessionId, working.force)
                 SessionAction.Kind.WAKE -> Desktop.wake(working.sessionId)
+                SessionAction.Kind.KEEP -> Desktop.keep(working.sessionId)
             }
             when (val next = SessionAction.answered(working, error)) {
                 is SessionAction.Done -> {
@@ -111,6 +121,27 @@ fun SessionMenu(expanded: Boolean, onDismiss: () -> Unit, actions: List<SessionA
                     onChoose(action)
                 },
             )
+        }
+    }
+}
+
+/**
+ * An agent's offer to close its own session, as the desktop's card words it (`close-offer` D5): the sentence, then
+ * [answers] — Close first, Keep second — usable when [enabled].
+ */
+@Composable
+fun CloseOffer(answers: List<SessionAction.Kind>, enabled: Boolean, onAnswer: (SessionAction.Kind) -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            "The agent asked to close this session.",
+            Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        for (answer in answers) {
+            TextButton(enabled = enabled, onClick = { onAnswer(answer) }) {
+                Text(if (answer == SessionAction.Kind.CLOSE) "Close" else "Keep")
+            }
         }
     }
 }
@@ -197,6 +228,7 @@ private fun ActionDialog(action: SessionAction, enabled: Boolean, dialogs: Sessi
                         SessionAction.Kind.HIBERNATE -> "Hibernating $name…"
                         SessionAction.Kind.CLOSE -> "Closing $name…"
                         SessionAction.Kind.WAKE -> "Waking $name…"
+                        SessionAction.Kind.KEEP -> "Keeping $name…"
                     },
                 )
             },

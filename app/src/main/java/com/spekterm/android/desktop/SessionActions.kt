@@ -15,6 +15,15 @@ object SessionActions {
         Action.CLOSE.takeIf { Operations.CLOSE in operations },
     )
 
+    /** Whether [session]'s agent offered to close it: marked by the desktop, running, an agent (`close-offer`, D1). */
+    fun offered(session: Session): Boolean = session.closeOffered && session.running && session.isAgent
+
+    /** The answers an offer shows, in the desktop card's order (D2); none when [session] is not offered. */
+    fun offerActions(session: Session, operations: Set<String>): List<SessionAction.Kind> = if (!offered(session)) emptyList() else listOfNotNull(
+        SessionAction.Kind.CLOSE.takeIf { Operations.CLOSE in operations },
+        SessionAction.Kind.KEEP.takeIf { Operations.KEEP in operations },
+    )
+
     /** Every item is usable while connected, not paused, the shown list current and the desktop has a window. */
     fun enabled(connected: Boolean, paused: Boolean, sessions: SessionsState): Boolean =
         connected && !paused && sessions.current && sessions.list?.window == true
@@ -52,7 +61,7 @@ sealed interface SessionAction {
     val sessionId: String
     val label: String
 
-    enum class Kind { HIBERNATE, CLOSE, WAKE }
+    enum class Kind { HIBERNATE, CLOSE, WAKE, KEEP }
 
     data class Confirm(override val kind: Kind, override val sessionId: String, override val label: String) : SessionAction
 
@@ -69,6 +78,12 @@ sealed interface SessionAction {
         fun start(kind: Kind, sessionId: String, label: String): SessionAction =
             if (kind == Kind.CLOSE) Confirm(kind, sessionId, label) else Working(kind, sessionId, label, force = false)
 
+        /**
+         * An answer to an agent's close offer (`close-offer`, D3): sent at once, unforced. Choosing Close on the offer
+         * is the confirmation (obligation 13); a busy refusal still asks (obligation 12).
+         */
+        fun fromOffer(kind: Kind, sessionId: String, label: String): Working = Working(kind, sessionId, label, force = false)
+
         fun confirmed(s: Confirm): SessionAction = Working(s.kind, s.sessionId, s.label, force = false)
 
         /** The user agreed to force a busy session: the only way to a forced request. */
@@ -77,7 +92,7 @@ sealed interface SessionAction {
         /** The desktop answered [s] with [error] (`null`: done). A busy answer to a forced request is an error. */
         fun answered(s: Working, error: RemoteError?): SessionAction = when {
             error == null -> Done(s.kind, s.sessionId, s.label)
-            error.code == RemoteError.SESSION_BUSY && !s.force && s.kind != Kind.WAKE -> Busy(s.kind, s.sessionId, s.label, error.detailString("reason"))
+            error.code == RemoteError.SESSION_BUSY && !s.force && (s.kind == Kind.HIBERNATE || s.kind == Kind.CLOSE) -> Busy(s.kind, s.sessionId, s.label, error.detailString("reason"))
             else -> Failed(s.kind, s.sessionId, s.label, errorText(s.kind, error))
         }
 
@@ -100,7 +115,17 @@ sealed interface SessionAction {
             else -> "Could not wake it (${e.code})."
         }
 
-        fun errorText(kind: Kind, e: RemoteError): String = if (kind == Kind.WAKE) wakeText(e) else when (e.code) {
+        /** Keep's texts (D3). A timeout may leave the desktop's card up: its list has dropped the mark already. */
+        fun keepText(e: RemoteError): String = when (e.code) {
+            RemoteError.NOT_FOUND -> "This session no longer exists."
+            RemoteError.NO_WINDOW -> "spekterm has no open window on the desktop."
+            RemoteError.TIMEOUT -> "The desktop did not answer in time; its card may still show there."
+            RemoteError.CREATE_FAILED -> "The desktop could not do it." + e.message.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
+            Desktop.NOT_CONNECTED -> "Not connected to the desktop. The session list shows whether it happened."
+            else -> "Could not keep it (${e.code})."
+        }
+
+        fun errorText(kind: Kind, e: RemoteError): String = if (kind == Kind.WAKE) wakeText(e) else if (kind == Kind.KEEP) keepText(e) else when (e.code) {
             RemoteError.NOT_FOUND -> "This session no longer exists."
             RemoteError.NO_WINDOW -> "spekterm has no open window on the desktop."
             RemoteError.TIMEOUT -> "The desktop did not answer in time; it may still happen."

@@ -33,10 +33,11 @@ class ListClock {
 object SessionsView {
     enum class RowState { DORMANT, READY, BUSY, CHOICE, NONE }
 
-    data class Row(val session: Session, val state: RowState)
+    /** [offered]: its agent asked to close it (`close-offer`). */
+    data class Row(val session: Session, val state: RowState, val offered: Boolean = false)
 
-    /** How many sessions of a group need the user (design D1). */
-    data class Summary(val choice: Int, val ready: Int)
+    /** How many sessions of a group need the user (design D1), each counted once (`close-offer` D5). */
+    data class Summary(val choice: Int, val ready: Int, val offers: Int = 0)
 
     /**
      * [folderId] null with [global] true is the global item; null with [global] false holds unknown folders.
@@ -54,7 +55,11 @@ object SessionsView {
             folderId != null -> "folder:$folderId"
             else -> OTHER
         }
-        val summary: Summary = Summary(rows.count { it.state == RowState.CHOICE }, rows.count { it.state == RowState.READY })
+        val summary: Summary = Summary(
+            choice = rows.count { it.state == RowState.CHOICE },
+            ready = rows.count { it.state == RowState.READY && !it.offered },
+            offers = rows.count { it.offered && it.state != RowState.CHOICE },
+        )
     }
 
     /** Where a new session can be started: [folderId] null is the global item (design D5). */
@@ -91,7 +96,7 @@ object SessionsView {
      * does not name come last.
      */
     fun groups(list: SessionList): List<Group> {
-        val rows = list.sessions.map { Row(it, state(it)) }
+        val rows = list.sessions.map { Row(it, state(it), SessionActions.offered(it)) }
         val known = list.folders.map { it.id }.toSet()
         return buildList {
             rows.filter { it.session.folderId == null }.takeIf { it.isNotEmpty() }?.let { add(Group(null, null, true, it)) }

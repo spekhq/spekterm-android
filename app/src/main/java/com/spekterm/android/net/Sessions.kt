@@ -1,7 +1,13 @@
 package com.spekterm.android.net
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -40,6 +46,9 @@ data class Session(
     /** Handoff-created sessions only. */
     val lifecycle: String? = null,
     val lineage: Lineage? = null,
+    /** The agent asked to close its own session and the user has not answered (`close-offer`, design D1). */
+    @Serializable(with = OnlyTrue::class)
+    val closeOffered: Boolean = false,
 ) {
     val isAgent: Boolean get() = target == CLAUDE
 
@@ -47,6 +56,21 @@ data class Session(
         const val CLAUDE = "claude"
         const val SHELL = "shell"
     }
+}
+
+/**
+ * A flag that is `true` only for the JSON boolean `true`; any other value (a string `"true"` included) is `false`, so
+ * an unexpected value never drops the session that carries it (obligation 7; design D1).
+ */
+object OnlyTrue : KSerializer<Boolean> {
+    override val descriptor = PrimitiveSerialDescriptor("OnlyTrue", PrimitiveKind.BOOLEAN)
+
+    override fun deserialize(decoder: Decoder): Boolean {
+        val e = (decoder as? JsonDecoder)?.decodeJsonElement() ?: return decoder.decodeBoolean()
+        return e is JsonPrimitive && !e.isString && e.booleanOrNull == true
+    }
+
+    override fun serialize(encoder: Encoder, value: Boolean) = encoder.encodeBoolean(value)
 }
 
 /** The answer to `sessions.list` and the data of `sessions.changed`. */

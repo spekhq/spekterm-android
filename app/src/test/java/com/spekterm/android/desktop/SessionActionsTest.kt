@@ -92,4 +92,54 @@ class SessionActionsTest {
         assertEquals("Could not close it (INTERNAL).", SessionAction.errorText(SessionAction.Kind.CLOSE, RemoteError(RemoteError.INTERNAL)))
         assertEquals("spekterm has no open window on the desktop. Open it there first.", SessionAction.errorText(SessionAction.Kind.WAKE, RemoteError(RemoteError.NO_WINDOW)))
     }
+
+    private val close = SessionAction.Kind.CLOSE
+    private val keep = SessionAction.Kind.KEEP
+
+    @Test
+    fun anOfferIsARunningAgentMarkedByTheDesktop() {
+        val offered = running.copy(closeOffered = true)
+        assertTrue(SessionActions.offered(offered))
+        assertFalse(SessionActions.offered(running))
+        assertFalse(SessionActions.offered(dormant.copy(closeOffered = true)))
+        assertFalse(SessionActions.offered(shell.copy(closeOffered = true)))
+
+        val both = all + Operations.KEEP
+        assertEquals(listOf(close, keep), SessionActions.offerActions(offered, both))
+        assertEquals(listOf(close), SessionActions.offerActions(offered, all))
+        assertEquals(listOf(keep), SessionActions.offerActions(offered, setOf(Operations.KEEP)))
+        assertEquals(emptyList<SessionAction.Kind>(), SessionActions.offerActions(running, both))
+        assertEquals(emptyList<SessionAction.Kind>(), SessionActions.offerActions(dormant.copy(closeOffered = true), both))
+        // The menu is not changed by an offer.
+        assertEquals(SessionActions.of(running, both), SessionActions.of(offered, both))
+    }
+
+    @Test
+    fun anOffersCloseSkipsTheConfirmationButABusyAnswerStillAsks() {
+        val start = SessionAction.fromOffer(close, "s1", "A")
+        assertEquals(SessionAction.Working(close, "s1", "A", force = false), start)
+        val busy = SessionAction.answered(start, busy("working"))
+        assertEquals(SessionAction.Busy(close, "s1", "A", "working"), busy)
+        assertEquals(SessionAction.Working(close, "s1", "A", force = true), SessionAction.agreed(busy as SessionAction.Busy))
+        assertEquals(SessionAction.Done(close, "s1", "A"), SessionAction.answered(start, null))
+        // The menu's close still asks first.
+        assertTrue(SessionAction.start(close, "s1", "A") is SessionAction.Confirm)
+    }
+
+    @Test
+    fun keepIsNeverBusyAndHasItsOwnTexts() {
+        val start = SessionAction.fromOffer(keep, "s1", "A")
+        assertEquals(SessionAction.Working(keep, "s1", "A", force = false), start)
+        assertEquals(SessionAction.Done(keep, "s1", "A"), SessionAction.answered(start, null))
+        assertEquals(
+            SessionAction.Failed(keep, "s1", "A", "Could not keep it (SESSION_BUSY)."),
+            SessionAction.answered(start, busy("working")),
+        )
+        assertEquals("This session no longer exists.", SessionAction.errorText(keep, RemoteError(RemoteError.NOT_FOUND)))
+        assertEquals("spekterm has no open window on the desktop.", SessionAction.errorText(keep, RemoteError(RemoteError.NO_WINDOW)))
+        assertEquals("The desktop did not answer in time; its card may still show there.", SessionAction.errorText(keep, RemoteError(RemoteError.TIMEOUT)))
+        assertEquals("The desktop could not do it. (boom)", SessionAction.errorText(keep, RemoteError(RemoteError.CREATE_FAILED, "boom")))
+        assertEquals("Not connected to the desktop. The session list shows whether it happened.", SessionAction.errorText(keep, RemoteError(Desktop.NOT_CONNECTED)))
+        assertEquals("Could not keep it (BAD_PARAMS).", SessionAction.errorText(keep, RemoteError(RemoteError.BAD_PARAMS)))
+    }
 }
