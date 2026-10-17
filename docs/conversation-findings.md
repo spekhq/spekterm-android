@@ -564,6 +564,18 @@ view open:
 | Scanning in the app without lining it up (8.1): the camera opened at 01:11:03.68, `attempt source=pair` at 01:11:05.44 — 1.8 s; zoom stayed 1.0 (no pinch needed); authenticated 0.36 s later. kewang: "掃描超快的" | pass (maintainer) |
 | Pairing again reset the attention position, as designed: the watch answer held 76 events, `complete=false`: 31 summarized in one notification, 45 suppressed | as designed |
 
+Real conditions (8.3), from the Pixel's log; the desktop lists six addresses now, the five of the link and its
+additional address `kewang-7420.tail45e89e.ts.net` (a Tailscale MagicDNS name):
+
+| Case | Outcome |
+|---|---|
+| Wi-Fi and Tailscale off, mobile data only: six rounds `round network=MOBILE vpn=false reason=OFF_NETWORK`; five addresses `SocketTimeoutException` → `TIMED_OUT`, the `.ts.net` name `UnknownHostException` → `NAME_NOT_FOUND` within 0.65 s; a round took 6.1 s (all six started within 1.3 s, each with its 5 s timeout) where the spike's sequential rounds took 5 s per address. kewang read on the screen: "使用行動網路時，手機連不到桌機的區網和 Tailscale 位址 / 請連上桌機所在的 Wi-Fi，或在這支手機開啟 Tailscale（或你的 VPN）" | pass (maintainer) |
+| Tailscale turned on, still on mobile data: the network callback cut the 59 s wait short; authenticated over 100.106.81.33 0.86 s after the VPN came up (the spike: 5.9 s), its attempt started 0.36 s in while the LAN address still timed out | pass |
+| Wi-Fi back on: the connection dropped on the network change and came back over 100.106.81.33 in 1.2 s | pass |
+| Remote access turned off on the desktop: `disconnected code=4005`, the next round 0.9 s later found all six addresses refusing (`ConnectException` → `REFUSED`), `reason=REFUSED` (no screenshot taken on the phone during it; the same screen is in the emulator section); turned back on: authenticated 12.7 s later, at the next backoff | pass |
+| D6's exception mapping against what the Pixel produced: timed out, refused and name not found as matched; no adjustment needed | pass |
+| The phone's language is zh-Hant-TW, so the app ran in Traditional Chinese throughout: the ongoing notification "透過 100.106.81.33 連線", the summary "你不在時有 31 個事件 —— 可能有些沒收到。" | pass |
+
 ### Follow-up for spekterm (the desktop)
 
 The code is dense because the link carries every address, global and temporary IPv6 included (five addresses:
