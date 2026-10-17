@@ -32,7 +32,7 @@ session as idle. The phone must apply the same rule so both ends agree on what w
   (long press in the list, or the menu on its conversation screen) as "Handoff": where it came from (tappable when
   that session is still on the desktop), the handoff note read with `handoffs.brief` each time the screen opens,
   the latest report with its time, and the sessions handed off from it with their state and latest report summary,
-  each tappable. A desktop without a window (a reload) never reads as the session being closed. The note and the report are plain text; nothing in them loads or opens anything.
+  each tappable. A desktop without a window (macOS after closing it) never reads as the session being closed. The note and the report are plain text; nothing in them loads or opens anything.
 - **The session menu opens for relations too**: a session with a relation gets "Handoff" in its menu even when the
   desktop accepts no session action, and the item works while the phone is not connected (from the last list; the
   note says it needs the connection).

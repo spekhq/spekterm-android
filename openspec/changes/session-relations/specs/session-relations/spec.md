@@ -169,9 +169,10 @@ that the session is no longer on the desktop; otherwise its content.
   done, while nobody looks at it
 - **THEN** its state on the screen changes from working to not done yet, as its row does
 
-#### Scenario: The desktop reloads its window
+#### Scenario: The desktop has no window
 
-- **WHEN** the desktop's window is reloaded while a handoff screen is shown
+- **WHEN** the desktop's list says it has no window (macOS after its window is closed) while a handoff screen is
+  shown
 - **THEN** the screen says the desktop has no open window and keeps showing the relations, and does not say the
   session is gone
 

@@ -29,7 +29,7 @@ class HandoffScreenTest {
     }
 
     @Test
-    fun aWindowReloadKeepsTheEarlierRelations() {
+    fun aDesktopWithoutAWindowKeepsTheEarlierRelations() {
         assertEquals(Shows.NO_WINDOW, of(list = noWindow))
         assertEquals(withIt, HandoffView.relationsList(SessionsState(noWindow, current = true), kept = withIt))
         assertEquals(without, HandoffView.relationsList(SessionsState(without, current = true), kept = withIt))

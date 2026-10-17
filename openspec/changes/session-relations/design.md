@@ -36,8 +36,9 @@ Facts about the desktop (spekterm `docs/remote-protocol.md` §5–§6, `src/main
 - An exited session leaves the desktop's list at once (`src/main/ipc/terminal.ts`: a pty that really ends is removed
   from the store); there is no "ended but still listed" state, so `running: false` in the list always means
   hibernated (dormant).
-- With no window, the desktop answers a current list with `window: false` and no sessions (renderer reload or a
-  closed window).
+- With no window, the desktop answers a current list with `window: false` and no sessions (`NO_WINDOW`: macOS
+  after its window is closed). A renderer reload keeps the window, so `window` stays `true` (confirmed by the
+  `session-wait-indicator` session, 2026-10-17).
 - The rail's tree: a session's parent is its `lineage.parentId` **only when that session exists and is in the same
   rail item**; a self-reference or a loop makes the node a root; siblings keep the item's single order; DFS
   flattening; indentation capped at depth 3. A session handed off from another item, or from one that is gone, is a
@@ -163,8 +164,8 @@ What it shows first is one pure function, in this order (as `Screen.of` for the 
 and **not connected** — the relations from the last list with a window, and the reason, as the list's notices say
 it; **no window** — the relations from the last list that had one, and "spekterm has no open window on the
 desktop"; **closed** — "This session is no longer on the desktop." when a current list with a window lacks it;
-otherwise the content. In every case the relations come from the last list that had a window, which is kept by the screen while it is open, so a renderer reload
-on the desktop never reads as closed and never empties the relations.
+otherwise the content. In every case the relations come from the last list that had a window, which is kept by the screen while it is open, so a desktop
+without a window never reads as closed and never empties the relations.
 
 Sections, each only when it has something:
 
@@ -234,7 +235,7 @@ was raised for a `waiting` or `choice` event**: `AttentionNotifier` remembers, i
 key (forgotten when it is cancelled; empty after the process restarts, which then removes nothing — the safe side).
 A "Handoff finished" or inbox notification is never removed this way: `seen: true` does not prove the user saw a
 report that may have been adopted after the turn ended (spekterm `lifecycle.ts`), and the first list of every
-connection (a reconnect, a desktop window reload) counts as a transition.
+connection (every reconnect) counts as a transition.
 
 `seen: true` also comes without anyone looking: a session that became ready without a turn ending (a restored or
 woken agent, `/clear`) is seen. A `waiting` notification from before is then removed too; that is intended — the

@@ -20,7 +20,7 @@ object HandoffView {
 
     /**
      * The list the relations are read from: the shown one when it has a window, else [kept] — the last one that had
-     * one — so a desktop window reload never empties the screen.
+     * one — so a desktop without a window (macOS after closing it) never empties the screen.
      */
     fun relationsList(sessions: SessionsState, kept: SessionList?): SessionList? =
         sessions.list?.takeIf { it.window } ?: kept

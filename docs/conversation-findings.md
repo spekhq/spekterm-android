@@ -403,7 +403,7 @@ repository) in light and dark mode, and the app's connection log:
 | Older handoffs (ha-claude-assistant-4dc6, pg11-f947): "The desktop kept no note for this handoff.", "No report yet." | pass |
 | Opening "Handoff" of a session already on the back stack (Log → child's conversation → its Handoff → From → Log's conversation → Handoff): returned to the first Handoff screen; back then went to the list | pass |
 | Paused: the relations shown with the paused notice, the note "Reading the note needs the connection to the desktop."; "Resume" loaded the note by itself | pass |
-| The desktop's window reloaded (CDP `location.reload()`) while a handoff screen was open: the screen kept its relations and never said "no longer on the desktop"; but no "no open window" notice appeared either — the reload sent no window-less list that the phone saw. The window-less case is carried by `HandoffScreenTest` | partly: not reproduced |
+| The desktop's renderer reloaded (CDP `location.reload()`) while a handoff screen was open: the screen stayed as it was, relations kept, never "no longer on the desktop". A reload keeps the window, so `window` stays `true` (as the desktop's session confirmed); a desktop without a window happens only on macOS after closing it, carried by `HandoffScreenTest` (session-relations) | pass |
 | A dormant handed-off session woken from the phone: "Idle" (seen after a wake), row "Handoff"; no waiting notification | pass |
 | A reply sent from the phone, then back to the list before the turn ended: "Waiting for you", row "Handoff · Not done yet", a "Waiting for your input" notification; an "Idle" row (the woken parent) next to it, light and dark | pass |
 | Opening that conversation on the phone and going back: "Idle", the notification removed (log `seen kind=waiting` 0.13 s after the watch) | pass |
@@ -412,4 +412,6 @@ repository) in light and dark mode, and the app's connection log:
 | The connection log: `handoffs count=5`, `brief hasBody=… hasReport=…`, `seen kind=waiting`; no label, note or report text | pass |
 
 Noticed: a new same-folder session ended its first turn already seen while spek was the folder selected on the
-desktop — presumably shown in the desktop's focused window when it opened (not confirmed on the desktop side).
+desktop. The desktop's session confirmed it in code: a handoff accepted on arrival becomes its folder's focused
+session, so with that folder selected in the focused window it is displayed, and its turn end is seen. A possible
+desktop-side UX question, not a protocol one.

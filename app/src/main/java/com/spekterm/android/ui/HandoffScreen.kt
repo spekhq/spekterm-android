@@ -72,7 +72,7 @@ fun HandoffScreen(
     val handoffs by Desktop.handoffs.collectAsStateWithLifecycle()
     val status by StatusBoard.status.collectAsStateWithLifecycle()
 
-    // The last list that had a window: a desktop window reload neither empties the screen nor reads as closed.
+    // The last list that had a window: a desktop without one neither empties the screen nor reads as closed.
     var kept by remember { mutableStateOf<SessionList?>(null) }
     sessions.list?.takeIf { it.window }?.let { if (it !== kept) kept = it }
     val list = HandoffView.relationsList(sessions, kept)
