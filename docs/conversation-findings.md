@@ -552,6 +552,18 @@ case is still to be recorded.
 | A conversation with a run of tool calls and a prompt card: every dev session was dormant; not produced | not run |
 | "Waiting for you" notification in zh-TW: needs an agent turn ending; for the Pixel run | Pixel |
 
+### On the Pixel 7 (8.x)
+
+`adb install -r` on 2026-10-18 (pairing kept; reconnected 0.46 s after the install, the Tailscale address that
+last connected winning, the LAN address started at +0.26 s). kewang, at home, with the installed spekterm's pairing
+view open:
+
+| Item | Outcome |
+|---|---|
+| The Pixel's own camera app on the desktop's pairing code (8.2): it offered the link and opened the app (`START … VIEW dat=spekterm://pair/… from com.google.android.GoogleCamera`), which asked first | pass (maintainer) |
+| Scanning in the app without lining it up (8.1): the camera opened at 01:11:03.68, `attempt source=pair` at 01:11:05.44 — 1.8 s; zoom stayed 1.0 (no pinch needed); authenticated 0.36 s later. kewang: "掃描超快的" | pass (maintainer) |
+| Pairing again reset the attention position, as designed: the watch answer held 76 events, `complete=false`: 31 summarized in one notification, 45 suppressed | as designed |
+
 ### Follow-up for spekterm (the desktop)
 
 The code is dense because the link carries every address, global and temporary IPv6 included (five addresses:
