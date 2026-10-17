@@ -50,8 +50,8 @@ Facts about the desktop (spekterm `docs/remote-protocol.md` §5–§6, `src/main
 - The desktop's words (`src/shared/i18n/en.json`): "From <repo> › <title>", "From <repo> › <title> (closed)", "From a
   session that has closed", "Handed off N sessions"; states "Working", "Waiting for you", "Done".
 
-Facts about `seen` (spekterm change `session-wait-indicator`, committed on spekterm master as `01cb50a`, not yet
-archived; `docs/remote-protocol.md` section 5 at that commit matches what follows and D7):
+Facts about `seen` (spekterm change `session-wait-indicator`, committed on spekterm master as `01cb50a`, final
+after the user's dogfooding and archived as `dbc2e03`; `docs/remote-protocol.md` section 5 at that commit matches what follows and D7):
 
 - `Session.seen?: boolean`, present only while `wait` is `"ready"`. `true` = the user looked at the session since
   its turn ended: shown on the desktop while its window is focused, or its conversation watched by a paired device.

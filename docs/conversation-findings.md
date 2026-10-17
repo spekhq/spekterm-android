@@ -415,3 +415,32 @@ Noticed: a new same-folder session ended its first turn already seen while spek 
 desktop. The desktop's session confirmed it in code: a handoff accepted on arrival becomes its folder's focused
 session, so with that folder selected in the focused window it is displayed, and its turn end is seen. A possible
 desktop-side UX question, not a protocol one.
+
+On the Pixel 7 (`adb install -r`, re-paired with the dev desktop by pasted link, driven over adb with kewang's
+OK; one step on the desktop done by kewang), against the same dev desktop at `01cb50a` (the `seen` contract, final
+and archived on spekterm as `dbc2e03`). New sessions: "Pixel source" handed off from spek-dfa5, and from it
+"Pixel child here" (spek) and "Pixel child there" (Log):
+
+| Item (task 7.1) | Outcome |
+|---|---|
+| A handoff within one folder: under its source, indented one step further, "Handoff". "Handoff · Working" was not caught on the Pixel (the agent finished between polls); seen on the emulator for the nested 測試：子 session | pass (Working: emulator) |
+| A handoff to another folder: at the top of Log with "From spek › Pixel source · Working"; the source "Handed off 2 sessions" | pass |
+| Two handoffs then their reports: the source "Handed off 2 sessions · all done". "1 of 2 done" was not caught (both children reported within seconds); seen on the emulator as "1 of 3 done" and carried by `RelationsTest` | pass ("k of N": emulator) |
+| A handed-off agent stopping without a report while unseen ("Pixel source", after its children's messages): "Handoff · Not done yet", "Waiting for you"; once looked at, "Handoff" and "Idle"; on its parent's handoff screen its state followed | pass |
+| The source renamed (from the phone): the cross-folder row "From spek › Pixel source renamed" | pass |
+| The source closed (from the phone): both children "From Pixel source (closed)", the same-folder one at the top level; no row disappeared | pass |
+| "Handoff" from a long press: From, the note in full, the report with its time | pass |
+| "Handoff" from the source's conversation menu: both children with folder, "Done" and their report summaries; a child opened its conversation, back returned to the handoff screen | pass |
+| Paused: the relations and the report shown, the note "Reading the note needs the connection to the desktop."; Resume loaded it by itself | pass |
+| The desktop's renderer reloaded with a handoff screen open: the screen unchanged throughout | pass |
+| The list next to the rail: same rows and order (read on the emulator run; the rail unchanged since) | pass |
+| Agents finishing unseen: "Waiting for you" and a notification each; kewang showing "Pixel child here" on the desktop: the row "Idle", its notification gone (log `seen kind=waiting`), the collapsed spek no longer saying "1 waiting for you" | pass |
+| "Pixel source" and "Pixel child there" opened on the phone and left: "Idle", notifications gone (two `seen kind=waiting` lines); the desktop's rail showed "Pixel source — 執行中 · 閒置", looked at only on the phone | pass |
+| The next turn ending unseen (a reply sent from the phone, then back to the list): "Waiting for you" again, a new notification still there 20 s later | pass |
+| The installed spekterm without `seen`: not paired during the run; carried by 5.1 (`seen` absent → "Waiting for you") | carried by 5.1 |
+| A desktop without the handoff operations: carried by 1.1 and 3.1 (`DesktopTest`: no `handoffs.list` asked) | carried by 1.1, 3.1 |
+| The connection log (1082 lines): `handoffs count=…`, `brief hasBody=… hasReport=…` / `brief error=NOT_CONNECTED`, `seen kind=waiting`; no label, title, note or report text (no "Pixel", "Phone test", "spek-", "sleep" or 測試 in it) | pass |
+
+Noticed during the run: kewang picked up the phone and opened another app while the script was running; the run
+stopped until the app was back in front, and every later step first checked that spekterm-android was in front.
+

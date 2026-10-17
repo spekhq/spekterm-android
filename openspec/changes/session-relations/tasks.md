@@ -35,7 +35,7 @@
 
 ## 7. On the phone
 
-- [ ] 7.1 Install on the Pixel with `adb install -r` (keeping the pairing) and run against a dev spekterm desktop (`npm run dev`, with `session-wait-indicator` for the `seen` items — record its commit), producing handoffs and reports with `tools/drop-handoff.mjs`, recording each outcome in `docs/conversation-findings.md` under "Session relations":
+- [x] 7.1 Install on the Pixel with `adb install -r` (keeping the pairing) and run against a dev spekterm desktop (`npm run dev`, with `session-wait-indicator` for the `seen` items — record its commit), producing handoffs and reports with `tools/drop-handoff.mjs`, recording each outcome in `docs/conversation-findings.md` under "Session relations":
   - a handoff within one folder: the new session appears under its source, indented, with "Handoff · Working";
   - a handoff to another folder: the new session is at the top of that folder's group with "From <folder> › <label>"; the source's row says "Handed off 1 session";
   - a second handoff from the same source, then one of the two reports done: the source's row says "Handed off 2 sessions · 1 of 2 done", then "all done" after the second;
