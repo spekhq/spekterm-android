@@ -3,12 +3,15 @@ package com.spekterm.android.desktop
 import com.spekterm.android.net.Operations
 import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.Session
+import com.spekterm.android.net.SessionList
 
 /** A session's menu: the actions the desktop accepts for it, in order (design D8). */
 object SessionActions {
-    enum class Action { RENAME, HIBERNATE, WAKE, CLOSE }
+    enum class Action { HANDOFF, RENAME, HIBERNATE, WAKE, CLOSE }
 
-    fun of(session: Session, operations: Set<String>): List<Action> = listOfNotNull(
+    /** [list] is the one the phone holds, for "Handoff" (`session-relations` D5), whatever the desktop accepts. */
+    fun of(session: Session, operations: Set<String>, list: SessionList? = null): List<Action> = listOfNotNull(
+        Action.HANDOFF.takeIf { Relations.related(session, list) },
         Action.RENAME.takeIf { Operations.RENAME in operations },
         Action.HIBERNATE.takeIf { Operations.HIBERNATE in operations && session.running },
         Action.WAKE.takeIf { Operations.WAKE in operations && !session.running },
@@ -23,6 +26,9 @@ object SessionActions {
         SessionAction.Kind.CLOSE.takeIf { Operations.CLOSE in operations },
         SessionAction.Kind.KEEP.takeIf { Operations.KEEP in operations },
     )
+
+    /** "Handoff" reads what the phone holds, so it is always usable; the others need [enabled] (D5). */
+    fun itemEnabled(action: Action, enabled: Boolean): Boolean = action == Action.HANDOFF || enabled
 
     /** Every item is usable while connected, not paused, the shown list current and the desktop has a window. */
     fun enabled(connected: Boolean, paused: Boolean, sessions: SessionsState): Boolean =

@@ -858,4 +858,70 @@ class DesktopTest {
         val shown = loaded(target) { it.value != null && !it.pending }
         assertTrue(shown.notLive)
     }
+
+    @Test
+    fun theHandoffListIsAskedOnlyWhenOfferedAndFollowsItsEvents() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            handle = { req, ws ->
+                when (req.method) {
+                    "sessions.list" -> ws.send(ok(req.id, list()))
+                    "handoffs.list" -> ws.send(ok(req.id, """[{"sessionId":"s1","state":"working"}]"""))
+                    else -> ws.send(ok(req.id, "{}"))
+                }
+            }
+        }
+        val first = connect(desktop)
+        delay(500)
+        assertEquals(0, desktop.count("handoffs.list"))
+        first.close()
+        withTimeout(5_000) { Desktop.connected.first { !it } }
+
+        connect(desktop, setOf(Operations.HANDOFFS_LIST))
+        withTimeout(5_000) { Desktop.handoffs.first { it.current && "s1" in it.entries } }
+        desktop.socket!!.send(evt("handoffs.changed", """[{"sessionId":"s1","state":"done","summary":"ok","reportedAt":5}]"""))
+        val after = withTimeout(5_000) { Desktop.handoffs.first { it.entries["s1"]?.summary == "ok" } }
+        assertEquals(5L, after.entries["s1"]!!.reportedAt)
+
+        desktop.socket!!.close(1000, null)
+        val detached = withTimeout(5_000) { Desktop.handoffs.first { !it.current } }
+        assertEquals("ok", detached.entries["s1"]!!.summary)
+        Desktop.clear()
+        withTimeout(5_000) { Desktop.handoffs.first { it.entries.isEmpty() } }
+    }
+
+    @Test
+    fun aBriefIsReadWithItsSessionIdAndLoggedWithoutItsText() = runBlocking<Unit> {
+        val logged = CopyOnWriteArrayList<String>()
+        val previous = Desktop.log
+        Desktop.log = { kind, fields -> logged += "$kind ${fields.joinToString(" ") { "${it.first}=${it.second}" }}" }
+        try {
+            assertEquals(Desktop.NOT_CONNECTED, Desktop.brief("s1").error!!.code)
+            val desktop = Scripted().apply {
+                handle = { req, ws ->
+                    when (req.method) {
+                        "sessions.list" -> ws.send(ok(req.id, list()))
+                        "handoffs.brief" -> if (req.params["sessionId"] == JsonPrimitive("s1")) {
+                            ws.send(ok(req.id, """{"body":"secret note","report":{"summary":"secret report","reportedAt":3}}"""))
+                        } else {
+                            ws.send(err(req.id, "NOT_FOUND"))
+                        }
+                        else -> ws.send(ok(req.id, "{}"))
+                    }
+                }
+            }
+            connect(desktop, setOf(Operations.HANDOFFS_BRIEF))
+            val answer = Desktop.brief("s1")
+            assertNull(answer.error)
+            assertEquals("secret note", answer.brief!!.body)
+            assertEquals("secret report", answer.brief!!.report!!.summary)
+            assertEquals(setOf("sessionId"), desktop.requests.first { it.method == "handoffs.brief" }.params.keys)
+            assertEquals("NOT_FOUND", Desktop.brief("other").error!!.code)
+            val briefs = logged.filter { it.startsWith("BRIEF") }
+            assertEquals(3, briefs.size)
+            assertTrue(briefs.none { "secret" in it })
+            assertTrue(briefs[1].contains("hasBody=true"))
+        } finally {
+            Desktop.log = previous
+        }
+    }
 }

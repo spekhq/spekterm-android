@@ -76,6 +76,9 @@ class ConnectionLog(
         // `openspec-browse`: OpenSpec reads and watches (operation, cause, error code, counts; never a slug, topic or
         // text).
         OPENSPEC,
+        // `session-relations`: the handoff list and a handoff's note (error code, counts, whether a note or a report
+        // came; never a label, a note or a report).
+        HANDOFFS, BRIEF,
     }
 
     companion object {

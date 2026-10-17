@@ -1,5 +1,6 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.net.HandoffEntry
 import com.spekterm.android.net.Session
 import com.spekterm.android.net.SessionList
 import com.spekterm.android.net.WaitState
@@ -11,6 +12,21 @@ data class SessionsState(
     val current: Boolean = false,
     val receivedAt: Long? = null,
 )
+
+/**
+ * The desktop's handoff list by session id (`session-relations` D3), whether it came from the attached connection,
+ * and the stamp of the last one applied there. Only `summary` / `reportedAt` are read from it.
+ */
+data class HandoffsState(val entries: Map<String, HandoffEntry> = emptyMap(), val current: Boolean = false, val seq: Long = 0) {
+    /** [list] stamped [seq] applied, or `null` when an equal or newer one was already applied on this connection. */
+    fun applied(seq: Long, list: List<HandoffEntry>): HandoffsState? =
+        if (seq <= this.seq) null else HandoffsState(list.associateBy { it.sessionId }, current = true, seq = seq)
+
+    /** A new connection: its stamps start again; the entries stay until its first list. */
+    fun attached(): HandoffsState = copy(current = false, seq = 0)
+
+    fun detached(): HandoffsState = copy(current = false)
+}
 
 /** Applies session lists in arrival order within one connection (design D2). */
 class ListClock {
@@ -33,8 +49,11 @@ class ListClock {
 object SessionsView {
     enum class RowState { DORMANT, READY, BUSY, CHOICE, NONE }
 
-    /** [offered]: its agent asked to close it (`close-offer`). */
-    data class Row(val session: Session, val state: RowState, val offered: Boolean = false)
+    /**
+     * [offered]: its agent asked to close it (`close-offer`). [depth] and [nested]: its place in the group's handoff
+     * tree (`session-relations` D1).
+     */
+    data class Row(val session: Session, val state: RowState, val offered: Boolean = false, val depth: Int = 0, val nested: Boolean = false)
 
     /** How many sessions of a group need the user (design D1), each counted once (`close-offer` D5). */
     data class Summary(val choice: Int, val ready: Int, val offers: Int = 0)
@@ -94,20 +113,24 @@ object SessionsView {
 
     /**
      * The global item first (pinned on the desktop's rail), then folders in the desktop's order, each with its
-     * sessions in the desktop's order; folders without sessions are left out, and sessions of a folder the list
-     * does not name come last.
+     * sessions in the desktop's order arranged as a handoff tree (`session-relations` D1); folders without sessions
+     * are left out, and sessions of a folder the list does not name come last, with no tree.
      */
     fun groups(list: SessionList): List<Group> {
-        val rows = list.sessions.map { Row(it, state(it), SessionActions.offered(it)) }
         val known = list.folders.map { it.id }.toSet()
+        fun rows(sessions: List<Session>, tree: Boolean): List<Row> {
+            val byId = sessions.associateBy { it.id }
+            val placed = Relations.tree(sessions, if (tree) byId.keys else emptySet())
+            return placed.map { p -> byId.getValue(p.id).let { Row(it, state(it), SessionActions.offered(it), p.depth, p.nested) } }
+        }
         return buildList {
-            rows.filter { it.session.folderId == null }.takeIf { it.isNotEmpty() }?.let { add(Group(null, null, true, it)) }
+            list.sessions.filter { it.folderId == null }.takeIf { it.isNotEmpty() }?.let { add(Group(null, null, true, rows(it, true))) }
             for (folder in list.folders) {
-                rows.filter { it.session.folderId == folder.id }.takeIf { it.isNotEmpty() }
-                    ?.let { add(Group(folder.id, folder.name, false, it, folder.branch, folder.hasOpenSpec)) }
+                list.sessions.filter { it.folderId == folder.id }.takeIf { it.isNotEmpty() }
+                    ?.let { add(Group(folder.id, folder.name, false, rows(it, true), folder.branch, folder.hasOpenSpec)) }
             }
-            rows.filter { it.session.folderId != null && it.session.folderId !in known }.takeIf { it.isNotEmpty() }
-                ?.let { add(Group(null, null, false, it)) }
+            list.sessions.filter { it.folderId != null && it.folderId !in known }.takeIf { it.isNotEmpty() }
+                ?.let { add(Group(null, null, false, rows(it, false))) }
         }
     }
 }

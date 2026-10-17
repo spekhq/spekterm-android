@@ -8,6 +8,8 @@ import com.spekterm.android.net.CreateResult
 import com.spekterm.android.net.ConversationUpdate
 import com.spekterm.android.net.ConversationWait
 import com.spekterm.android.net.Frames
+import com.spekterm.android.net.HandoffBrief
+import com.spekterm.android.net.HandoffEntry
 import com.spekterm.android.net.OpenSpec
 import com.spekterm.android.net.Operations
 import com.spekterm.android.net.OsChange
@@ -63,6 +65,11 @@ object Desktop {
 
     private val mutableSessions = MutableStateFlow(SessionsState())
     val sessions: StateFlow<SessionsState> = mutableSessions
+
+    private val mutableHandoffs = MutableStateFlow(HandoffsState())
+
+    /** The desktop's handoff list (`session-relations` D3): kept across a detach, emptied by [clear]. */
+    val handoffs: StateFlow<HandoffsState> = mutableHandoffs
 
     private val mutableConversation = MutableStateFlow<Conversation?>(null)
 
@@ -143,6 +150,7 @@ object Desktop {
         val a = Attached(connection, CoroutineScope(SupervisorJob(scope.coroutineContext[Job]) + dispatcher))
         attached = a
         clock.reset()
+        mutableHandoffs.value = mutableHandoffs.value.attached()
         mutableOperations.value = operations
         mutableConnected.value = true
         attachments.value++
@@ -155,12 +163,21 @@ object Desktop {
             log(Kind.LIST, "error" to answer.error?.code)
             reconcile()
         }
+        if (Operations.HANDOFFS_LIST in operations) {
+            a.scope.launch {
+                val answer = request(a, Operations.HANDOFFS_LIST) ?: return@launch
+                val list = if (answer.ok) HandoffEntry.decodeList(answer.result) else null
+                list?.let { applyHandoffs(a, answer.seq, it) }
+                log(Kind.HANDOFFS, "error" to answer.error?.code, "count" to list?.size)
+            }
+        }
     }
 
     suspend fun onEvent(connection: RemoteConnection, event: ServerFrame.Event) = withContext(dispatcher) {
         val a = attached?.takeIf { it.connection === connection } ?: return@withContext
         when (event.kind) {
             "sessions.changed" -> SessionList.decode(event.data)?.let { applyList(a, event.seq, it) }
+            "handoffs.changed" -> HandoffEntry.decodeList(event.data)?.let { applyHandoffs(a, event.seq, it) }
             "conversation.update" -> ConversationUpdate.decode(event.data)?.let { update ->
                 change(update.sessionId) { ConversationReducer.apply(it, update, now()) }
             }
@@ -187,6 +204,7 @@ object Desktop {
         attached = null
         mutableConnected.value = false
         mutableSessions.value = mutableSessions.value.copy(current = false)
+        mutableHandoffs.value = mutableHandoffs.value.detached()
         track(CreateTracker.detached(trackerState(), a))
         mutableConversation.value?.let { mutableConversation.value = ConversationReducer.disconnected(it) }
         openspecStep(tracker.detached())
@@ -243,6 +261,19 @@ object Desktop {
         val error = answer?.error ?: if (answer == null) RemoteError(NOT_CONNECTED) else null
         log(Kind.KEEP, "error" to error?.code)
         error
+    }
+
+    /** The answer to [brief]: the note and report, or why there is none (`NOT_FOUND`, [NOT_CONNECTED], …). */
+    data class BriefAnswer(val brief: HandoffBrief?, val error: RemoteError?)
+
+    /** Reads the handoff note of [sessionId] (`session-relations` D4). Nothing is kept: the screen holds it. */
+    suspend fun brief(sessionId: String): BriefAnswer = withContext(dispatcher) {
+        val a = attached ?: return@withContext BriefAnswer(null, RemoteError(NOT_CONNECTED)).also { log(Kind.BRIEF, "error" to NOT_CONNECTED) }
+        val answer = a.scope.async { request(a, Operations.HANDOFFS_BRIEF, Frames.handoffsBrief(sessionId)) }.await()
+        val brief = if (answer?.ok == true) HandoffBrief.decode(answer.result) ?: HandoffBrief(null, null) else null
+        val error = answer?.error ?: if (answer == null) RemoteError(NOT_CONNECTED) else null
+        log(Kind.BRIEF, "error" to error?.code, "hasBody" to (brief?.body != null), "hasReport" to (brief?.report != null))
+        BriefAnswer(brief, error)
     }
 
     /** Hibernates [sessionId] (design D9); [force] only after a busy refusal the user agreed to override. */
@@ -500,6 +531,7 @@ object Desktop {
             mutableConnected.value = false
             mutableOperations.value = emptySet()
             mutableSessions.value = SessionsState()
+            mutableHandoffs.value = HandoffsState()
             setHeld(null)
             dropCreation()
             dropOpenspec()
@@ -517,6 +549,7 @@ object Desktop {
         mutableConnected.value = false
         mutableOperations.value = emptySet()
         mutableSessions.value = SessionsState()
+        mutableHandoffs.value = HandoffsState()
         setHeld(null)
         dropCreation()
         dropOpenspec()
@@ -656,6 +689,11 @@ object Desktop {
     private fun CreateOutcome.logName(): String = when (this) {
         is CreateOutcome.Created -> "created"
         is CreateOutcome.Refused -> reason.name.lowercase()
+    }
+
+    private fun applyHandoffs(a: Attached, seq: Long, list: List<HandoffEntry>) {
+        if (attached !== a) return
+        mutableHandoffs.value.applied(seq, list)?.let { mutableHandoffs.value = it }
     }
 
     private fun applyList(a: Attached, seq: Long, list: SessionList) {

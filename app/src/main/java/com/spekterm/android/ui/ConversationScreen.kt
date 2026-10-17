@@ -115,6 +115,7 @@ fun ConversationScreen(
     onBack: () -> Unit,
     onStatus: () -> Unit,
     onResume: () -> Unit,
+    onHandoff: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val sessions by Desktop.sessions.collectAsStateWithLifecycle()
@@ -159,11 +160,13 @@ fun ConversationScreen(
                 onBack = onBack,
                 subtitle = c?.let { waitState(it) }?.let { state -> { StateLabel(state) } },
             ) {
-                val actions = session?.let { SessionActions.of(it, operations) }.orEmpty()
+                val actions = session?.let { SessionActions.of(it, operations, sessions.list) }.orEmpty()
                 if (actions.isNotEmpty()) {
                     Box {
                         MoreButton({ menu = true })
-                        SessionMenu(menu, { menu = false }, actions, actionsEnabled) { dialogs.choose(it, session!!) }
+                        SessionMenu(menu, { menu = false }, actions, actionsEnabled) {
+                            if (it == SessionActions.Action.HANDOFF) onHandoff(sessionId) else dialogs.choose(it, session!!)
+                        }
                     }
                 }
             }

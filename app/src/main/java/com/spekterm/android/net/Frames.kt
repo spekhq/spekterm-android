@@ -129,6 +129,8 @@ object Frames {
     /** Keeps a session whose agent offered to close it (`close-offer`). */
     fun sessionsKeep(sessionId: String): JsonObject = buildJsonObject { put("sessionId", sessionId) }
 
+    fun handoffsBrief(sessionId: String): JsonObject = buildJsonObject { put("sessionId", sessionId) }
+
     private fun sessionAction(sessionId: String, force: Boolean): JsonObject = buildJsonObject {
         put("sessionId", sessionId)
         if (force) put("force", true)
@@ -263,6 +265,8 @@ object Operations {
     const val OPENSPEC_SPECS = "openspec.specs"
     const val OPENSPEC_SPEC = "openspec.spec"
     const val OPENSPEC_WATCH = "openspec.watch"
+    const val HANDOFFS_LIST = "handoffs.list"
+    const val HANDOFFS_BRIEF = "handoffs.brief"
 }
 
 @Serializable

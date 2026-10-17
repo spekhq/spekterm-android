@@ -153,6 +153,41 @@ class FramesTest {
     }
 
     @Test
+    fun aMalformedLineageIsNoneAndNeverDropsTheSession() {
+        val values = listOf("""{"parentId":"p1","title":"t"}""", """{"title":"x"}""", """{"parentId":7}""", "\"p1\"", "null", """{"parentId":"p1","title":7}""")
+        val sessions = values.mapIndexed { i, v -> """{"id":"s$i","target":"claude","lineage":$v}""" }
+        val list = SessionList.decode(Json.parseToJsonElement("""{"window":true,"folders":[],"sessions":[${sessions.joinToString(",")}]}"""))!!
+        assertEquals(values.indices.map { "s$it" }, list.sessions.map { it.id })
+        assertEquals(listOf(Lineage("p1", "t"), null, null, null, null, Lineage("p1", null)), list.sessions.map { it.lineage })
+    }
+
+    @Test
+    fun decodesTheHandoffListElementByElement() {
+        val list = HandoffEntry.decodeList(
+            Json.parseToJsonElement(
+                """[{"sessionId":"a","state":"done","summary":"ok","reportedAt":5},{"state":"working"},
+                   {"sessionId":"b","state":7},{"sessionId":"c","state":"working","extra":true}]""",
+            ),
+        )!!
+        assertEquals(
+            listOf(HandoffEntry("a", "done", "ok", 5), HandoffEntry("b", null), HandoffEntry("c", "working")),
+            list,
+        )
+        assertNull(HandoffEntry.decodeList(Json.parseToJsonElement("""{"sessionId":"a"}""")))
+    }
+
+    @Test
+    fun decodesAHandoffBrief() {
+        assertEquals(
+            HandoffBrief("note", HandoffReport("done", 9)),
+            HandoffBrief.decode(Json.parseToJsonElement("""{"body":"note","report":{"summary":"done","reportedAt":9}}""")),
+        )
+        assertEquals(HandoffBrief(null, null), HandoffBrief.decode(Json.parseToJsonElement("{}")))
+        assertEquals(HandoffBrief("n", null), HandoffBrief.decode(Json.parseToJsonElement("""{"body":"n","report":{"summary":3}}""")))
+        assertEquals("""{"sessionId":"s1"}""", Frames.handoffsBrief("s1").toString())
+    }
+
+    @Test
     fun decodesEveryEntryKindAndSkipsAnUnknownOne() {
         val update = ConversationUpdate.decode(
             Json.parseToJsonElement(

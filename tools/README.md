@@ -30,3 +30,19 @@ node tools/analyze-log.mjs night.log --from 2026-10-14T15:00:00Z --offset-ms 123
 
 `--offset-ms` is the phone's clock minus the desktop's (`adb shell date +%s%3N` against `date +%s%3N`), which
 the logged delays include.
+
+## `drop-handoff.mjs`
+
+Desktop-side helper for the relations checks (`openspec/changes/session-relations`, task 4.1). It writes a handoff,
+or a completion report, into a session's handoff outbox of spekterm run from source (`npm run dev` in
+`~/git/spekterm`, profile `~/.config/spekterm-dev`), as an agent in that session would.
+
+```sh
+node tools/drop-handoff.mjs                                              # list the sessions, their folders and sources
+node tools/drop-handoff.mjs --from <sessionId> --target spekterm-android # hand off to a folder (name or absolute path)
+node tools/drop-handoff.mjs --from <childId> --report "Done: …"          # a handed-off session reports done
+```
+
+- The desktop opens the new session in the target folder, or holds the handoff in its inbox when its routing does
+  not accept it on its own; accept it there.
+- `--title` and `--body` set the handoff's title and note; `--profile` points at another profile.

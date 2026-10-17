@@ -19,6 +19,10 @@ you forward — with no relay and no push service in between.
   Long-pressing a session (or the menu on its screen) renames, hibernates, wakes or closes it. Closing asks first,
   and so does stopping a session the desktop says is busy. When an agent asks to close its own session, its row
   and its screen say so with "Close" and "Keep"; that Close is the answer, so it does not ask again.
+- **Handoffs**: a session handed off from another sits under it, as on the desktop's rail, or says where it came
+  from when its source is in another folder or gone; a session that handed off others says how many and how many
+  are done. "Handoff" in a session's menu shows where it came from, the handoff's note, its latest report and the
+  sessions handed off from it.
 - **New sessions**: start an agent session in any of the desktop's folders, quietly, and continue in its
   conversation on the phone.
 - **Conversations**: an agent session's messages, thinking, tool calls and results — a tool call shown with its
@@ -37,7 +41,7 @@ you forward — with no relay and no push service in between.
 These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
 following OpenSpec files live: 0fcdc1f, 0.2.8); against an older desktop the app shows none of them.
 
-Not yet: the terminal view (shell sessions), the inbox and handoffs.
+Not yet: the terminal view (shell sessions) and the inbox.
 
 ## How it talks to spekterm
 

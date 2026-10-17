@@ -63,6 +63,7 @@ import com.spekterm.android.app
 import com.spekterm.android.desktop.Creation
 import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.desktop.OpenSpecGates
+import com.spekterm.android.desktop.Relations
 import com.spekterm.android.desktop.SessionAction
 import com.spekterm.android.desktop.SessionActions
 import com.spekterm.android.desktop.SessionsView
@@ -94,6 +95,7 @@ fun SessionsScreen(
     onResume: () -> Unit,
     onOpenSpecFolders: () -> Unit,
     onOpenSpecFolder: (String) -> Unit,
+    onHandoff: (String) -> Unit,
 ) {
     val sessions by Desktop.sessions.collectAsStateWithLifecycle()
     val connected by Desktop.connected.collectAsStateWithLifecycle()
@@ -112,6 +114,7 @@ fun SessionsScreen(
     var picking by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     val groups = list?.let { SessionsView.groups(it) }.orEmpty()
+    val existing = remember(list) { list?.let { Relations.existing(it) }.orEmpty() }
     val operations by Desktop.operations.collectAsStateWithLifecycle()
     val actionsEnabled = SessionActions.enabled(connected, announcements.paused, sessions)
     val dialogs = rememberSessionDialogs()
@@ -216,11 +219,13 @@ fun SessionsScreen(
                         items(group.rows, key = { "session:${it.session.id}" }, contentType = { "session" }) { row ->
                             SessionRow(
                                 row,
-                                actions = SessionActions.of(row.session, operations),
+                                relation = Relations.line(row.session, row.nested, list, existing),
+                                children = Relations.childrenText(row.session, list, existing),
+                                actions = SessionActions.of(row.session, operations, list),
                                 answers = SessionActions.offerActions(row.session, operations),
                                 actionsEnabled = actionsEnabled,
                                 onClick = { onOpen(row.session.id) },
-                                onAction = { dialogs.choose(it, row.session) },
+                                onAction = { if (it == SessionActions.Action.HANDOFF) onHandoff(row.session.id) else dialogs.choose(it, row.session) },
                                 onAnswer = { dialogs.answerOffer(it, row.session) },
                             )
                         }
@@ -392,6 +397,8 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onOpenSpec:
 @Composable
 private fun SessionRow(
     row: SessionsView.Row,
+    relation: String?,
+    children: String?,
     actions: List<SessionActions.Action>,
     answers: List<SessionAction.Kind>,
     actionsEnabled: Boolean,
@@ -416,7 +423,8 @@ private fun SessionRow(
                     },
                 )
                 .heightIn(min = 56.dp)
-                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+                // Nested under its source as on the desktop's rail (`session-relations` D1).
+                .padding(start = 16.dp + INDENT * row.depth, end = 16.dp, top = 10.dp, bottom = 10.dp),
             verticalArrangement = Arrangement.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -429,8 +437,8 @@ private fun SessionRow(
                 )
                 Column(Modifier.weight(1f)) {
                     Text(session.label.ifEmpty { session.id }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    session.lifecycle?.let {
-                        Text("handoff: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    for (line in listOfNotNull(relation, children)) {
+                        Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 // An offer takes the place of "Waiting for you" only; working or a choice still shows (close-offer D5).
@@ -441,6 +449,9 @@ private fun SessionRow(
         SessionMenu(menu, { menu = false }, actions, actionsEnabled, onAction)
     }
 }
+
+/** One level of a handoff tree. */
+private val INDENT = 16.dp
 
 /** Writes the collapsed groups off the main thread, one write at a time, always the latest set (design D3). */
 @OptIn(ExperimentalCoroutinesApi::class)

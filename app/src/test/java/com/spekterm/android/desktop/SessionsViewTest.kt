@@ -2,6 +2,7 @@ package com.spekterm.android.desktop
 
 import com.spekterm.android.net.ConversationEnded
 import com.spekterm.android.net.Folder
+import com.spekterm.android.net.HandoffEntry
 import com.spekterm.android.net.Session
 import com.spekterm.android.net.SessionList
 import org.junit.Assert.assertEquals
@@ -51,6 +52,22 @@ class SessionsViewTest {
         assertTrue(clock.accept(4))
         clock.reset() // a new connection: its stamps start again
         assertTrue(clock.accept(1))
+    }
+
+    @Test
+    fun aHandoffListIsAppliedOnlyIfNewerAndTheStampsRestartPerConnection() {
+        val first = HandoffsState().applied(3, listOf(HandoffEntry("s1", "working")))!!
+        assertTrue(first.current)
+        assertEquals(null, first.applied(2, listOf(HandoffEntry("s1", "done")))) // the older answer, completed later
+        assertEquals(null, first.applied(3, emptyList()))
+        val newer = first.applied(4, listOf(HandoffEntry("s1", "done", "ok", 9)))!!
+        assertEquals("ok", newer.entries["s1"]!!.summary)
+        val detached = newer.detached()
+        assertFalse(detached.current)
+        assertEquals(newer.entries, detached.entries)
+        val again = detached.attached() // a new connection: any stamp goes, the entries stay until then
+        assertEquals(newer.entries, again.entries)
+        assertTrue(again.applied(1, emptyList())!!.entries.isEmpty())
     }
 
     private fun screen(

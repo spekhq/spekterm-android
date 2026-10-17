@@ -1,6 +1,8 @@
 package com.spekterm.android.desktop
 
 import com.spekterm.android.desktop.SessionActions.Action
+import com.spekterm.android.net.Folder
+import com.spekterm.android.net.Lineage
 import com.spekterm.android.net.Operations
 import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.Session
@@ -32,6 +34,30 @@ class SessionActionsTest {
         assertEquals(listOf(Action.WAKE), SessionActions.of(dormant, setOf(Operations.HIBERNATE, Operations.WAKE)))
         assertEquals(listOf(Action.CLOSE), SessionActions.of(dormant, setOf(Operations.CLOSE)))
         assertEquals(emptyList<Action>(), SessionActions.of(dormant, setOf(Operations.HIBERNATE)))
+    }
+
+    @Test
+    fun handoffComesFirstForARelatedSessionWhateverTheDesktopAccepts() {
+        val folders = listOf(Folder("f1", "alpha"))
+        val parent = Session("p", "f1", "claude", running = true)
+        val child = Session("c", "f1", "claude", running = true, lineage = Lineage("p"))
+        val list = SessionList(true, folders, listOf(parent, child))
+        assertEquals(listOf(Action.HANDOFF), SessionActions.of(child, emptySet(), list))
+        assertEquals(listOf(Action.HANDOFF, Action.RENAME, Action.HIBERNATE, Action.CLOSE), SessionActions.of(child, all, list))
+        assertEquals(listOf(Action.HANDOFF), SessionActions.of(parent, emptySet(), list))
+        assertEquals(emptyList<Action>(), SessionActions.of(running, emptySet(), list))
+        // Its only child closed: no relation left.
+        assertEquals(emptyList<Action>(), SessionActions.of(parent, emptySet(), SessionList(true, folders, listOf(parent))))
+        // A parent in a folder no longer in the workspace does not exist for relations.
+        val stray = Session("q", "gone", "claude", running = true)
+        assertEquals(emptyList<Action>(), SessionActions.of(stray, emptySet(), SessionList(true, folders, listOf(stray, Session("k", "f1", "claude", lineage = Lineage("q"))))))
+    }
+
+    @Test
+    fun handoffIsUsableWhileTheOthersAreNot() {
+        assertTrue(SessionActions.itemEnabled(Action.HANDOFF, enabled = false))
+        assertFalse(SessionActions.itemEnabled(Action.RENAME, enabled = false))
+        assertTrue(SessionActions.itemEnabled(Action.CLOSE, enabled = true))
     }
 
     @Test

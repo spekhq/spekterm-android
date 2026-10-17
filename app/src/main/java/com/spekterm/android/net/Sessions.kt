@@ -8,6 +8,8 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -30,8 +32,27 @@ data class Folder(
     val hasOpenSpec: Boolean = false,
 )
 
+/** The session that handed this one off ([parentId], which may be gone) and its title at the time (`session-relations`). */
 @Serializable
 data class Lineage(val parentId: String, val title: String? = null)
+
+/**
+ * A lineage that is an object with a string `parentId`; anything else reads as none, so a malformed one never drops
+ * the session that carries it (obligation 7; `session-relations` design D1). A `title` that is not a string is dropped.
+ */
+object LenientLineage : KSerializer<Lineage?> {
+    override val descriptor = JsonElement.serializer().descriptor
+
+    override fun deserialize(decoder: Decoder): Lineage? {
+        val o = (decoder as? JsonDecoder)?.decodeJsonElement() as? JsonObject ?: return null
+        return Lineage(o.string("parentId") ?: return null, o.string("title"))
+    }
+
+    override fun serialize(encoder: Encoder, value: Lineage?) {
+        val json = encoder as JsonEncoder
+        json.encodeJsonElement(value?.let { json.json.encodeToJsonElement(Lineage.serializer(), it) } ?: JsonNull)
+    }
+}
 
 @Serializable
 data class Session(
@@ -45,6 +66,7 @@ data class Session(
     val wait: String? = null,
     /** Handoff-created sessions only. */
     val lifecycle: String? = null,
+    @Serializable(with = LenientLineage::class)
     val lineage: Lineage? = null,
     /** The agent asked to close its own session and the user has not answered (`close-offer`, design D1). */
     @Serializable(with = OnlyTrue::class)
@@ -84,6 +106,34 @@ data class SessionList(val window: Boolean, val folders: List<Folder>, val sessi
                 each(o["folders"]) { Frames.decodeOrNull<Folder>(it) },
                 each(o["sessions"]) { Frames.decodeOrNull<Session>(it) },
             )
+        }
+    }
+}
+
+/** One entry of `handoffs.list` / `handoffs.changed`: a handoff-created session and its latest report. */
+data class HandoffEntry(val sessionId: String, val state: String? = null, val summary: String? = null, val reportedAt: Long? = null) {
+    companion object {
+        /** The whole list, element by element; `null` when the answer is not an array. */
+        fun decodeList(element: JsonElement?): List<HandoffEntry>? {
+            if (element !is JsonArray) return null
+            return each(element) { e ->
+                val o = e as? JsonObject ?: return@each null
+                HandoffEntry(o.string("sessionId") ?: return@each null, o.string("state"), o.string("summary"), o.long("reportedAt"))
+            }
+        }
+    }
+}
+
+/** A completion report: its [summary] and when it was made. */
+data class HandoffReport(val summary: String, val reportedAt: Long?)
+
+/** The answer to `handoffs.brief`: the handoff's note and its latest report, each when the desktop has one. */
+data class HandoffBrief(val body: String?, val report: HandoffReport?) {
+    companion object {
+        fun decode(element: JsonElement?): HandoffBrief? {
+            val o = element as? JsonObject ?: return null
+            val report = (o["report"] as? JsonObject)?.let { r -> r.string("summary")?.let { HandoffReport(it, r.long("reportedAt")) } }
+            return HandoffBrief(o.string("body"), report)
         }
     }
 }
@@ -318,5 +368,8 @@ internal inline fun <T> each(element: JsonElement?, decode: (JsonElement) -> T?)
     (element as? JsonArray)?.mapNotNull { runCatching { decode(it) }.getOrNull() } ?: emptyList()
 
 internal fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+internal fun JsonObject.long(key: String): Long? =
+    (this[key] as? JsonPrimitive)?.takeUnless { it.isString }?.let { it.longOrNull ?: it.doubleOrNull?.toLong() }
 
 internal fun JsonObject.bool(key: String): Boolean = (this[key] as? JsonPrimitive)?.booleanOrNull ?: false

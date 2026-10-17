@@ -57,6 +57,8 @@ class SessionDialogs(private val scope: CoroutineScope, private val onDone: (Ses
     fun choose(choice: SessionActions.Action, session: Session) {
         val label = session.label.ifEmpty { session.id }
         val kind = when (choice) {
+            // A screen, opened by the menu's owner (`session-relations` D5).
+            SessionActions.Action.HANDOFF -> return
             SessionActions.Action.RENAME -> {
                 renaming = session.id to session.label
                 return
@@ -119,6 +121,7 @@ fun SessionMenu(expanded: Boolean, onDismiss: () -> Unit, actions: List<SessionA
                 text = {
                     Text(
                         when (action) {
+                            SessionActions.Action.HANDOFF -> "Handoff"
                             SessionActions.Action.RENAME -> "Rename"
                             SessionActions.Action.HIBERNATE -> "Hibernate"
                             SessionActions.Action.WAKE -> "Wake"
@@ -126,7 +129,7 @@ fun SessionMenu(expanded: Boolean, onDismiss: () -> Unit, actions: List<SessionA
                         },
                     )
                 },
-                enabled = enabled,
+                enabled = SessionActions.itemEnabled(action, enabled),
                 onClick = {
                     onDismiss()
                     onChoose(action)

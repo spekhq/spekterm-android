@@ -36,6 +36,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import kotlinx.coroutines.launch
@@ -55,6 +56,8 @@ private sealed interface Nav {
 @Serializable private data class ConversationRoute(val sessionId: String)
 
 @Serializable private data object StatusRoute
+
+@Serializable private data class HandoffRoute(val sessionId: String)
 
 @Serializable private data object OpenSpecFoldersRoute
 
@@ -149,6 +152,7 @@ class MainActivity : ComponentActivity() {
                     onResume = { resume() },
                     onOpenSpecFolders = { nav.navigate(OpenSpecFoldersRoute) { launchSingleTop = true } },
                     onOpenSpecFolder = { nav.navigate(OpenSpecFolderRoute(it)) },
+                    onHandoff = { openHandoff(nav, it) },
                 )
             }
             // A folder's OpenSpec, pushed over the session list (`openspec-browse` design D6).
@@ -203,6 +207,18 @@ class MainActivity : ComponentActivity() {
                     onBack = { nav.popBackStack() },
                     onStatus = { nav.navigate(StatusRoute) { launchSingleTop = true } },
                     onResume = { resume() },
+                    onHandoff = { openHandoff(nav, it) },
+                )
+            }
+            // A session's handoff, pushed over where it was opened from (`session-relations` design D4).
+            composable<HandoffRoute> { entry ->
+                HandoffScreen(
+                    sessionId = entry.toRoute<HandoffRoute>().sessionId,
+                    announcements = announcements,
+                    onBack = { nav.popBackStack() },
+                    onStatus = { nav.navigate(StatusRoute) { launchSingleTop = true } },
+                    onResume = { resume() },
+                    onOpen = { nav.navigate(ConversationRoute(it)) },
                 )
             }
             composable<StatusRoute> {
@@ -218,6 +234,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    /** A session's handoff screen; one already on the back stack is returned to, not stacked again (D4). */
+    private fun openHandoff(nav: NavHostController, sessionId: String) {
+        if (!nav.popBackStack(HandoffRoute(sessionId), inclusive = false)) nav.navigate(HandoffRoute(sessionId))
     }
 
     override fun onNewIntent(intent: Intent) {
