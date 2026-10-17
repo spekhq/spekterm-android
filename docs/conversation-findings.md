@@ -307,3 +307,7 @@ screenshots kept outside the repository):
 | Unpairing, pairing again, the desktop's revocation leave the choice: by reading — `theme.json` is touched by none of `MainActivity.unpair`, `onPaired`, `ConnectionService` | pass (read) |
 | API 29–30 (starting window follows the phone, the first frame switches) | not run — no image for those levels here; by reading only |
 | `./gradlew test assembleDebug` and `connectedDebugAndroidTest`, emulator only: 242 JVM and 74 instrumented tests in the shared tree (with another change's work in progress); this change alone, applied to a clean worktree of master: 204 JVM tests pass and everything compiles | pass |
+
+On the Pixel 7: this change's final debug build installed with `adb install -r` at 2026-10-17 05:16 Z, pairing kept
+(`no_backup/pairing.bin` present after the install), no theme choice stored yet (`SYSTEM`). The maintainer's use of
+the live switch in Settings → Appearance is pending and will be recorded here.

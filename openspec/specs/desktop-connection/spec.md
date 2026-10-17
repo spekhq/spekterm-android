@@ -113,7 +113,8 @@ latest list is non-empty and does not hold it; then the desktop's latest list in
 addresses in their order; then the address that last connected if it was not tried yet. Each attempt SHALL have a
 bounded connection timeout, and the app SHALL use the first address on which the pinned handshake completes and
 SHALL remember which address connected. The status screen SHALL show the addresses in the order they are tried,
-updated when the desktop sends a new list.
+updated when the desktop sends a new list; when there are more than three, it MAY show only how many there are
+and the address in use until the user asks to see them all, and then SHALL show all of them in that order.
 
 #### Scenario: Leaving the home network
 
@@ -143,6 +144,12 @@ updated when the desktop sends a new list.
 
 - **WHEN** the desktop's latest list no longer holds an address of the pairing link
 - **THEN** the app still tries that address, after the desktop's list
+
+#### Scenario: Many addresses
+
+- **WHEN** the pairing holds seven addresses and the user opens the status screen
+- **THEN** the screen says there are seven addresses and which one is in use, and asking to see them all shows the
+  seven in the order they are tried
 
 ### Requirement: Reconnect with backoff
 
