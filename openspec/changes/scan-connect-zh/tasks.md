@@ -55,7 +55,7 @@ values. Verify for each: `./gradlew test`, and `HardcodedTextTest` no longer lis
 - [x] 8.1 `adb install -r` (pairing kept). The maintainer pairs again by scanning the desktop's code tilted and off center without lining it up, then from farther away using pinch-to-zoom; the time from opening the scanner to the pairing attempt is taken from the log (`ATTEMPT source=pair`). Verify: the outcome recorded in the findings
 - [x] 8.2 The maintainer scans the desktop's pairing code with the Pixel's own camera app: whether it offers to open the `spekterm://` link, and if so that the app shows the dialog (paired) or card. Verify: the outcome recorded in the findings (a "no" is recorded, not fixed)
 - [x] 8.3 Real conditions, from the log and screenshots: on mobile data with Tailscale off (off the desktop's network); then Tailscale on (connected through the race — time from the round's start to authentication, against the spike's 5.9 s); spekterm quit on the desktop (remote access off, then refused); a made-up host name as the desktop's additional address (name not found), removed again afterwards so the pairing's latest list is as before. The exception each case produced is recorded and D6's mapping adjusted to it. Verify: the outcomes and exception classes recorded in the findings, and the desktop's additional address back to its previous value
-- [ ] 8.4 The maintainer uses the app in zh-TW (phone language or the per-app setting) for real; wording fixes are made as string edits. Verify: the outcome and the fixes recorded in the findings
+- [x] 8.4 The maintainer uses the app in zh-TW (phone language or the per-app setting) for real; wording fixes are made as string edits. Verify: the outcome and the fixes recorded in the findings
 
 ## 9. Docs
 

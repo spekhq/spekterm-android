@@ -576,6 +576,8 @@ additional address `kewang-7420.tail45e89e.ts.net` (a Tailscale MagicDNS name):
 | D6's exception mapping against what the Pixel produced: timed out, refused and name not found as matched; no adjustment needed | pass |
 | The phone's language is zh-Hant-TW, so the app ran in Traditional Chinese throughout: the ongoing notification "透過 100.106.81.33 連線", the summary "你不在時有 31 個事件 —— 可能有些沒收到。" | pass |
 
+The maintainer then used the app in Traditional Chinese for real (8.4): "中文沒問題"; no wording changed.
+
 ### Follow-up for spekterm (the desktop)
 
 The code is dense because the link carries every address, global and temporary IPv6 included (five addresses:
