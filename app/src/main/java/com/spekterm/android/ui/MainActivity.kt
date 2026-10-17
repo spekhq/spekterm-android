@@ -208,6 +208,7 @@ class MainActivity : ComponentActivity() {
                     onStatus = { nav.navigate(StatusRoute) { launchSingleTop = true } },
                     onResume = { resume() },
                     onHandoff = { openHandoff(nav, it) },
+                    onOpenSpecFolder = { nav.navigate(OpenSpecFolderRoute(it)) },
                 )
             }
             // A session's handoff, pushed over where it was opened from (`session-relations` design D4).

@@ -2,8 +2,11 @@ package com.spekterm.android.desktop
 
 import com.spekterm.android.net.Folder
 import com.spekterm.android.net.Operations
+import com.spekterm.android.net.Session
+import com.spekterm.android.net.SessionList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -47,5 +50,47 @@ class OpenSpecGatesTest {
         assertFalse(OpenSpecGates.of(all - Operations.OPENSPEC_CHANGE).openChange)
         assertFalse(OpenSpecGates.of(all - Operations.OPENSPEC_SPEC).openSpec)
         assertFalse(OpenSpecGates.of(all - Operations.OPENSPEC_WATCH).live)
+    }
+
+    @Test
+    fun aSessionsScreenOffersItsMarkedFolder() {
+        val gates = OpenSpecGates.of(all)
+        assertEquals("f1", gates.folder(Session("s1", "f1", "claude", running = true), folders)?.id)
+        assertNull(gates.folder(Session("s2", "f2", "claude", running = true), folders))
+        assertNull(gates.folder(Session("g1", null, "claude", running = true), folders))
+        assertNull(gates.folder(Session("u1", "f9", "claude", running = true), folders))
+        assertNull(gates.folder(null, folders))
+        assertNull(OpenSpecGates.of(all - Operations.OPENSPEC_CHANGES).folder(Session("s1", "f1", "claude", running = true), folders))
+    }
+
+    @Test
+    fun dormantAndShellSessionsOfferItToo() {
+        val gates = OpenSpecGates.of(all)
+        assertEquals("f1", gates.folder(Session("d1", "f1", "claude", running = false), folders)?.id)
+        assertEquals("f3", gates.folder(Session("sh1", "f3", "shell", running = true), folders)?.id)
+    }
+
+    @Test
+    fun aSessionsScreenAgreesWithItsGroupsHeading() {
+        val list = SessionList(
+            window = true,
+            folders = folders,
+            sessions = listOf(
+                Session("g1", null, "claude", running = true),
+                Session("a1", "f1", "claude", running = true),
+                Session("a2", "f1", "shell", running = false),
+                Session("b1", "f2", "claude", running = true),
+                Session("c1", "f3", "claude", running = false),
+                Session("u1", "f9", "claude", running = true),
+            ),
+        )
+        for (operations in listOf(all, all - Operations.OPENSPEC_CHANGES)) {
+            val gates = OpenSpecGates.of(operations)
+            for (group in SessionsView.groups(list)) {
+                for (row in group.rows) {
+                    assertEquals(row.session.id, gates.heading(group), gates.folder(row.session, list.folders) != null)
+                }
+            }
+        }
     }
 }

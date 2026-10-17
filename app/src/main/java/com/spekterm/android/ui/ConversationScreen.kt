@@ -85,6 +85,7 @@ import com.spekterm.android.desktop.Uploads
 import com.spekterm.android.desktop.Conversation
 import com.spekterm.android.desktop.ConversationReducer
 import com.spekterm.android.desktop.Desktop
+import com.spekterm.android.desktop.OpenSpecGates
 import com.spekterm.android.desktop.Phase
 import com.spekterm.android.desktop.Replies
 import com.spekterm.android.desktop.Reply
@@ -116,6 +117,7 @@ fun ConversationScreen(
     onStatus: () -> Unit,
     onResume: () -> Unit,
     onHandoff: (String) -> Unit,
+    onOpenSpecFolder: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val sessions by Desktop.sessions.collectAsStateWithLifecycle()
@@ -160,6 +162,10 @@ fun ConversationScreen(
                 onBack = onBack,
                 subtitle = c?.let { waitState(it) }?.let { state -> { StateLabel(state) } },
             ) {
+                // The session's folder's OpenSpec, as its group heading offers it (`session-detail-openspec` D1, D2).
+                OpenSpecGates.of(operations).folder(session, sessions.list?.folders.orEmpty())?.let { folder ->
+                    IconButton(onClick = { onOpenSpecFolder(folder.id) }) { Icon(SpekIcons.File, "OpenSpec for ${folder.name}") }
+                }
                 val actions = session?.let { SessionActions.of(it, operations, sessions.list) }.orEmpty()
                 if (actions.isNotEmpty()) {
                     Box {
