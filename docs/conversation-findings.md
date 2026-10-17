@@ -444,3 +444,21 @@ and archived on spekterm as `dbc2e03`). New sessions: "Pixel source" handed off 
 Noticed during the run: kewang picked up the phone and opened another app while the script was running; the run
 stopped until the app was back in front, and every later step first checked that spekterm-android was in front.
 
+
+## OpenSpec from a session's screen
+
+On the emulator (Pixel_9 AVD), paired with the dev desktop at spekterm `bcd7b81` (0.2.9), the top bar's OpenSpec
+icon showed on go-b8ad (folder `go`, with OpenSpec), both dormant and after waking it from the phone, in light and dark. Its
+`content-desc` was "OpenSpec for go" (`uiautomator dump`). The dormant global-9699 had no icon, in light and dark.
+Tapping the icon opened `go`'s changes, and back returned to the session.
+
+On the Pixel 7 (`adb install -r`, still paired with the installed spekterm), kewang used it on this change's own
+session, in `spekterm-android`, a folder with OpenSpec:
+
+| Item (task 2.2) | Outcome |
+|---|---|
+| A reply sent ("寫三段話給我"), the icon tapped at once: `send outcome=Submitted` at 14:11:55.241, `conversation event=unwatch` 0.17 s later, then `openspec op=watch stop=false` and `op=changes items=10` | pass |
+| A change opened (`op=change items=4`) while the agent wrote three paragraphs with tool calls between them, then back twice: `conversation event=watch resume=true` at 14:12:34; the three paragraphs and both tool calls on screen once each, nothing repeated (screenshot) | pass |
+| The folder's watch stopped after leaving: `openspec op=watch stop=true` 4.9 s after the conversation came back | pass |
+| A further agent message live: the next turn's tool calls and "Working" appeared while on screen | pass |
+| A global session without the icon: seen on the emulator only | pass (emulator) |

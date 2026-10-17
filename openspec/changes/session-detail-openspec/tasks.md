@@ -25,7 +25,7 @@
   - a global session (no icon).
 
   Then `uiautomator dump` shows `content-desc="OpenSpec for <folder name>"`.
-- [ ] 2.2 Phone run on the Pixel paired with the desktop, recorded in `docs/conversation-findings.md` as earlier changes did, with the connection log as evidence:
+- [x] 2.2 Phone run on the Pixel paired with the desktop, recorded in `docs/conversation-findings.md` as earlier changes did, with the connection log as evidence:
   1. Open a session in a folder with OpenSpec, send a reply that makes the agent write, and tap the icon at once.
   2. While on the OpenSpec screen, the log shows the conversation's `unwatch`.
   3. Open a change, wait for the agent to finish, and go back twice. The messages written meanwhile appear once each, with no repeat, and the log shows a `watch` with `resume=true`. About 5 s later it shows `openspec op=watch stop=true`.
