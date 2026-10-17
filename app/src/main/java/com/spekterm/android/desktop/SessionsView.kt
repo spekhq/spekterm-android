@@ -91,8 +91,8 @@ object SessionsView {
     const val OTHER = "other"
 
     /** The global item, then every folder of the list in its order, with or without sessions (design D5). */
-    fun choices(list: SessionList): List<Choice> =
-        listOf(Choice(null, "Global", null)) + list.folders.map { Choice(it.id, it.name.ifEmpty { it.id }, it.branch) }
+    fun choices(list: SessionList, globalName: String): List<Choice> =
+        listOf(Choice(null, globalName, null)) + list.folders.map { Choice(it.id, it.name.ifEmpty { it.id }, it.branch) }
 
     /**
      * Whether a new session can be started now (design D5): connected, not paused, the shown list current with

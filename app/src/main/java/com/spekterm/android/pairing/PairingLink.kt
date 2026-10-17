@@ -48,6 +48,19 @@ data class PairingLink(
         /** `AB:CD:…` or `abcd…` → `ABCD…`, so the dialog's form and the link's form compare equal. */
         fun normalizeFingerprint(value: String): String = value.replace(":", "").trim().uppercase()
 
+        /**
+         * Whether [text] is meant as a pairing link — `spekterm://pair`, as [parse] reads the scheme and host — so a
+         * scanner can stop on it even when [parse] then refuses it (`scan-connect-zh` D3).
+         */
+        fun isPairingLink(text: String): Boolean {
+            val uri = try {
+                URI(text.trim())
+            } catch (_: Exception) {
+                return false
+            }
+            return uri.scheme?.equals("spekterm", ignoreCase = true) == true && uri.rawAuthority?.lowercase() == "pair"
+        }
+
         fun parse(text: String): Result {
             val uri = try {
                 URI(text.trim())

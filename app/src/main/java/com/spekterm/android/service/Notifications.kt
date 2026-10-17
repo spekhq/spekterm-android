@@ -1,5 +1,6 @@
 package com.spekterm.android.service
 
+import com.spekterm.android.ui.Reasons
 import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
@@ -32,15 +33,15 @@ object Notifications {
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannels(
             listOf(
-                NotificationChannel(CHANNEL_CONNECTION, "Connection to the desktop", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "The ongoing notification while the app keeps the connection open"
+                NotificationChannel(CHANNEL_CONNECTION, context.getString(R.string.notification_channel_connection), NotificationManager.IMPORTANCE_LOW).apply {
+                    description = context.getString(R.string.notification_channel_connection_description)
                     setShowBadge(false)
                 },
-                NotificationChannel(CHANNEL_ATTENTION, "Agents needing you", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "An agent waits, asks for a choice, a handoff finished, a new inbox item"
+                NotificationChannel(CHANNEL_ATTENTION, context.getString(R.string.notification_channel_attention), NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = context.getString(R.string.notification_channel_attention_description)
                 },
-                NotificationChannel(CHANNEL_STATUS, "Connection problems", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                    description = "Pair again, the desktop's identity changed, the connection stopped"
+                NotificationChannel(CHANNEL_STATUS, context.getString(R.string.notification_channel_status), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = context.getString(R.string.notification_channel_status_description)
                 },
             ),
         )
@@ -69,11 +70,14 @@ object Notifications {
 
     fun ongoing(context: Context, desktop: String, status: Status): Notification {
         val text = when {
-            status.state == Status.State.CONNECTED -> "Connected" + (status.address?.let { " via $it" } ?: "")
-            status.remoteOff -> "Remote access is off, or the desktop quit"
-            status.state == Status.State.CONNECTING -> "Connecting" + (status.address?.let { " to $it" } ?: "")
-            status.state == Status.State.WAITING -> "Waiting to retry"
-            else -> "Stopped"
+            status.state == Status.State.CONNECTED ->
+                status.address?.let { context.getString(R.string.status_connected_via, it) } ?: context.getString(R.string.status_connected)
+            status.remoteOff -> context.getString(R.string.status_remote_off_long)
+            status.state == Status.State.CONNECTING ->
+                status.address?.let { context.getString(R.string.status_connecting_to, it) } ?: context.getString(R.string.status_connecting)
+            status.state == Status.State.WAITING ->
+                status.report?.takeIf { !status.throttled }?.let { Reasons.short(it).resolve(context) } ?: context.getString(R.string.status_waiting)
+            else -> context.getString(R.string.notification_stopped)
         }
         val pause = PendingIntent.getService(
             context,
@@ -91,7 +95,7 @@ object Notifications {
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(openApp(context))
-            .addAction(0, "Pause", pause)
+            .addAction(0, context.getString(R.string.status_pause), pause)
             .build()
     }
 

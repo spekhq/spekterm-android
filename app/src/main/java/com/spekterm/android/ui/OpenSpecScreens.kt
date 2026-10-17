@@ -2,6 +2,8 @@
 
 package com.spekterm.android.ui
 
+import com.spekterm.android.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -120,7 +122,7 @@ private fun reading(target: OpenSpecTarget, announcements: Announcements): Readi
 
 @Composable
 private fun RefreshButton(r: Reading) {
-    IconButton(onClick = { Desktop.openspecRefresh() }, enabled = r.usable && !r.pending) { Icon(SpekIcons.Refresh, "Refresh") }
+    IconButton(onClick = { Desktop.openspecRefresh() }, enabled = r.usable && !r.pending) { Icon(SpekIcons.Refresh, stringResource(R.string.openspec_refresh)) }
 }
 
 private fun timeOf(at: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(at))
@@ -133,12 +135,15 @@ private fun StatusLine(r: Reading, target: OpenSpecTarget) {
     }
     val readAt = r.loaded?.readAt?.let(::timeOf)
     when {
-        !r.usable -> Notice(readAt?.let { "Not connected. Showing what was read at $it." } ?: "Not connected.", Tone.Warning)
-        !r.gates.live && readAt != null -> Notice("This desktop doesn't update OpenSpec by itself. Read at $readAt.", Tone.Info)
-        r.loaded?.notLive == true -> Notice("Not updating by itself right now. Refresh to try again." + (readAt?.let { " Read at $it." } ?: ""), Tone.Info)
+        !r.usable -> Notice(readAt?.let { stringResource(R.string.openspec_not_connected_read_at, it) } ?: stringResource(R.string.openspec_not_connected), Tone.Warning)
+        !r.gates.live && readAt != null -> Notice(stringResource(R.string.openspec_not_live, readAt), Tone.Info)
+        r.loaded?.notLive == true -> Notice(
+            readAt?.let { stringResource(R.string.openspec_not_updating_read_at, it) } ?: stringResource(R.string.openspec_not_updating),
+            Tone.Info,
+        )
     }
     // A vanished change that was archived says so instead (design D5).
-    r.loaded?.error?.takeIf { r.usable && r.loaded.archivedAs == null }?.let { Notice(OpenSpecText.error(target, it), Tone.Error) }
+    r.loaded?.error?.takeIf { r.usable && r.loaded.archivedAs == null }?.let { Notice(OpenSpecText.error(target, it).text(), Tone.Error) }
 }
 
 @Composable
@@ -165,7 +170,7 @@ private fun BranchChip(worktree: Worktree?) {
 
 @Composable
 private fun Omitted(bytes: Long) {
-    Notice("Left out by the desktop: too large to send with the rest (${formatBytes(bytes)}).", Tone.Info)
+    Notice(stringResource(R.string.openspec_omitted, formatBytes(bytes)), Tone.Info)
 }
 
 @Composable
@@ -184,9 +189,9 @@ fun OpenSpecFoldersScreen(announcements: Announcements, onBack: () -> Unit, onOp
     val folders = OpenSpecGates.of(operations).folders(sessions.list?.folders.orEmpty())
     SpekScaffold(topBar = { scroll -> TopBar("OpenSpec", scroll, onBack) }) {
         Column(Modifier.fillMaxSize()) {
-            if (!connected || announcements.paused) Notice("Not connected.", Tone.Warning)
+            if (!connected || announcements.paused) Notice(stringResource(R.string.openspec_not_connected), Tone.Warning)
             LazyColumn(Modifier.fillMaxSize()) {
-                if (sessions.list != null && folders.isEmpty()) item { Centered("No folder on the desktop has OpenSpec.") }
+                if (sessions.list != null && folders.isEmpty()) item { Centered(stringResource(R.string.openspec_no_folders)) }
                 items(folders, key = { it.id }) { folder ->
                     Row(
                         Modifier.fillMaxWidth().clickable { onOpen(folder.id) }.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -239,8 +244,8 @@ fun OpenSpecFolderScreen(
         Column(Modifier.fillMaxSize()) {
             if (specsShown) {
                 PrimaryTabRow(selectedTabIndex = if (target is OpenSpecTarget.Specs) 1 else 0) {
-                    OsTab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Changes") })
-                    OsTab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Specs") })
+                    OsTab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.openspec_tab_changes)) })
+                    OsTab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.openspec_tab_specs)) })
                 }
             }
             StatusLine(r, target)
@@ -259,11 +264,11 @@ private fun ChangeList(changes: OsChanges?, openable: Boolean, onOpen: (String) 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
         if (changes == null) return@LazyColumn
         if (changes.active.isEmpty() && changes.archived.isEmpty()) {
-            item { Centered("No changes in this folder.") }
+            item { Centered(stringResource(R.string.openspec_no_changes)) }
             return@LazyColumn
         }
         if (changes.active.isNotEmpty()) {
-            item(key = "h:active") { SectionHeading("Active") }
+            item(key = "h:active") { SectionHeading(stringResource(R.string.openspec_active)) }
             items(changes.active, key = { "a:" + it.slug }) { ChangeRow(it, openable, onOpen) }
         }
         if (changes.archived.isNotEmpty()) {
@@ -275,7 +280,7 @@ private fun ChangeList(changes: OsChanges?, openable: Boolean, onOpen: (String) 
                 ) {
                     Icon(if (shown) SpekIcons.ExpandMore else SpekIcons.ChevronRight, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
-                    Text("Archived · ${changes.archived.size}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.openspec_archived_count, changes.archived.size), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 }
             }
             if (shown) items(changes.archived, key = { "r:" + it.slug }) { ChangeRow(it, openable, onOpen) }
@@ -307,10 +312,10 @@ private fun ChangeRow(change: OsChange, openable: Boolean, onOpen: (String) -> U
             Text(change.description.ifEmpty { OpenSpecText.readableSlug(change.slug) }, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 change.taskStats?.takeIf { it.total > 0 }?.let { stats ->
-                    Text("${stats.completed}/${stats.total} tasks", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.openspec_tasks, stats.completed, stats.total), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     LinearProgressIndicator(progress = { stats.completed.toFloat() / stats.total }, modifier = Modifier.width(48.dp), drawStopIndicator = {})
                 }
-                val date = if (change.archived) change.archivedDate?.let { "Archived $it" } else change.createdDate?.let { "Started $it" }
+                val date = if (change.archived) change.archivedDate?.let { stringResource(R.string.openspec_archived_on, it) } else change.createdDate?.let { stringResource(R.string.openspec_started_on, it) }
                 date?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 BranchChip(change.worktree)
             }
@@ -324,7 +329,7 @@ private fun SpecList(specs: List<*>?, openable: Boolean, onOpen: (String) -> Uni
     val list = specs?.filterIsInstance<OsSpecSummary>()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
         if (list == null) return@LazyColumn
-        if (list.isEmpty()) item { Centered("No specs in this folder.") }
+        if (list.isEmpty()) item { Centered(stringResource(R.string.openspec_no_specs)) }
         items(list, key = { it.topic }) { spec ->
             Row(
                 Modifier
@@ -372,7 +377,7 @@ fun OpenSpecChangeScreen(
                 {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            if (d.archived) "Archived" + (d.archivedDate?.let { " $it" } ?: "") else "Active",
+                            if (d.archived) d.archivedDate?.let { stringResource(R.string.openspec_archived_on, it) } ?: stringResource(R.string.openspec_archived) else stringResource(R.string.openspec_active),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -396,11 +401,11 @@ fun OpenSpecChangeScreen(
             }
             StatusLine(r, target)
             r.loaded?.archivedAs?.let { archived ->
-                Notice("This change was archived.", Tone.Info, action = "Open archived change", onAction = { onOpenArchived(archived.slug) })
+                Notice(stringResource(R.string.openspec_change_archived), Tone.Info, action = stringResource(R.string.openspec_open_archived), onAction = { onOpenArchived(archived.slug) })
             }
             when {
                 detail == null -> Unit
-                artifacts.isEmpty() -> Centered("This change has no artifacts.")
+                artifacts.isEmpty() -> Centered(stringResource(R.string.openspec_no_artifacts))
                 else -> Artifact(artifacts[index])
             }
         }
@@ -424,7 +429,7 @@ private fun Artifact(artifact: OsArtifact) {
             is Piece.Omitted -> Omitted(t.bytes)
         }
         is OsArtifact.Specs -> Deltas(artifact)
-        is OsArtifact.Other -> Centered("This kind of artifact can't be shown on the phone.")
+        is OsArtifact.Other -> Centered(stringResource(R.string.openspec_artifact_unsupported))
     }
 }
 
@@ -472,7 +477,7 @@ private fun TaskRow(task: TaskList.Task) {
         // An icon, not a checkbox control: nothing here invites a tap.
         Icon(
             if (task.completed) SpekIcons.CheckBox else SpekIcons.CheckBoxOutline,
-            if (task.completed) "Done" else "Not done",
+            if (task.completed) stringResource(R.string.openspec_task_done) else stringResource(R.string.openspec_task_not_done),
             Modifier.padding(top = 2.dp).size(20.dp),
             tint = if (task.completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         )
@@ -486,7 +491,7 @@ private fun Deltas(specs: OsArtifact.Specs) {
     val expanded = remember(specs.id) { mutableStateMapOf<String, Boolean>() }
     val open = { topic: String -> expanded[topic] ?: (specs.deltas.size <= 3) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
-        if (specs.deltas.isEmpty()) item { Centered("No delta specs.") }
+        if (specs.deltas.isEmpty()) item { Centered(stringResource(R.string.openspec_no_deltas)) }
         specs.deltas.forEach { delta ->
             val isOpen = open(delta.topic)
             item(key = "h:" + delta.topic) {
@@ -536,7 +541,7 @@ fun OpenSpecSpecScreen(
             scroll,
             onBack,
             subtitle = spec?.origin?.let { o ->
-                { Text("Main working tree · ${o.branch ?: "detached"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                { Text(stringResource(R.string.openspec_main_worktree, o.branch ?: "detached"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             },
             actions = { RefreshButton(r) },
         )
@@ -544,8 +549,8 @@ fun OpenSpecSpecScreen(
         Column(Modifier.fillMaxSize()) {
             if (spec != null) {
                 PrimaryTabRow(selectedTabIndex = tab) {
-                    OsTab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Spec") })
-                    OsTab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("History · ${spec.history.size}") })
+                    OsTab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.openspec_tab_spec)) })
+                    OsTab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.openspec_tab_history, spec.history.size)) })
                 }
             }
             StatusLine(r, target)
@@ -564,7 +569,7 @@ fun OpenSpecSpecScreen(
 @Composable
 private fun History(history: List<HistoryEntry>, openable: Boolean, onOpen: (String) -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
-        if (history.isEmpty()) item { Centered("No change touched this spec.") }
+        if (history.isEmpty()) item { Centered(stringResource(R.string.openspec_no_history)) }
         items(history, key = { it.slug }) { entry ->
             Row(
                 Modifier
@@ -577,7 +582,7 @@ private fun History(history: List<HistoryEntry>, openable: Boolean, onOpen: (Str
                 Column(Modifier.weight(1f)) {
                     Text(entry.description.ifEmpty { OpenSpecText.readableSlug(entry.slug) }, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
-                        listOfNotNull(entry.date, if (entry.archived) "Archived" else "Active").joinToString(" · "),
+                        listOfNotNull(entry.date, if (entry.archived) stringResource(R.string.openspec_archived) else stringResource(R.string.openspec_active)).joinToString(" · "),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

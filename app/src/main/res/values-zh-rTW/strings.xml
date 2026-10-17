@@ -1,0 +1,442 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's own texts in Traditional Chinese (Taiwan) (`app-language`, `scan-connect-zh` D9).
+
+     Terms follow the desktop's zh-TW (spekterm src/shared/i18n/zh-TW.json). Kept in English inside Chinese text,
+     as the desktop does: session, agent, shell, change, spec, task, artifact, port, OpenSpec, Tailscale, QR code.
+
+     Hibernate 休眠 · Hibernated 休眠中 · Wake 喚醒 · Handoff 交接 · Inbox 收件匣 · Waiting for you 等你回應 ·
+     Idle 閒置 · Working 處理中 · Remote access 遠端存取 · Pair 配對 · Unpair 取消配對 · Revoke 撤銷 ·
+     Archived 已封存 · Active 進行中 · Conversation 對話 · You 你 · Thinking 思考中 · Result 結果 · Send 送出 ·
+     Not confirmed yet 尚未確認 · Rename 重新命名 · Close 關閉 · Keep 保留 · Settings 設定 · Connection 連線 ·
+     Network 網路 · Folder 資料夾 · File 檔案 · Notification 通知 · Address 位址 · Fingerprint 指紋 ·
+     Attach 附加 · Approve 核准 · Deny 拒絕 · Allow once 允許一次 · Plan 計畫 · Prompt（the agent's question）提問 -->
+<resources>
+
+    <!-- 掃描 -->
+    <string name="scan_not_a_pairing_code">這個 QR code 不是 spekterm 的配對碼。</string>
+
+    <!-- 連不到桌機的原因 -->
+    <string name="reason_no_network">手機沒有網路。</string>
+    <string name="reason_no_network_advice">請連上 Wi-Fi 或行動網路。</string>
+    <string name="reason_not_the_desktop">%1$s 的伺服器不是已配對的桌機。</string>
+    <string name="reason_not_the_desktop_advice">如果你重設過遠端存取，請重新配對。</string>
+    <string name="reason_refused">%1$s 在 port %2$d 拒絕連線。</string>
+    <string name="reason_refused_advice">如果那是你的桌機，請確認 spekterm 正在執行，而且遠端存取已開啟。</string>
+    <string name="reason_off_network">使用行動網路時，手機連不到桌機的區網和 Tailscale 位址。</string>
+    <string name="reason_off_network_advice">請連上桌機所在的 Wi-Fi，或在這支手機開啟 Tailscale（或你的 VPN）。</string>
+    <string name="reason_no_answer">桌機的所有位址都沒有回應。</string>
+    <string name="reason_no_answer_advice">桌機可能在睡眠或已關機、在別的網路上，或防火牆擋住了 port %1$d。</string>
+    <string name="reason_tailscale_hint">如果你不在桌機的網路上，請在這支手機開啟 Tailscale。</string>
+    <string name="reason_unreachable">桌機的所有位址都連不上。</string>
+    <string name="outcome_trying">嘗試中</string>
+    <string name="outcome_timed_out">逾時</string>
+    <string name="outcome_refused">拒絕連線</string>
+    <string name="outcome_no_route">無法路由</string>
+    <string name="outcome_name_not_found">找不到主機名稱</string>
+    <string name="outcome_certificate">不是這台桌機</string>
+    <string name="outcome_failed">失敗</string>
+    <string name="outcome_not_tried">未嘗試</string>
+    <string name="notification_ongoing_no_network">沒有網路 · 重試中</string>
+    <string name="notification_ongoing_refused">連線被拒 · 重試中</string>
+    <string name="notification_ongoing_not_the_desktop">不是已配對的桌機 · 重試中</string>
+    <string name="notification_ongoing_unreachable">連不到桌機 · 重試中</string>
+    <string name="status_try_now">立即重試</string>
+
+    <!-- 共用 -->
+    <string name="common_pair">配對</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_ok">確定</string>
+
+    <!-- 配對 -->
+    <string name="pair_title">與 spekterm 配對</string>
+    <string name="pair_again_title">重新配對</string>
+    <string name="pair_revoked">桌機已不再接受這支手機（被撤銷，或遠端存取被重設）。請重新配對。</string>
+    <string name="pair_step_1">在桌機開啟「設定 → 遠端存取 → 配對裝置」。</string>
+    <string name="pair_step_2">掃描 QR code，或貼上它的連結。</string>
+    <string name="pair_scan">掃描 QR code</string>
+    <string name="pair_or">或</string>
+    <string name="pair_link_label">配對連結</string>
+    <string name="pair_paste">貼上連結</string>
+    <string name="pair_busy">正在與 %1$s 配對…</string>
+    <string name="pair_busy_unnamed">正在與桌機配對…</string>
+    <string name="pair_current_stays">新的配對成功之前，目前的配對都會保留。</string>
+    <string name="pair_back_to_settings">回到設定</string>
+    <string name="pair_camera_denied">掃描需要相機權限。你也可以改貼配對連結。</string>
+    <string name="pair_refused_version">這個連結需要較新版本的 App。</string>
+    <string name="pair_refused_address">連結裡有手機無法連線的位址。</string>
+    <string name="pair_refused_invalid">這不是有效的配對連結。</string>
+    <string name="pair_failed_code">這組配對碼已失效（已使用、已過期，或畫面已關閉）。請在桌機顯示新的配對碼。</string>
+    <string name="pair_failed_throttled">失敗次數太多。請等一分鐘再試。</string>
+    <string name="pair_failed_unsupported">App 和桌機使用的協定版本不同。請更新比較舊的那一邊。</string>
+    <string name="pair_failed_unsupported_versions">App 和桌機使用的協定版本不同（桌機：%1$s）。請更新比較舊的那一邊。</string>
+    <string name="pair_failed_unreachable">連不到桌機。</string>
+    <string name="pair_failed_other">配對失敗。</string>
+    <string name="pair_failed_other_detail">配對失敗：%1$s</string>
+
+    <!-- 從其他 App 打開的配對連結 -->
+    <string name="pair_offer_title">要與 %1$s 配對嗎？</string>
+    <string name="pair_offer_title_unnamed">要與這台桌機配對嗎？</string>
+    <string name="pair_offer_same">這是 %1$s 的新配對碼，也就是目前已配對的那台桌機。</string>
+    <string name="pair_offer_title_same">要重新與 %1$s 配對嗎？</string>
+    <string name="pair_offer_title_other">要與另一台桌機配對嗎？</string>
+    <string name="pair_offer_different">這個連結指向的桌機不是 %1$s（它自稱 %2$s）。配對後會取代 %1$s。</string>
+    <string name="pair_offer_different_unnamed">這個連結指向的桌機不是 %1$s。配對後會取代 %1$s。</string>
+    <string name="pair_offer_from_link">這是從連結開啟的。按「配對」之前不會送出任何東西。</string>
+    <string name="pair_offer_port">位址（port %1$d）：</string>
+    <string name="pair_offer_in_progress">已經有一個配對正在進行。</string>
+
+    <!-- 共用 -->
+    <string name="common_resume">繼續</string>
+    <string name="common_details">詳情</string>
+    <string name="common_dismiss">知道了</string>
+    <string name="common_wake">喚醒</string>
+    <string name="common_waking">喚醒中…</string>
+    <string name="common_expanded">已展開</string>
+    <string name="common_collapsed">已收合</string>
+    <string name="common_retry">重試</string>
+    <string name="common_not_connected_unsupported">App 和桌機支援的協定版本不同。</string>
+    <string name="common_not_connected_identity">桌機的身分變了：它出示的憑證和配對時不同。</string>
+    <string name="common_not_connected_stopped">連線已停止。請從連線狀態繼續。</string>
+    <string name="common_not_connected_remote_off">桌機的遠端存取已關閉，或 spekterm 已結束。</string>
+    <string name="common_not_connected_connecting">正在連線到桌機…</string>
+    <string name="common_not_connected_waiting">未連線 —— 等待重試。</string>
+    <string name="common_not_connected_catching_up">已連線 —— 正在追上桌機的進度…</string>
+    <string name="common_not_connected">未連線到桌機。</string>
+
+    <!-- 對話 -->
+    <string name="conversation_title_fallback">Session</string>
+    <string name="conversation_openspec_for">%1$s 的 OpenSpec</string>
+    <string name="conversation_paused">連線已暫停。畫面上的內容可能不是最新的。</string>
+    <string name="conversation_out_of_date">%1$s畫面上的內容可能不是最新的。</string>
+    <string name="conversation_no_window">spekterm 在桌機上沒有開啟的視窗。畫面上的內容可能不是最新的。</string>
+    <string name="conversation_closed">這個 session 已不在桌機上。</string>
+    <string name="conversation_shell">Shell session 需要終端畫面，App 目前還沒有。</string>
+    <string name="conversation_catching_up">正在追上對話進度…</string>
+    <string name="conversation_unavailable">目前無法讀取對話。請到桌機上查看。</string>
+    <string name="conversation_refused">無法開啟對話（%1$s）。</string>
+    <string name="conversation_truncated">較早的內容沒有顯示。</string>
+    <string name="conversation_dormant">這個 session 正在休眠。</string>
+    <string name="conversation_empty">尚未有任何訊息。</string>
+    <string name="conversation_jump_to_newest">跳到最新</string>
+    <string name="conversation_injected">由 agent 插入</string>
+    <string name="conversation_you">你</string>
+    <string name="conversation_thinking">思考中</string>
+    <string name="conversation_call_failed">失敗</string>
+    <string name="conversation_call_succeeded">成功</string>
+    <string name="conversation_result">結果</string>
+    <string name="conversation_result_failed">失敗</string>
+    <plurals name="conversation_run_calls">
+        <item quantity="other">%1$d 個工具呼叫</item>
+    </plurals>
+    <plurals name="conversation_run_failed">
+        <item quantity="other">%1$d 個失敗</item>
+    </plurals>
+    <string name="conversation_working">處理中</string>
+    <string name="conversation_sending">送出中…</string>
+    <string name="conversation_reply_not_yet_confirmed">尚未確認</string>
+    <string name="conversation_reply_waiting_for_agent">等 agent 接收</string>
+    <string name="conversation_reply_not_in_conversation_yet">還沒出現在對話裡 —— 請到桌機確認</string>
+    <string name="conversation_reply_not_shown_after_work">在 agent 處理中時送出 —— 沒有出現在對話裡；請到桌機確認</string>
+    <string name="conversation_reply_may_not_have_been_sent">可能沒有送出 —— 請到桌機確認</string>
+    <string name="conversation_reply_not_submitted">已輸入到 agent 的輸入框但沒有送出 —— agent 的狀態變了（例如出現了選項）。請到桌機上完成。</string>
+    <string name="conversation_attachments">附件</string>
+    <string name="conversation_attach">附加</string>
+    <string name="conversation_photo">照片</string>
+    <string name="conversation_file">檔案</string>
+    <string name="conversation_reply_hint">傳訊息給 agent</string>
+    <string name="conversation_send">送出</string>
+    <string name="conversation_remove_attachment">移除附件</string>
+    <string name="conversation_attachment_preparing">準備中…</string>
+    <string name="conversation_attachment_queued">等待上傳</string>
+    <string name="conversation_attachment_uploading">上傳中 %1$d%%</string>
+    <string name="conversation_attachment_ready">就緒</string>
+    <string name="conversation_upload_too_large">桌機拒絕了：超過它的上限。</string>
+    <string name="conversation_upload_too_large_of">桌機拒絕了：超過它的上限 %1$s。</string>
+    <string name="conversation_upload_too_many">桌機上這個 session 已有 %1$d 個尚未送出的附件；移除的附件在 24 小時內仍會計入。</string>
+    <string name="conversation_upload_unsupported_type">桌機不接受這種檔案。</string>
+    <string name="conversation_upload_no_conversation">只有 agent session 能接受附件。</string>
+    <string name="conversation_upload_unknown_operation">桌機不接受附件。</string>
+    <string name="conversation_upload_no_answer">連線太慢或不穩定，無法上傳。請等連線好一點再重試。</string>
+    <string name="conversation_upload_gone">已不在桌機上。請重試以重新上傳。</string>
+    <string name="conversation_file_unreadable">無法讀取這個檔案。</string>
+    <string name="conversation_upload_failed">無法上傳（%1$s）。</string>
+    <string name="conversation_note_too_many_picked">一則回覆最多只能帶 %1$d 個附件；其餘的沒有加入。</string>
+    <string name="conversation_note_kind">只能傳送照片、PDF 和文字檔。</string>
+    <string name="conversation_note_size">超過桌機 10 MB 的上限。</string>
+    <string name="conversation_note_empty">檔案是空的。</string>
+    <string name="conversation_note_send_not_found">session 沒有在執行，或有附件已不在桌機上。</string>
+    <string name="conversation_blocked_paused">連線已暫停。繼續連線後才能回覆。</string>
+    <string name="conversation_blocked_not_connected">未連線。手機重新連上後就能回覆。</string>
+    <string name="conversation_blocked_answer_above">請回答上方的選項。</string>
+    <string name="conversation_blocked_choice">agent 正在等一個選擇。請到桌機上回答。</string>
+    <string name="conversation_blocked_choice_asked">agent 正在等一個選擇：%1$s。請到桌機上回答。</string>
+    <string name="conversation_blocked_unknown">spekterm 無法判斷 agent 現在能不能接收訊息。請到桌機上回覆。</string>
+    <string name="conversation_blocked_attaching">正在上傳附件…</string>
+    <string name="conversation_blocked_attachment_failed">請重試或移除傳送失敗的附件。</string>
+    <string name="conversation_blocked_too_long">太長了，無法送出。</string>
+
+    <!-- 設定與連線 -->
+    <string name="status_title">設定</string>
+    <string name="status_section_connection">連線</string>
+    <string name="status_last_disconnect">上次中斷：%1$s</string>
+    <string name="status_connections">這次啟動後的連線次數：%1$d</string>
+    <string name="status_addresses_order">位址（依嘗試順序）· port %1$d</string>
+    <plurals name="status_addresses_count">
+        <item quantity="other">%1$d 個位址 · port %2$d</item>
+    </plurals>
+    <string name="status_show_all">全部顯示</string>
+    <string name="status_identity_changed">桌機出示的憑證和配對時不同。如果你重設過遠端存取，請重新配對。</string>
+    <string name="status_connection_stopped">Android 在背景停止了連線。請在下方按「繼續」。</string>
+    <string name="status_update_app">請更新這個 App。</string>
+    <string name="status_update_desktop">請更新桌機上的 spekterm。</string>
+    <string name="status_update_either">請更新 App 或桌機。</string>
+    <string name="status_unsupported">App 和桌機使用的協定版本不同。%1$s</string>
+    <string name="status_pause">暫停</string>
+    <string name="status_export_log">匯出紀錄</string>
+    <string name="status_export_chooser">匯出連線紀錄</string>
+    <string name="status_section_appearance">外觀</string>
+    <string name="status_section_notifications">通知</string>
+    <string name="status_attention_notifications">提醒通知</string>
+    <string name="status_on">開啟</string>
+    <string name="status_off">關閉</string>
+    <string name="status_notification_settings">通知設定</string>
+    <string name="status_battery_optimization">電池最佳化</string>
+    <string name="status_battery_off">此 App 已關閉</string>
+    <string name="status_battery_on">開啟 —— Android 可能會停止連線</string>
+    <string name="status_battery_settings">電池設定</string>
+    <string name="status_section_recent">最近的事件</string>
+    <string name="status_recent_none">還沒有。</string>
+    <string name="status_section_pairing">配對</string>
+    <string name="status_pair_new_code">用新的配對碼配對</string>
+    <string name="status_unpair">取消配對</string>
+    <string name="status_unpair_title">要取消與 %1$s 的配對嗎？</string>
+    <string name="status_unpair_body">手機會停止連線並忘記這台桌機。之後要再使用，請從桌機的「遠端存取」設定重新配對。</string>
+    <string name="status_theme_system">跟隨系統</string>
+    <string name="status_theme_light">淺色</string>
+    <string name="status_theme_dark">深色</string>
+    <string name="status_paused">已暫停</string>
+    <string name="status_connected">已連線</string>
+    <string name="status_remote_off">遠端存取已關閉</string>
+    <string name="status_remote_off_long">遠端存取已關閉，或桌機已結束</string>
+    <string name="status_connecting">連線中…</string>
+    <string name="status_connecting_to">正在連線到 %1$s…</string>
+    <string name="status_waiting">等待重試</string>
+    <string name="status_waiting_at">將在 %1$s 重試</string>
+    <string name="status_not_connected">未連線</string>
+    <string name="status_connected_via">透過 %1$s 連線</string>
+    <string name="status_connected_via_since">自 %2$s 起透過 %1$s 連線</string>
+
+    <!-- Session 列表 -->
+    <string name="sessions_collapse_all">全部收合</string>
+    <string name="sessions_expand_all">全部展開</string>
+    <string name="sessions_paused">連線已暫停。</string>
+    <string name="sessions_list_from">%1$s顯示的是 %2$s 的列表。</string>
+    <string name="sessions_no_list_yet">%1$s還沒收到 session 列表。</string>
+    <string name="sessions_no_window">spekterm 在桌機上沒有開啟的視窗，所以列不出 session。請在桌機上開啟 spekterm。</string>
+    <string name="sessions_empty">桌機上沒有 session。</string>
+    <string name="sessions_empty_hint">按「新增 session」開一個。</string>
+    <string name="sessions_start_in">在這裡開一個 agent session</string>
+    <string name="sessions_new">新增 session</string>
+    <string name="sessions_starting">正在 %1$s 開 session…</string>
+    <string name="sessions_started">已在 %1$s 開了 session。</string>
+    <string name="sessions_open">開啟</string>
+    <string name="sessions_started_unlisted">已在 %1$s 開了 session，稍後會出現在列表中。</string>
+    <string name="sessions_create_no_window">無法在 %1$s 開 session：spekterm 在桌機上沒有開啟的視窗。</string>
+    <string name="sessions_create_failed">桌機無法在 %1$s 開 session。</string>
+    <string name="sessions_create_failed_message">桌機無法在 %1$s 開 session：%2$s</string>
+    <string name="sessions_create_unknown">無法確定是否已在 %1$s 開了 session。如果有，它會出現在列表中。</string>
+    <string name="sessions_expand">展開</string>
+    <string name="sessions_collapse">收合</string>
+    <string name="sessions_global">全域</string>
+    <string name="sessions_other_folders">其他資料夾</string>
+    <plurals name="sessions_summary_choice">
+        <item quantity="other">%1$d 個要你選擇</item>
+    </plurals>
+    <plurals name="sessions_summary_offers">
+        <item quantity="other">%1$d 個要求關閉</item>
+    </plurals>
+    <plurals name="sessions_summary_ready">
+        <item quantity="other">%1$d 個等你回應</item>
+    </plurals>
+    <string name="sessions_agent">Agent</string>
+    <string name="sessions_shell">Shell</string>
+
+    <!-- Session 選單與對話框 -->
+    <string name="menu_handoff">交接</string>
+    <string name="menu_rename">重新命名</string>
+    <string name="menu_hibernate">休眠</string>
+    <string name="menu_close_session">關閉 session</string>
+    <string name="menu_offer">agent 要求關閉這個 session。</string>
+    <string name="menu_offer_close">關閉</string>
+    <string name="menu_offer_keep">保留</string>
+    <string name="menu_rename_title">重新命名 session</string>
+    <string name="menu_clear_name">清除名稱</string>
+    <string name="menu_renaming">重新命名中…</string>
+    <string name="menu_rename_timeout">桌機沒有及時回應；名稱可能還是會改。</string>
+    <string name="menu_rename_failed">無法重新命名（%1$s）。</string>
+    <string name="menu_close_title">要關閉 %1$s 嗎？</string>
+    <string name="menu_close_body">它會從桌機上永久移除，無法再開啟。尚未送出的附件也會被刪除。</string>
+    <string name="menu_hibernating">正在讓 %1$s 休眠…</string>
+    <string name="menu_closing">正在關閉 %1$s…</string>
+    <string name="menu_waking">正在喚醒 %1$s…</string>
+    <string name="menu_keeping">正在保留 %1$s…</string>
+    <string name="menu_busy_title">%1$s 正在忙</string>
+    <string name="menu_busy_close">還是要關閉嗎？它正在做的事會被中斷，session 也會從桌機上永久移除。</string>
+    <string name="menu_busy_hibernate">還是要休眠嗎？它正在做的事會被中斷。</string>
+    <string name="menu_close_anyway">仍要關閉</string>
+    <string name="menu_hibernate_anyway">仍要休眠</string>
+    <string name="session_busy_working">agent 正在處理中。</string>
+    <string name="session_busy_choice">agent 正在等一個選擇的回答。</string>
+    <string name="session_busy_unsent">有一則給 agent 的訊息還沒確認送出。</string>
+    <string name="session_busy_job">裡面有指令正在執行。</string>
+    <string name="session_busy_unknown">桌機無法判斷它是否閒置。</string>
+    <string name="session_wake_no_window">spekterm 在桌機上沒有開啟的視窗。請先在桌機上開啟它。</string>
+    <string name="session_wake_create_failed">桌機無法啟動這個 session。</string>
+    <string name="session_wake_create_failed_message">桌機無法啟動這個 session。（%1$s）</string>
+    <string name="session_wake_timeout">桌機沒有及時回應。請再試一次。</string>
+    <string name="session_wake_failed">無法喚醒（%1$s）。</string>
+    <string name="session_gone">這個 session 已不存在。</string>
+    <string name="session_no_window">spekterm 在桌機上沒有開啟的視窗。</string>
+    <string name="session_keep_timeout">桌機沒有及時回應；桌機上的提示卡可能還在。</string>
+    <string name="session_could_not">桌機無法完成這個動作。</string>
+    <string name="session_could_not_message">桌機無法完成這個動作。（%1$s）</string>
+    <string name="session_not_connected_check_list">未連線到桌機。是否已完成，請看 session 列表。</string>
+    <string name="session_keep_failed">無法保留（%1$s）。</string>
+    <string name="session_timeout">桌機沒有及時回應；動作可能還是會完成。</string>
+    <string name="session_hibernate_failed">無法休眠（%1$s）。</string>
+    <string name="session_close_failed">無法關閉（%1$s）。</string>
+
+    <!-- 提問 -->
+    <string name="prompt_permission">agent 正在請求許可</string>
+    <string name="prompt_question">agent 提問</string>
+    <string name="prompt_plan">agent 請你核准它的計畫</string>
+    <string name="prompt_allow_on_desktop">要允許的話，請到桌機上回答。</string>
+    <string name="prompt_deny_stops">「%1$s」會讓 agent 停下來，接著等你回覆。</string>
+    <string name="prompt_choose_many">選一個或多個</string>
+    <string name="prompt_choose_one">選一個</string>
+    <string name="prompt_show_plan">全部顯示</string>
+    <string name="prompt_plan_title">計畫</string>
+    <string name="prompt_allow_once">允許一次</string>
+    <string name="prompt_send_answer">送出回答</string>
+    <string name="prompt_approve">核准（編輯前先問）</string>
+    <string name="prompt_approve_auto">以自動模式核准</string>
+    <string name="prompt_deny">拒絕</string>
+    <string name="prompt_decline">不回答</string>
+    <string name="prompt_keep_planning">繼續規劃</string>
+    <string name="prompt_answer_on_desktop">請到桌機上回答。</string>
+    <plurals name="prompt_open_requests">
+        <item quantity="other">有 %1$d 個請求待處理。請到桌機上回答。</item>
+    </plurals>
+    <string name="prompt_too_large">問題或選項太多，無法在手機上回答。請到桌機上回答。</string>
+    <string name="prompt_not_answerable">這個選擇已無法從手機回答。請到桌機上回答。</string>
+    <string name="prompt_answering">回答中…</string>
+    <string name="prompt_answered_waiting">已回答。等待 agent。</string>
+    <string name="prompt_answered">已回答。</string>
+    <string name="prompt_note_partial">回答只寫入了一部分。請到桌機上完成。</string>
+    <string name="prompt_note_mismatch">agent 記下的回答和你選的不同。請到桌機確認。</string>
+    <string name="prompt_note_gone">這個選擇已無法從手機回答 —— 它變了，或已在桌機上輸入過。沒有送出任何東西。</string>
+    <string name="prompt_note_not_running">session 沒有在執行。沒有送出任何東西。</string>
+    <string name="prompt_note_refused">桌機不接受從手機送出的這個回答。沒有送出任何東西；請到桌機上回答。</string>
+    <string name="prompt_note_unknown">無法確定回答是否已寫入。請到桌機確認。</string>
+
+    <!-- OpenSpec -->
+    <string name="openspec_refresh">重新整理</string>
+    <string name="openspec_not_connected">未連線。</string>
+    <string name="openspec_not_connected_read_at">未連線。顯示的是 %1$s 讀到的內容。</string>
+    <string name="openspec_not_live">這台桌機不會自動更新 OpenSpec。讀取時間：%1$s。</string>
+    <string name="openspec_not_updating">目前沒有自動更新。請重新整理再試一次。</string>
+    <string name="openspec_not_updating_read_at">目前沒有自動更新。請重新整理再試一次。讀取時間：%1$s。</string>
+    <string name="openspec_omitted">桌機沒有送出這部分：太大，無法和其他內容一起傳送（%1$s）。</string>
+    <string name="openspec_no_folders">桌機上沒有任何資料夾有 OpenSpec。</string>
+    <string name="openspec_tab_changes">Change</string>
+    <string name="openspec_tab_specs">Spec</string>
+    <string name="openspec_tab_spec">Spec</string>
+    <string name="openspec_tab_history">歷史 · %1$d</string>
+    <string name="openspec_no_changes">這個資料夾沒有 change。</string>
+    <string name="openspec_active">進行中</string>
+    <string name="openspec_archived">已封存</string>
+    <string name="openspec_archived_count">已封存 · %1$d</string>
+    <string name="openspec_archived_on">封存於 %1$s</string>
+    <string name="openspec_started_on">開始於 %1$s</string>
+    <string name="openspec_tasks">%1$d/%2$d 個 task</string>
+    <string name="openspec_no_specs">這個資料夾沒有 spec。</string>
+    <string name="openspec_change_archived">這個 change 已封存。</string>
+    <string name="openspec_open_archived">開啟已封存的 change</string>
+    <string name="openspec_no_artifacts">這個 change 還沒有任何 artifact。</string>
+    <string name="openspec_artifact_unsupported">這種 artifact 無法在手機上顯示。</string>
+    <string name="openspec_task_done">已完成</string>
+    <string name="openspec_task_not_done">未完成</string>
+    <string name="openspec_no_deltas">沒有 spec delta。</string>
+    <string name="openspec_main_worktree">主 worktree · %1$s</string>
+    <string name="openspec_no_history">沒有任何 change 動過這個 spec。</string>
+    <string name="openspec_error_folder_gone">這個資料夾已不在桌機的 workspace 裡。</string>
+    <string name="openspec_error_change_gone">這個 change 已不在資料夾裡。</string>
+    <string name="openspec_error_spec_gone">這個 spec 已不在資料夾裡。</string>
+    <string name="openspec_error_too_large">太大了，手機收不下：桌機最多只傳 %1$s。</string>
+    <string name="openspec_error_internal">桌機無法讀取。</string>
+    <string name="openspec_error_unknown_operation">這台桌機不提供這項功能。</string>
+    <string name="openspec_error_other">桌機回應：%1$s。</string>
+
+    <!-- 交接 -->
+    <string name="relations_from">來自 %1$s › %2$s</string>
+    <string name="relations_from_closed">來自 %1$s（已關閉）</string>
+    <string name="relations_from_gone">來自一個已關閉的 session</string>
+    <string name="relations_state_working">進行中</string>
+    <string name="relations_state_waiting">還沒完成</string>
+    <string name="relations_state_done">已完成</string>
+    <string name="relations_handoff">交接</string>
+    <plurals name="relations_handed_off">
+        <item quantity="other">已交接 %1$d 個 session</item>
+    </plurals>
+    <string name="relations_all_done">全部完成</string>
+    <string name="relations_done_of">%2$d 個中 %1$d 個已完成</string>
+    <string name="handoff_from">來自</string>
+    <string name="handoff_note">交接內容</string>
+    <string name="handoff_latest_report">最新回報</string>
+    <string name="handoff_no_report">尚未回報。</string>
+    <string name="handoff_children">從這裡交接出去的</string>
+    <string name="handoff_loading">載入中…</string>
+    <string name="handoff_no_note">桌機沒有保留這次交接的內容。</string>
+    <string name="handoff_needs_connection">讀取交接內容需要連線到桌機。</string>
+    <string name="handoff_note_failed">桌機無法提供交接內容（%1$s）。</string>
+    <string name="handoff_try_again">再試一次</string>
+
+    <!-- 共用標籤 -->
+    <string name="common_back">返回</string>
+    <string name="common_more_options">更多選項</string>
+    <string name="state_choice">要你選擇</string>
+    <string name="state_ready">等你回應</string>
+    <string name="state_busy">處理中</string>
+    <string name="state_idle">閒置</string>
+    <string name="state_dormant">休眠中</string>
+    <string name="state_running">執行中</string>
+
+    <!-- 通知 -->
+    <string name="notification_waiting">等你回應</string>
+    <string name="notification_choice">要你選擇</string>
+    <string name="notification_choice_tool">要你選擇：%1$s</string>
+    <string name="notification_handoff_done">交接已完成</string>
+    <string name="notification_intake">收件匣有新項目</string>
+    <string name="notification_attention">需要你處理</string>
+    <plurals name="notification_summary">
+        <item quantity="other">你不在時有 %1$d 個事件 —— 可能有些沒收到。</item>
+    </plurals>
+    <string name="notification_summary_title">agent 曾需要你</string>
+    <string name="notification_channel_connection">與桌機的連線</string>
+    <string name="notification_channel_connection_description">App 保持連線時的常駐通知</string>
+    <string name="notification_channel_attention">需要你的 agent</string>
+    <string name="notification_channel_attention_description">agent 在等你、要你選擇、交接完成、收件匣有新項目</string>
+    <string name="notification_channel_status">連線問題</string>
+    <string name="notification_channel_status_description">需要重新配對、桌機的身分變了、連線停止</string>
+    <string name="notification_stopped">已停止</string>
+    <string name="notification_stopped_title">與 %1$s 的連線已停止</string>
+    <string name="notification_stopped_text">Android 不讓 App 在背景重新連線。點一下以繼續。</string>
+    <string name="notification_pair_again_title">重新與 %1$s 配對</string>
+    <string name="notification_pair_again_text">桌機已不再接受這支手機。請掃描新的配對碼。</string>
+    <string name="notification_identity_title">%1$s 的身分變了</string>
+    <string name="status_recent_notified">已通知</string>
+    <string name="status_recent_suppressed">已略過</string>
+    <string name="status_recent_visible">正在畫面上</string>
+    <string name="status_recent_summarized">已彙整</string>
+    <string name="status_recent_replaced">已取代</string>
+</resources>

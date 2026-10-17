@@ -1,0 +1,444 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's own texts in English, the default (`app-language`). Every string has its zh-TW counterpart in
+     values-zh-rTW/strings.xml with the same placeholders; StringsTest checks it. -->
+<resources>
+    <string name="app_name" translatable="false">spekterm</string>
+
+    <!-- Scanning (`scan-connect-zh` D3) -->
+    <string name="scan_not_a_pairing_code">This QR code is not a spekterm pairing code.</string>
+
+    <!-- Why the desktop cannot be reached (`desktop-connection`, `scan-connect-zh` D6) -->
+    <string name="reason_no_network">The phone has no network.</string>
+    <string name="reason_no_network_advice">Connect to Wi-Fi or mobile data.</string>
+    <string name="reason_not_the_desktop">A server at %1$s is not the paired desktop.</string>
+    <string name="reason_not_the_desktop_advice">If you reset remote access, pair again.</string>
+    <string name="reason_refused">%1$s refused connections on port %2$d.</string>
+    <string name="reason_refused_advice">If that is your desktop, check that spekterm is running with remote access on.</string>
+    <string name="reason_off_network">On mobile data, the phone can\'t reach the desktop\'s local and Tailscale addresses.</string>
+    <string name="reason_off_network_advice">Join the desktop\'s Wi-Fi, or turn on Tailscale (or your VPN) on this phone.</string>
+    <string name="reason_no_answer">The desktop doesn\'t answer on any of its addresses.</string>
+    <string name="reason_no_answer_advice">It may be asleep or off, on another network, or a firewall may block port %1$d.</string>
+    <string name="reason_tailscale_hint">If you\'re not on the desktop\'s network, turn on Tailscale on this phone.</string>
+    <string name="reason_unreachable">Could not reach the desktop on any of its addresses.</string>
+    <string name="outcome_trying">trying</string>
+    <string name="outcome_timed_out">timed out</string>
+    <string name="outcome_refused">refused</string>
+    <string name="outcome_no_route">no route</string>
+    <string name="outcome_name_not_found">name not found</string>
+    <string name="outcome_certificate">not the desktop</string>
+    <string name="outcome_failed">failed</string>
+    <string name="outcome_not_tried">not tried</string>
+    <string name="notification_ongoing_no_network">No network · retrying</string>
+    <string name="notification_ongoing_refused">Connection refused · retrying</string>
+    <string name="notification_ongoing_not_the_desktop">Not the paired desktop · retrying</string>
+    <string name="notification_ongoing_unreachable">Can\'t reach the desktop · retrying</string>
+    <string name="status_try_now">Try now</string>
+
+    <!-- Common -->
+    <string name="common_pair">Pair</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_ok">OK</string>
+    <string name="common_address_outcome" translatable="false">%1$s · %2$s</string>
+
+    <!-- Pairing (`device-pairing`) -->
+    <string name="pair_title">Pair with spekterm</string>
+    <string name="pair_again_title">Pair again</string>
+    <string name="pair_revoked">The desktop no longer accepts this phone (it was revoked, or remote access was reset). Pair again.</string>
+    <string name="pair_step_1">On the desktop, open Settings → Remote access → Pair device.</string>
+    <string name="pair_step_2">Scan the code, or paste its link.</string>
+    <string name="pair_scan">Scan QR code</string>
+    <string name="pair_or">or</string>
+    <string name="pair_link_label">Pairing link</string>
+    <string name="pair_paste">Paste link</string>
+    <string name="pair_busy">Pairing with %1$s…</string>
+    <string name="pair_busy_unnamed">Pairing with the desktop…</string>
+    <string name="pair_current_stays">The current pairing stays until a new one succeeds.</string>
+    <string name="pair_back_to_settings">Back to settings</string>
+    <string name="pair_camera_denied">Scanning needs the camera. You can paste the pairing link instead.</string>
+    <string name="pair_refused_version">This link needs a newer version of the app.</string>
+    <string name="pair_refused_address">The link holds an address the phone cannot connect to.</string>
+    <string name="pair_refused_invalid">This is not a valid pairing link.</string>
+    <string name="pair_failed_code">The code is no longer valid (used, expired, or its view was closed). Show a new code on the desktop.</string>
+    <string name="pair_failed_throttled">Too many failed attempts. Wait a minute and try again.</string>
+    <string name="pair_failed_unsupported">The app and the desktop speak different protocol versions. Update the older one.</string>
+    <string name="pair_failed_unsupported_versions">The app and the desktop speak different protocol versions (desktop: %1$s). Update the older one.</string>
+    <string name="pair_failed_unreachable">Could not reach the desktop.</string>
+    <string name="pair_failed_other">Pairing failed.</string>
+    <string name="pair_failed_other_detail">Pairing failed: %1$s</string>
+
+    <!-- A pairing link from another app (`device-pairing`, `scan-connect-zh` D4) -->
+    <string name="pair_offer_title">Pair with %1$s?</string>
+    <string name="pair_offer_title_unnamed">Pair with this desktop?</string>
+    <string name="pair_offer_same">This is a new pairing code for %1$s, the desktop already paired.</string>
+    <string name="pair_offer_title_same">Pair again with %1$s?</string>
+    <string name="pair_offer_title_other">Pair with a different desktop?</string>
+    <string name="pair_offer_different">This link is for a different desktop than %1$s (it calls itself %2$s). Pairing replaces %1$s.</string>
+    <string name="pair_offer_different_unnamed">This link is for a different desktop than %1$s. Pairing replaces %1$s.</string>
+    <string name="pair_offer_from_link">Opened from a link. Nothing is sent until you choose Pair.</string>
+    <string name="pair_offer_port">Addresses, port %1$d:</string>
+    <string name="pair_offer_in_progress">A pairing is already in progress.</string>
+
+    <!-- Shared -->
+    <string name="common_resume">Resume</string>
+    <string name="common_details">Details</string>
+    <string name="common_dismiss">Dismiss</string>
+    <string name="common_wake">Wake</string>
+    <string name="common_waking">Waking…</string>
+    <string name="common_expanded">Expanded</string>
+    <string name="common_collapsed">Collapsed</string>
+    <string name="common_retry">Retry</string>
+    <string name="common_not_connected_unsupported">The app and the desktop do not support the same protocol version.</string>
+    <string name="common_not_connected_identity">The desktop\'s identity changed: it presents a different certificate than when you paired.</string>
+    <string name="common_not_connected_stopped">The connection stopped. Resume it from the connection status.</string>
+    <string name="common_not_connected_remote_off">Remote access is off on the desktop, or spekterm quit.</string>
+    <string name="common_not_connected_connecting">Connecting to the desktop…</string>
+    <string name="common_not_connected_waiting">Not connected — waiting to retry.</string>
+    <string name="common_not_connected_catching_up">Connected — catching up with the desktop…</string>
+    <string name="common_not_connected">Not connected to the desktop.</string>
+
+    <!-- Conversation (`conversation-view`, `conversation-reply`, `reply-attachments`) -->
+    <string name="conversation_title_fallback">Session</string>
+    <string name="conversation_openspec_for">OpenSpec for %1$s</string>
+    <string name="conversation_paused">The connection is paused. What is shown may be out of date.</string>
+    <string name="conversation_out_of_date">%1$s What is shown may be out of date.</string>
+    <string name="conversation_no_window">spekterm has no open window on the desktop. What is shown may be out of date.</string>
+    <string name="conversation_closed">This session is no longer on the desktop.</string>
+    <string name="conversation_shell">Shell sessions need the terminal view, which the app does not have yet.</string>
+    <string name="conversation_catching_up">Catching up with the conversation…</string>
+    <string name="conversation_unavailable">The conversation can\'t be read right now. Check it on the desktop.</string>
+    <string name="conversation_refused">Could not open the conversation (%1$s).</string>
+    <string name="conversation_truncated">Older entries are not shown.</string>
+    <string name="conversation_dormant">This session is dormant.</string>
+    <string name="conversation_empty">No messages yet.</string>
+    <string name="conversation_jump_to_newest">Jump to newest</string>
+    <string name="conversation_injected">Injected by the agent</string>
+    <string name="conversation_you">You</string>
+    <string name="conversation_thinking">Thinking</string>
+    <string name="conversation_call_failed">Failed</string>
+    <string name="conversation_call_succeeded">Succeeded</string>
+    <string name="conversation_result">Result</string>
+    <string name="conversation_result_failed">Failed</string>
+    <plurals name="conversation_run_calls">
+        <item quantity="one">%1$d tool call</item>
+        <item quantity="other">%1$d tool calls</item>
+    </plurals>
+    <plurals name="conversation_run_failed">
+        <item quantity="one">%1$d failed</item>
+        <item quantity="other">%1$d failed</item>
+    </plurals>
+    <string name="conversation_working">Working</string>
+    <string name="conversation_sending">Sending…</string>
+    <string name="conversation_reply_not_yet_confirmed">Not yet confirmed</string>
+    <string name="conversation_reply_waiting_for_agent">Waiting for the agent to take it</string>
+    <string name="conversation_reply_not_in_conversation_yet">Not in the conversation yet — check the desktop</string>
+    <string name="conversation_reply_not_shown_after_work">Sent while the agent worked — not in the conversation; check the desktop</string>
+    <string name="conversation_reply_may_not_have_been_sent">May not have been sent — check the desktop</string>
+    <string name="conversation_reply_not_submitted">Typed into the agent\'s input but not sent — the agent\'s state changed (for example, a choice appeared). Finish it on the desktop.</string>
+    <string name="conversation_attachments">Attachments</string>
+    <string name="conversation_attach">Attach</string>
+    <string name="conversation_photo">Photo</string>
+    <string name="conversation_file">File</string>
+    <string name="conversation_reply_hint">Reply to the agent</string>
+    <string name="conversation_send">Send</string>
+    <string name="conversation_remove_attachment">Remove attachment</string>
+    <string name="conversation_attachment_preparing">Preparing…</string>
+    <string name="conversation_attachment_queued">Waiting to upload</string>
+    <string name="conversation_attachment_uploading">Uploading %1$d%%</string>
+    <string name="conversation_attachment_ready">Ready</string>
+    <string name="conversation_upload_too_large">The desktop refused it: over its limit.</string>
+    <string name="conversation_upload_too_large_of">The desktop refused it: over its limit of %1$s.</string>
+    <string name="conversation_upload_too_many">The desktop holds %1$d attachments not sent yet for this session; removed ones count for 24 hours.</string>
+    <string name="conversation_upload_unsupported_type">The desktop does not accept this kind of file.</string>
+    <string name="conversation_upload_no_conversation">Only an agent session takes attachments.</string>
+    <string name="conversation_upload_unknown_operation">The desktop does not accept attachments.</string>
+    <string name="conversation_upload_no_answer">The connection is too slow or unstable to upload this. Retry when it is better.</string>
+    <string name="conversation_upload_gone">No longer on the desktop. Retry to upload it again.</string>
+    <string name="conversation_file_unreadable">The file could not be read.</string>
+    <string name="conversation_upload_failed">Could not upload it (%1$s).</string>
+    <string name="conversation_note_too_many_picked">A reply can carry at most %1$d attachments; the rest were not added.</string>
+    <string name="conversation_note_kind">Only photos, PDF and text files can be sent.</string>
+    <string name="conversation_note_size">Larger than the desktop\'s 10 MB limit.</string>
+    <string name="conversation_note_empty">The file is empty.</string>
+    <string name="conversation_note_send_not_found">The session is not running, or an attachment is no longer on the desktop.</string>
+    <string name="conversation_blocked_paused">The connection is paused. Resume it to reply.</string>
+    <string name="conversation_blocked_not_connected">Not connected. You can reply once the phone reconnects.</string>
+    <string name="conversation_blocked_answer_above">Answer the choice above.</string>
+    <string name="conversation_blocked_choice">The agent asks for a choice. Answer it on the desktop.</string>
+    <string name="conversation_blocked_choice_asked">The agent asks for a choice: %1$s. Answer it on the desktop.</string>
+    <string name="conversation_blocked_unknown">spekterm can\'t tell whether the agent can take a message now. Reply on the desktop.</string>
+    <string name="conversation_blocked_attaching">Uploading attachments…</string>
+    <string name="conversation_blocked_attachment_failed">Retry or remove the attachment that failed to send.</string>
+    <string name="conversation_blocked_too_long">Too long to send.</string>
+
+    <!-- Settings and the connection (`desktop-connection`, `app-appearance`) -->
+    <string name="status_title">Settings</string>
+    <string name="status_section_connection">Connection</string>
+    <string name="status_last_disconnect">Last disconnect: %1$s</string>
+    <string name="status_connections">Connections this session: %1$d</string>
+    <string name="status_addresses_order">Addresses, in the order they are tried · port %1$d</string>
+    <plurals name="status_addresses_count">
+        <item quantity="one">%1$d address · port %2$d</item>
+        <item quantity="other">%1$d addresses · port %2$d</item>
+    </plurals>
+    <string name="status_show_all">Show all</string>
+    <string name="status_identity_changed">The desktop presents a different certificate than when you paired. If you reset remote access, pair again.</string>
+    <string name="status_connection_stopped">Android stopped the connection in the background. Resume below.</string>
+    <string name="status_update_app">Update this app.</string>
+    <string name="status_update_desktop">Update spekterm on the desktop.</string>
+    <string name="status_update_either">Update the app or the desktop.</string>
+    <string name="status_unsupported">The app and the desktop speak different protocol versions. %1$s</string>
+    <string name="status_pause">Pause</string>
+    <string name="status_export_log">Export log</string>
+    <string name="status_export_chooser">Export connection log</string>
+    <string name="status_section_appearance">Appearance</string>
+    <string name="status_section_notifications">Notifications</string>
+    <string name="status_attention_notifications">Attention notifications</string>
+    <string name="status_on">On</string>
+    <string name="status_off">Off</string>
+    <string name="status_notification_settings">Notification settings</string>
+    <string name="status_battery_optimization">Battery optimization</string>
+    <string name="status_battery_off">Off for this app</string>
+    <string name="status_battery_on">On — Android may stop the connection</string>
+    <string name="status_battery_settings">Battery settings</string>
+    <string name="status_section_recent">Recent events</string>
+    <string name="status_recent_none">None yet.</string>
+    <string name="status_section_pairing">Pairing</string>
+    <string name="status_pair_new_code">Pair with a new code</string>
+    <string name="status_unpair">Unpair</string>
+    <string name="status_unpair_title">Unpair from %1$s?</string>
+    <string name="status_unpair_body">The phone stops connecting and forgets this desktop. To use it again, pair from the desktop\'s Remote access settings.</string>
+    <string name="status_theme_system">System</string>
+    <string name="status_theme_light">Light</string>
+    <string name="status_theme_dark">Dark</string>
+    <string name="status_paused">Paused</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_remote_off">Remote access is off</string>
+    <string name="status_remote_off_long">Remote access is off, or the desktop quit</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_connecting_to">Connecting to %1$s…</string>
+    <string name="status_waiting">Waiting to retry</string>
+    <string name="status_waiting_at">Waiting to retry at %1$s</string>
+    <string name="status_not_connected">Not connected</string>
+    <string name="status_connected_via">Connected via %1$s</string>
+    <string name="status_connected_via_since">Connected via %1$s since %2$s</string>
+
+    <!-- The session list (`session-list`, `session-create`) -->
+    <string name="sessions_collapse_all">Collapse all</string>
+    <string name="sessions_expand_all">Expand all</string>
+    <string name="sessions_paused">The connection is paused.</string>
+    <string name="sessions_list_from">%1$s Showing the list from %2$s.</string>
+    <string name="sessions_no_list_yet">%1$s No session list received yet.</string>
+    <string name="sessions_no_window">spekterm has no open window on the desktop, so it lists no sessions. Open spekterm there.</string>
+    <string name="sessions_empty">No sessions on the desktop.</string>
+    <string name="sessions_empty_hint">Start one with New session.</string>
+    <string name="sessions_start_in">Start an agent session in</string>
+    <string name="sessions_new">New session</string>
+    <string name="sessions_starting">Starting a session in %1$s…</string>
+    <string name="sessions_started">Started a session in %1$s.</string>
+    <string name="sessions_open">Open</string>
+    <string name="sessions_started_unlisted">Started a session in %1$s; it will appear in the list.</string>
+    <string name="sessions_create_no_window">Could not start a session in %1$s: spekterm has no open window on the desktop.</string>
+    <string name="sessions_create_failed">The desktop could not start a session in %1$s.</string>
+    <string name="sessions_create_failed_message">The desktop could not start a session in %1$s: %2$s</string>
+    <string name="sessions_create_unknown">Can\'t tell whether a session was started in %1$s. If it was, it will appear in the list.</string>
+    <string name="sessions_expand">Expand</string>
+    <string name="sessions_collapse">Collapse</string>
+    <string name="sessions_global">Global</string>
+    <string name="sessions_other_folders">Other folders</string>
+    <plurals name="sessions_summary_choice">
+        <item quantity="one">%1$d asks for a choice</item>
+        <item quantity="other">%1$d ask for a choice</item>
+    </plurals>
+    <plurals name="sessions_summary_offers">
+        <item quantity="one">%1$d asks to close</item>
+        <item quantity="other">%1$d ask to close</item>
+    </plurals>
+    <plurals name="sessions_summary_ready">
+        <item quantity="one">%1$d waiting for you</item>
+        <item quantity="other">%1$d waiting for you</item>
+    </plurals>
+    <string name="sessions_agent">Agent</string>
+    <string name="sessions_shell">Shell</string>
+
+    <!-- The session menu and its dialogs (`session-rename`, `session-hibernate-close`, `close-offer`) -->
+    <string name="menu_handoff">Handoff</string>
+    <string name="menu_rename">Rename</string>
+    <string name="menu_hibernate">Hibernate</string>
+    <string name="menu_close_session">Close session</string>
+    <string name="menu_offer">The agent asked to close this session.</string>
+    <string name="menu_offer_close">Close</string>
+    <string name="menu_offer_keep">Keep</string>
+    <string name="menu_rename_title">Rename session</string>
+    <string name="menu_clear_name">Clear name</string>
+    <string name="menu_renaming">Renaming…</string>
+    <string name="menu_rename_timeout">The desktop did not answer in time; the name may still change.</string>
+    <string name="menu_rename_failed">Could not rename it (%1$s).</string>
+    <string name="menu_close_title">Close %1$s?</string>
+    <string name="menu_close_body">It leaves the desktop for good and can\'t be reopened. Attachments not sent yet are removed.</string>
+    <string name="menu_hibernating">Hibernating %1$s…</string>
+    <string name="menu_closing">Closing %1$s…</string>
+    <string name="menu_waking">Waking %1$s…</string>
+    <string name="menu_keeping">Keeping %1$s…</string>
+    <string name="menu_busy_title">%1$s is busy</string>
+    <string name="menu_busy_close">Close it anyway? What it is doing is stopped, and the session leaves the desktop for good.</string>
+    <string name="menu_busy_hibernate">Hibernate it anyway? What it is doing is stopped.</string>
+    <string name="menu_close_anyway">Close anyway</string>
+    <string name="menu_hibernate_anyway">Hibernate anyway</string>
+    <string name="session_busy_working">The agent is working.</string>
+    <string name="session_busy_choice">The agent is waiting for an answer to a choice.</string>
+    <string name="session_busy_unsent">A message to the agent has not been confirmed sent yet.</string>
+    <string name="session_busy_job">A command is running in it.</string>
+    <string name="session_busy_unknown">The desktop can\'t tell whether it is idle.</string>
+    <string name="session_wake_no_window">spekterm has no open window on the desktop. Open it there first.</string>
+    <string name="session_wake_create_failed">The desktop could not start the session.</string>
+    <string name="session_wake_create_failed_message">The desktop could not start the session. (%1$s)</string>
+    <string name="session_wake_timeout">The desktop did not answer in time. Try again.</string>
+    <string name="session_wake_failed">Could not wake it (%1$s).</string>
+    <string name="session_gone">This session no longer exists.</string>
+    <string name="session_no_window">spekterm has no open window on the desktop.</string>
+    <string name="session_keep_timeout">The desktop did not answer in time; its card may still show there.</string>
+    <string name="session_could_not">The desktop could not do it.</string>
+    <string name="session_could_not_message">The desktop could not do it. (%1$s)</string>
+    <string name="session_not_connected_check_list">Not connected to the desktop. The session list shows whether it happened.</string>
+    <string name="session_keep_failed">Could not keep it (%1$s).</string>
+    <string name="session_timeout">The desktop did not answer in time; it may still happen.</string>
+    <string name="session_hibernate_failed">Could not hibernate it (%1$s).</string>
+    <string name="session_close_failed">Could not close it (%1$s).</string>
+
+    <!-- Prompts (`prompt-answer`) -->
+    <string name="prompt_permission">The agent asks for permission</string>
+    <string name="prompt_question">The agent asks</string>
+    <string name="prompt_plan">The agent asks to approve its plan</string>
+    <string name="prompt_allow_on_desktop">To allow it, answer on the desktop.</string>
+    <string name="prompt_deny_stops">%1$s stops the agent; it then waits for your reply.</string>
+    <string name="prompt_choose_many">Choose one or more</string>
+    <string name="prompt_choose_one">Choose one</string>
+    <string name="prompt_show_plan">Show all</string>
+    <string name="prompt_plan_title">Plan</string>
+    <string name="prompt_allow_once">Allow once</string>
+    <string name="prompt_send_answer">Send answer</string>
+    <string name="prompt_approve">Approve (ask before edits)</string>
+    <string name="prompt_approve_auto">Approve in auto mode</string>
+    <string name="prompt_deny">Deny</string>
+    <string name="prompt_decline">Decline</string>
+    <string name="prompt_keep_planning">Keep planning</string>
+    <string name="prompt_answer_on_desktop">Answer it on the desktop.</string>
+    <plurals name="prompt_open_requests">
+        <item quantity="one">%1$d request is open. Answer it on the desktop.</item>
+        <item quantity="other">%1$d requests are open. Answer them on the desktop.</item>
+    </plurals>
+    <string name="prompt_too_large">Too many questions or options to answer on the phone. Answer it on the desktop.</string>
+    <string name="prompt_not_answerable">This choice can no longer be answered from the phone. Answer it on the desktop.</string>
+    <string name="prompt_answering">Answering…</string>
+    <string name="prompt_answered_waiting">Answered. Waiting for the agent.</string>
+    <string name="prompt_answered">Answered.</string>
+    <string name="prompt_note_partial">Only part of the answer was written. Finish it on the desktop.</string>
+    <string name="prompt_note_mismatch">The agent recorded a different answer than chosen. Check the desktop.</string>
+    <string name="prompt_note_gone">This choice could no longer be answered from the phone — it changed, or was typed into on the desktop. Nothing was sent.</string>
+    <string name="prompt_note_not_running">The session is not running. Nothing was sent.</string>
+    <string name="prompt_note_refused">The desktop did not take that answer from the phone. Nothing was sent; answer it on the desktop.</string>
+    <string name="prompt_note_unknown">Can\'t tell whether the answer was written. Check the desktop.</string>
+
+    <!-- OpenSpec (`openspec-browse`) -->
+    <string name="openspec_refresh">Refresh</string>
+    <string name="openspec_not_connected">Not connected.</string>
+    <string name="openspec_not_connected_read_at">Not connected. Showing what was read at %1$s.</string>
+    <string name="openspec_not_live">This desktop doesn\'t update OpenSpec by itself. Read at %1$s.</string>
+    <string name="openspec_not_updating">Not updating by itself right now. Refresh to try again.</string>
+    <string name="openspec_not_updating_read_at">Not updating by itself right now. Refresh to try again. Read at %1$s.</string>
+    <string name="openspec_omitted">Left out by the desktop: too large to send with the rest (%1$s).</string>
+    <string name="openspec_no_folders">No folder on the desktop has OpenSpec.</string>
+    <string name="openspec_tab_changes">Changes</string>
+    <string name="openspec_tab_specs">Specs</string>
+    <string name="openspec_tab_spec">Spec</string>
+    <string name="openspec_tab_history">History · %1$d</string>
+    <string name="openspec_no_changes">No changes in this folder.</string>
+    <string name="openspec_active">Active</string>
+    <string name="openspec_archived">Archived</string>
+    <string name="openspec_archived_count">Archived · %1$d</string>
+    <string name="openspec_archived_on">Archived %1$s</string>
+    <string name="openspec_started_on">Started %1$s</string>
+    <string name="openspec_tasks">%1$d/%2$d tasks</string>
+    <string name="openspec_no_specs">No specs in this folder.</string>
+    <string name="openspec_change_archived">This change was archived.</string>
+    <string name="openspec_open_archived">Open archived change</string>
+    <string name="openspec_no_artifacts">This change has no artifacts.</string>
+    <string name="openspec_artifact_unsupported">This kind of artifact can\'t be shown on the phone.</string>
+    <string name="openspec_task_done">Done</string>
+    <string name="openspec_task_not_done">Not done</string>
+    <string name="openspec_no_deltas">No delta specs.</string>
+    <string name="openspec_main_worktree">Main working tree · %1$s</string>
+    <string name="openspec_no_history">No change touched this spec.</string>
+    <string name="openspec_error_folder_gone">This folder is no longer in the desktop\'s workspace.</string>
+    <string name="openspec_error_change_gone">This change is no longer in the folder.</string>
+    <string name="openspec_error_spec_gone">This spec is no longer in the folder.</string>
+    <string name="openspec_error_too_large">Too large for the phone: the desktop sends at most %1$s.</string>
+    <string name="openspec_error_internal">The desktop could not read it.</string>
+    <string name="openspec_error_unknown_operation">This desktop does not offer it.</string>
+    <string name="openspec_error_other">The desktop answered %1$s.</string>
+
+    <!-- Handoffs (`session-relations`) -->
+    <string name="relations_from">From %1$s › %2$s</string>
+    <string name="relations_from_closed">From %1$s (closed)</string>
+    <string name="relations_from_gone">From a session that has closed</string>
+    <string name="relations_state_working">Working</string>
+    <string name="relations_state_waiting">Not done yet</string>
+    <string name="relations_state_done">Done</string>
+    <string name="relations_handoff">Handoff</string>
+    <plurals name="relations_handed_off">
+        <item quantity="one">Handed off %1$d session</item>
+        <item quantity="other">Handed off %1$d sessions</item>
+    </plurals>
+    <string name="relations_all_done">all done</string>
+    <string name="relations_done_of">%1$d of %2$d done</string>
+    <string name="handoff_from">From</string>
+    <string name="handoff_note">Handoff note</string>
+    <string name="handoff_latest_report">Latest report</string>
+    <string name="handoff_no_report">No report yet.</string>
+    <string name="handoff_children">Handed off from here</string>
+    <string name="handoff_loading">Loading…</string>
+    <string name="handoff_no_note">The desktop kept no note for this handoff.</string>
+    <string name="handoff_needs_connection">Reading the note needs the connection to the desktop.</string>
+    <string name="handoff_note_failed">The desktop could not give the note (%1$s).</string>
+    <string name="handoff_try_again">Try again</string>
+
+    <!-- Shared labels (`app-appearance`) -->
+    <string name="common_back">Back</string>
+    <string name="common_more_options">More options</string>
+    <string name="state_choice">Asks for a choice</string>
+    <string name="state_ready">Waiting for you</string>
+    <string name="state_busy">Working</string>
+    <string name="state_idle">Idle</string>
+    <string name="state_dormant">Dormant</string>
+    <string name="state_running">Running</string>
+
+    <!-- Notifications (`attention-notifications`, `desktop-connection`) -->
+    <string name="notification_waiting">Waiting for your input</string>
+    <string name="notification_choice">Asks for a choice</string>
+    <string name="notification_choice_tool">Asks for a choice: %1$s</string>
+    <string name="notification_handoff_done">Handoff finished</string>
+    <string name="notification_intake">New inbox item</string>
+    <string name="notification_attention">Needs your attention</string>
+    <plurals name="notification_summary">
+        <item quantity="one">%1$d event while you were away — some may have been missed.</item>
+        <item quantity="other">%1$d events while you were away — some may have been missed.</item>
+    </plurals>
+    <string name="notification_summary_title">Agents needed you</string>
+    <string name="notification_channel_connection">Connection to the desktop</string>
+    <string name="notification_channel_connection_description">The ongoing notification while the app keeps the connection open</string>
+    <string name="notification_channel_attention">Agents needing you</string>
+    <string name="notification_channel_attention_description">An agent waits, asks for a choice, a handoff finished, a new inbox item</string>
+    <string name="notification_channel_status">Connection problems</string>
+    <string name="notification_channel_status_description">Pair again, the desktop\'s identity changed, the connection stopped</string>
+    <string name="notification_stopped">Stopped</string>
+    <string name="notification_stopped_title">Connection to %1$s stopped</string>
+    <string name="notification_stopped_text">Android did not let the app reconnect in the background. Tap to resume.</string>
+    <string name="notification_pair_again_title">Pair again with %1$s</string>
+    <string name="notification_pair_again_text">The desktop no longer accepts this phone. Scan a new pairing code.</string>
+    <string name="notification_identity_title">%1$s\'s identity changed</string>
+    <string name="status_recent_notified">notified</string>
+    <string name="status_recent_suppressed">suppressed</string>
+    <string name="status_recent_visible">on screen</string>
+    <string name="status_recent_summarized">summarized</string>
+    <string name="status_recent_replaced">replaced</string>
+</resources>

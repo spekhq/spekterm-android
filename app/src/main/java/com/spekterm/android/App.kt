@@ -52,6 +52,12 @@ class App : Application() {
         Attach.clearCache(this)
     }
 
+    /** The channels' names follow a change of language (`app-language`, `scan-connect-zh` D8). */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Notifications.createChannels(this)
+    }
+
     fun chooseTheme(choice: ThemeChoice) {
         themeStore.save(choice)
         themeChoice.value = choice

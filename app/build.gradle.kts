@@ -40,6 +40,11 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Lists English and zh-TW in Android 13+'s per-app language settings (`scan-connect-zh` D8).
+    androidResources {
+        generateLocaleConfig = true
+    }
 }
 
 kotlin {
@@ -58,7 +63,7 @@ dependencies {
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
-    implementation(libs.zxing.core)
+    implementation(libs.zxing.cpp)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
@@ -73,6 +78,8 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.okhttp.mockwebserver)
+    // Draws QR codes, and runs the old decoding path, for QrDecodeTest (`scan-connect-zh` D1, D2).
+    androidTestImplementation(libs.zxing.core)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)

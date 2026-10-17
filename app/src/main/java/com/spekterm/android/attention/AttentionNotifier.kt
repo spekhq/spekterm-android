@@ -87,13 +87,8 @@ class AttentionNotifier(
     }
 
     private fun post(key: String, event: Attention, alert: Boolean) {
-        val headline = when (event.kind) {
-            Attention.WAITING -> "Waiting for your input"
-            Attention.CHOICE -> "Asks for a choice" + (event.tool?.let { ": $it" } ?: "")
-            Attention.HANDOFF_DONE -> "Handoff finished"
-            Attention.INTAKE -> "New inbox item"
-            else -> "Needs your attention"
-        }
+        val headline = event.tool?.takeIf { event.kind == Attention.CHOICE }?.let { context.getString(R.string.notification_choice_tool, it) }
+            ?: context.getString(headline(event.kind))
         val title = listOfNotNull(event.title.takeIf { it.isNotEmpty() }, event.folderName).joinToString(" · ")
         val body = listOfNotNull(headline, event.summary).joinToString("\n")
         val builder = NotificationCompat.Builder(context, Notifications.CHANNEL_ATTENTION)
@@ -114,14 +109,14 @@ class AttentionNotifier(
     }
 
     private fun summarize(count: Int) {
-        val text = (if (count == 1) "1 event" else "$count events") + " while you were away — some may have been missed."
+        val text = context.resources.getQuantityString(R.plurals.notification_summary, count, count)
         Notifications.post(
             context,
             SUMMARY_TAG,
             ID,
             NotificationCompat.Builder(context, Notifications.CHANNEL_ATTENTION)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle("Agents needed you")
+                .setContentTitle(context.getString(R.string.notification_summary_title))
                 .setContentText(text)
                 .setAutoCancel(true)
                 .setContentIntent(Notifications.openApp(context, MainActivity.ACTION_OPEN_SESSIONS))
@@ -130,6 +125,15 @@ class AttentionNotifier(
     }
 
     companion object {
+        /** The notification's own words for an attention event's kind (`attention-notifications`). */
+        fun headline(kind: String): Int = when (kind) {
+            Attention.WAITING -> R.string.notification_waiting
+            Attention.CHOICE -> R.string.notification_choice
+            Attention.HANDOFF_DONE -> R.string.notification_handoff_done
+            Attention.INTAKE -> R.string.notification_intake
+            else -> R.string.notification_attention
+        }
+
         const val ID = 1
 
         /**

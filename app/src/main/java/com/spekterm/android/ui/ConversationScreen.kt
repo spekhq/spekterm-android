@@ -2,6 +2,9 @@
 
 package com.spekterm.android.ui
 
+import com.spekterm.android.R
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -157,14 +160,14 @@ fun ConversationScreen(
     SpekScaffold(
         topBar = { scroll ->
             TopBar(
-                title = session?.label?.ifEmpty { null } ?: "Session",
+                title = session?.label?.ifEmpty { null } ?: stringResource(R.string.conversation_title_fallback),
                 scroll = scroll,
                 onBack = onBack,
                 subtitle = c?.let { SessionsView.screenState(it, session) }?.let { state -> { StateLabel(state) } },
             ) {
                 // The session's folder's OpenSpec, as its group heading offers it (`session-detail-openspec` D1, D2).
                 OpenSpecGates.of(operations).folder(session, sessions.list?.folders.orEmpty())?.let { folder ->
-                    IconButton(onClick = { onOpenSpecFolder(folder.id) }) { Icon(SpekIcons.File, "OpenSpec for ${folder.name}") }
+                    IconButton(onClick = { onOpenSpecFolder(folder.id) }) { Icon(SpekIcons.File, stringResource(R.string.conversation_openspec_for, folder.name)) }
                 }
                 val actions = session?.let { SessionActions.of(it, operations, sessions.list) }.orEmpty()
                 if (actions.isNotEmpty()) {
@@ -180,19 +183,19 @@ fun ConversationScreen(
     ) {
         Column(Modifier.fillMaxSize()) {
             when (screen) {
-                Screen.Paused -> Notice("The connection is paused. What is shown may be out of date.", Tone.Warning, "Resume", onResume)
-                Screen.NotConnected -> Notice(notConnectedReason(status, announcements) + " What is shown may be out of date.", Tone.Warning, "Details", onStatus)
-                Screen.NoWindow -> Notice("spekterm has no open window on the desktop. What is shown may be out of date.", Tone.Warning)
+                Screen.Paused -> Notice(stringResource(R.string.conversation_paused), Tone.Warning, stringResource(R.string.common_resume), onResume)
+                Screen.NotConnected -> Notice(stringResource(R.string.conversation_out_of_date, notConnectedReason(status, announcements).text()), Tone.Warning, stringResource(R.string.common_details), onStatus)
+                Screen.NoWindow -> Notice(stringResource(R.string.conversation_no_window), Tone.Warning)
                 else -> Unit
             }
             when (screen) {
-                Screen.Closed -> CenteredMessage(SpekIcons.Info, "This session is no longer on the desktop.")
-                Screen.Shell -> CenteredMessage(SpekIcons.Shell, "Shell sessions need the terminal view, which the app does not have yet.")
+                Screen.Closed -> CenteredMessage(SpekIcons.Info, stringResource(R.string.conversation_closed))
+                Screen.Shell -> CenteredMessage(SpekIcons.Shell, stringResource(R.string.conversation_shell))
                 Screen.Dormant -> Dormant(sessionId)
                 else -> {
                     if (screen == Screen.Content && c != null) ContentNotices(c)
                     Entries(c, Modifier.weight(1f))
-                    c?.let { answerNote(it) }?.let { Notice(it, answerTone(c), "Dismiss", { Desktop.dismissAnswer(sessionId) }) }
+                    c?.let { answerNote(it) }?.let { Notice(it.text(), answerTone(c), stringResource(R.string.common_dismiss), { Desktop.dismissAnswer(sessionId) }) }
                     val offer = c?.prompt?.let { Answers.offer(it, operations, connected, announcements.paused, c.watch, c.answer) }
                     if (offer != null) PromptCard(sessionId, c.prompt!!, offer)
                     // The agent's offer to close the session, from the last list held (close-offer D5).
@@ -220,10 +223,10 @@ fun ConversationScreen(
 /** The agent's wait state while watched, for the top bar (D4). */
 @Composable
 private fun ContentNotices(c: Conversation) {
-    if (c.phase == Phase.CATCHING_UP) Notice("Catching up with the conversation…", Tone.Info)
-    if (c.phase == Phase.UNAVAILABLE) Notice("The conversation can't be read right now. Check it on the desktop.", Tone.Warning)
-    (c.watch as? Watch.Refused)?.let { Notice("Could not open the conversation (${it.code}).", Tone.Error) }
-    if (c.truncated) Notice("Older entries are not shown.", Tone.Info)
+    if (c.phase == Phase.CATCHING_UP) Notice(stringResource(R.string.conversation_catching_up), Tone.Info)
+    if (c.phase == Phase.UNAVAILABLE) Notice(stringResource(R.string.conversation_unavailable), Tone.Warning)
+    (c.watch as? Watch.Refused)?.let { Notice(stringResource(R.string.conversation_refused, it.code), Tone.Error) }
+    if (c.truncated) Notice(stringResource(R.string.conversation_truncated), Tone.Info)
 }
 
 @Composable
@@ -231,7 +234,7 @@ private fun Dormant(sessionId: String) {
     val scope = rememberCoroutineScope()
     var waking by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<RemoteError?>(null) }
-    CenteredMessage(SpekIcons.Dormant, "This session is dormant.") {
+    CenteredMessage(SpekIcons.Dormant, stringResource(R.string.conversation_dormant)) {
         Button(
             enabled = !waking,
             onClick = {
@@ -242,8 +245,8 @@ private fun Dormant(sessionId: String) {
                     waking = false
                 }
             },
-        ) { Text(if (waking) "Waking…" else "Wake") }
-        error?.let { Text(SessionAction.wakeText(it), color = MaterialTheme.colorScheme.error) }
+        ) { Text(stringResource(if (waking) R.string.common_waking else R.string.common_wake)) }
+        error?.let { Text(SessionAction.wakeText(it).text(), color = MaterialTheme.colorScheme.error) }
     }
 }
 
@@ -284,7 +287,7 @@ private fun Entries(c: Conversation?, modifier: Modifier) {
         Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             // Delivered and empty: a new session where nothing has been said yet (design D8).
             if (c?.phase == Phase.OK) {
-                Text("No messages yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.conversation_empty), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         return
@@ -334,7 +337,7 @@ private fun Entries(c: Conversation?, modifier: Modifier) {
                 modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                 contentColor = MaterialTheme.colorScheme.onSurface,
-            ) { Icon(SpekIcons.ArrowDown, "Jump to newest") }
+            ) { Icon(SpekIcons.ArrowDown, stringResource(R.string.conversation_jump_to_newest)) }
         }
     }
 }
@@ -342,8 +345,11 @@ private fun Entries(c: Conversation?, modifier: Modifier) {
 private val rowPad = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp)
 
 /** A line that expands and collapses by a tap anywhere on it, saying which it is. */
-private fun Modifier.toggles(open: Boolean, onToggle: () -> Unit): Modifier =
-    clickable(onClick = onToggle).semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
+@Composable
+private fun Modifier.toggles(open: Boolean, onToggle: () -> Unit): Modifier {
+    val state = stringResource(if (open) R.string.common_expanded else R.string.common_collapsed)
+    return clickable(onClick = onToggle).semantics { stateDescription = state }
+}
 
 @Composable
 private fun ShownRow(shown: Shown, open: MutableMap<String, Boolean>) {
@@ -362,23 +368,24 @@ private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     when (entry) {
         is Entry.User -> if (entry.meta) {
-            Muted("Injected by the agent", expanded, toggle) {
+            Muted(stringResource(R.string.conversation_injected), expanded, toggle) {
                 SelectionContainer { Text(entry.text, style = MaterialTheme.typography.bodySmall) }
             }
         } else {
             // The user's own message: a quiet bubble at the end, said to be theirs for a screen reader (D7).
+            val you = stringResource(R.string.conversation_you)
             BoxWithConstraints(Modifier.fillMaxWidth().padding(start = 48.dp, end = 12.dp, top = 6.dp, bottom = 6.dp), contentAlignment = Alignment.CenterEnd) {
                 Box(
                     Modifier
                         .widthIn(max = maxWidth)
-                        .semantics { contentDescription = "You" }
+                        .semantics { contentDescription = you }
                         .background(colors.surfaceContainerHigh, MaterialTheme.shapes.large)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                 ) { SelectionContainer { AgentMarkdown(entry.text) } }
             }
         }
         is Entry.Text -> Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) { SelectionContainer { AgentMarkdown(entry.text) } }
-        is Entry.Thinking -> Muted("Thinking", expanded, toggle) {
+        is Entry.Thinking -> Muted(stringResource(R.string.conversation_thinking), expanded, toggle) {
             SelectionContainer {
                 Text(entry.text, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic, color = colors.onSurfaceVariant)
             }
@@ -417,8 +424,8 @@ private fun CallMark(call: ConversationItems.Call) {
     Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
         when {
             call.result == null -> StatusDot(spek.dormant, hollow = true)
-            call.failed -> Icon(SpekIcons.Error, "Failed", Modifier.size(16.dp), tint = spek.danger)
-            else -> Icon(SpekIcons.Succeeded, "Succeeded", Modifier.size(16.dp), tint = spek.working)
+            call.failed -> Icon(SpekIcons.Error, stringResource(R.string.conversation_call_failed), Modifier.size(16.dp), tint = spek.danger)
+            else -> Icon(SpekIcons.Succeeded, stringResource(R.string.conversation_call_succeeded), Modifier.size(16.dp), tint = spek.working)
         }
     }
 }
@@ -461,7 +468,7 @@ private fun ResultLine(result: Entry.Result, expanded: Boolean, toggle: () -> Un
         Row(Modifier.fillMaxWidth().toggles(expanded, toggle).padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
             Chevron(expanded)
             Text(
-                if (result.error) "Failed" else "Result",
+                stringResource(if (result.error) R.string.conversation_result_failed else R.string.conversation_result),
                 style = MaterialTheme.typography.labelMedium,
                 color = if (result.error) spek.danger else MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -501,9 +508,9 @@ private fun RunItem(run: ConversationItems.Run, expanded: Boolean, toggle: () ->
             Chevron(expanded)
             Column(Modifier.weight(1f)) {
                 Row {
-                    Text("${run.calls.size} tool calls", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Text(pluralStringResource(R.plurals.conversation_run_calls, run.calls.size, run.calls.size), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     if (run.failed > 0) {
-                        Text(" · ${run.failed} failed", style = MaterialTheme.typography.labelLarge, color = spekColors.danger)
+                        Text(" · " + pluralStringResource(R.plurals.conversation_run_failed, run.failed, run.failed), style = MaterialTheme.typography.labelLarge, color = spekColors.danger)
                     }
                 }
                 if (!expanded) {
@@ -526,7 +533,7 @@ private fun RunItem(run: ConversationItems.Run, expanded: Boolean, toggle: () ->
                     val partToggle = { open[key] = !partOpen }
                     when (part) {
                         is ConversationItems.Call -> CallLine(part, partOpen, partToggle, Modifier.fillMaxWidth())
-                        is ConversationItems.Thinking -> Muted("Thinking", partOpen, partToggle) {
+                        is ConversationItems.Thinking -> Muted(stringResource(R.string.conversation_thinking), partOpen, partToggle) {
                             Text(part.entry.text, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic, color = colors.onSurfaceVariant)
                         }
                     }
@@ -541,22 +548,24 @@ private fun RunItem(run: ConversationItems.Run, expanded: Boolean, toggle: () ->
 private fun WorkingRow() {
     Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = spekColors.working)
-        Text("Working", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.conversation_working), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 private fun ReplyRow(reply: Reply, now: Long) {
     val label = reply.label(now)
-    val text = when (label) {
-        Reply.Label.SENDING -> "Sending…"
-        Reply.Label.NOT_YET_CONFIRMED -> "Not yet confirmed"
-        Reply.Label.WAITING_FOR_AGENT -> "Waiting for the agent to take it"
-        Reply.Label.NOT_IN_CONVERSATION_YET -> "Not in the conversation yet — check the desktop"
-        Reply.Label.NOT_SHOWN_AFTER_WORK -> "Sent while the agent worked — not in the conversation; check the desktop"
-        Reply.Label.MAY_NOT_HAVE_BEEN_SENT -> "May not have been sent — check the desktop"
-        Reply.Label.NOT_SUBMITTED -> "Typed into the agent's input but not sent — the agent's state changed (for example, a choice appeared). Finish it on the desktop."
-    }
+    val text = stringResource(
+        when (label) {
+            Reply.Label.SENDING -> R.string.conversation_sending
+            Reply.Label.NOT_YET_CONFIRMED -> R.string.conversation_reply_not_yet_confirmed
+            Reply.Label.WAITING_FOR_AGENT -> R.string.conversation_reply_waiting_for_agent
+            Reply.Label.NOT_IN_CONVERSATION_YET -> R.string.conversation_reply_not_in_conversation_yet
+            Reply.Label.NOT_SHOWN_AFTER_WORK -> R.string.conversation_reply_not_shown_after_work
+            Reply.Label.MAY_NOT_HAVE_BEEN_SENT -> R.string.conversation_reply_may_not_have_been_sent
+            Reply.Label.NOT_SUBMITTED -> R.string.conversation_reply_not_submitted
+        },
+    )
     val colors = MaterialTheme.colorScheme
     // The user's bubble, outlined: not (yet) part of the conversation (D7).
     Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 12.dp, top = 6.dp, bottom = 6.dp), contentAlignment = Alignment.CenterEnd) {
@@ -578,7 +587,7 @@ private fun ReplyRow(reply: Reply, now: Long) {
             )
             if (reply.attachments.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(SpekIcons.Attach, "Attachments", Modifier.size(14.dp), tint = colors.onSurfaceVariant)
+                    Icon(SpekIcons.Attach, stringResource(R.string.conversation_attachments), Modifier.size(14.dp), tint = colors.onSurfaceVariant)
                     Text(reply.attachments.joinToString(", ") { it.name }, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -606,9 +615,9 @@ private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, pa
     }
     var picking by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
-        c?.attachNote?.let { Notice(attachNoteText(it), attachNoteTone(it), "Dismiss", { Desktop.dismissAttachNote(sessionId) }) }
+        c?.attachNote?.let { Notice(attachNoteText(it).text(), attachNoteTone(it), stringResource(R.string.common_dismiss), { Desktop.dismissAttachNote(sessionId) }) }
         blockedText(blocked, answerable)?.let {
-            Text(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            Text(it.text(), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
         HorizontalDivider(color = colors.outlineVariant)
         Column(Modifier.fillMaxWidth().background(colors.surfaceContainer).padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -620,13 +629,13 @@ private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, pa
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (canAttach) {
                     Box {
-                        IconButton(enabled = connected && !paused && c?.closed != true, onClick = { picking = true }) { Icon(SpekIcons.Attach, "Attach") }
+                        IconButton(enabled = connected && !paused && c?.closed != true, onClick = { picking = true }) { Icon(SpekIcons.Attach, stringResource(R.string.conversation_attach)) }
                         DropdownMenu(expanded = picking, onDismissRequest = { picking = false }) {
-                            DropdownMenuItem(text = { Text("Photo") }, leadingIcon = { Icon(SpekIcons.Image, null) }, onClick = {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.conversation_photo)) }, leadingIcon = { Icon(SpekIcons.Image, null) }, onClick = {
                                 picking = false
                                 photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             })
-                            DropdownMenuItem(text = { Text("File") }, leadingIcon = { Icon(SpekIcons.File, null) }, onClick = {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.conversation_file)) }, leadingIcon = { Icon(SpekIcons.File, null) }, onClick = {
                                 picking = false
                                 files.launch(arrayOf("*/*"))
                             })
@@ -640,7 +649,7 @@ private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, pa
                         Desktop.setDraft(sessionId, it)
                     },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Reply to the agent") },
+                    placeholder = { Text(stringResource(R.string.conversation_reply_hint)) },
                     minLines = 1,
                     maxLines = 6,
                     shape = MaterialTheme.shapes.extraLarge,
@@ -661,7 +670,7 @@ private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, pa
                         scope.launch { if (!Desktop.send(sessionId, sending)) text = sending }
                     },
                     modifier = Modifier.padding(bottom = 4.dp),
-                ) { Icon(SpekIcons.Send, "Send") }
+                ) { Icon(SpekIcons.Send, stringResource(R.string.conversation_send)) }
             }
         }
     }
@@ -681,17 +690,17 @@ private fun AttachmentCard(a: Attachment) {
         Column(Modifier.weight(1f, fill = false).padding(vertical = 6.dp)) {
             Text(a.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                listOfNotNull(formatBytes(a.size).takeIf { a.size > 0 }, attachmentStateText(a)).joinToString(" · "),
+                listOfNotNull(formatBytes(a.size).takeIf { a.size > 0 }, attachmentStateText(a).text()).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (failed != null) colors.error else colors.onSurfaceVariant,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
             if (failed != null && a.file != null) {
-                TextButton(onClick = { Desktop.retryAttachment(a.localId) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text("Retry") }
+                TextButton(onClick = { Desktop.retryAttachment(a.localId) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text(stringResource(R.string.common_retry)) }
             }
         }
-        IconButton(onClick = { Desktop.removeAttachment(a.localId) }) { Icon(SpekIcons.Close, "Remove attachment", Modifier.size(18.dp)) }
+        IconButton(onClick = { Desktop.removeAttachment(a.localId) }) { Icon(SpekIcons.Close, stringResource(R.string.conversation_remove_attachment), Modifier.size(18.dp)) }
     }
 }
 
@@ -702,48 +711,48 @@ private fun attachmentIcon(name: String): ImageVector =
 private fun attachNoteTone(note: AttachNote): Tone = if (note == AttachNote.TOO_MANY_PICKED) Tone.Warning else Tone.Error
 
 
-private fun attachmentStateText(a: Attachment): String = when (val s = a.state) {
-    AttachmentState.Preparing -> "Preparing…"
-    AttachmentState.Queued -> "Waiting to upload"
-    is AttachmentState.Uploading -> "Uploading ${if (a.size > 0) (s.received * 100 / a.size) else 0}%"
-    is AttachmentState.Ready -> "Ready"
+private fun attachmentStateText(a: Attachment): UiText = when (val s = a.state) {
+    AttachmentState.Preparing -> UiText.Res(R.string.conversation_attachment_preparing)
+    AttachmentState.Queued -> UiText.Res(R.string.conversation_attachment_queued)
+    is AttachmentState.Uploading -> UiText.Res(R.string.conversation_attachment_uploading, (if (a.size > 0) (s.received * 100 / a.size) else 0).toInt())
+    is AttachmentState.Ready -> UiText.Res(R.string.conversation_attachment_ready)
     is AttachmentState.Failed -> failedText(s)
 }
 
-private fun failedText(f: AttachmentState.Failed): String = when (f.code) {
-    RemoteError.TOO_LARGE -> "The desktop refused it: over its limit" + (f.limit?.let { " of ${formatBytes(it)}" } ?: "") + "."
-    RemoteError.TOO_MANY -> "The desktop holds ${f.limit ?: Uploads.MAX_ATTACHMENTS} attachments not sent yet for this session; removed ones count for 24 hours."
-    RemoteError.UNSUPPORTED_TYPE -> "The desktop does not accept this kind of file."
-    RemoteError.NO_CONVERSATION -> "Only an agent session takes attachments."
-    RemoteError.UNKNOWN_OPERATION -> "The desktop does not accept attachments."
-    Uploads.NO_ANSWER -> "The connection is too slow or unstable to upload this. Retry when it is better."
-    Uploads.GONE -> "No longer on the desktop. Retry to upload it again."
-    Uploads.FILE -> "The file could not be read."
-    else -> "Could not upload it (${f.code})."
+private fun failedText(f: AttachmentState.Failed): UiText = when (f.code) {
+    RemoteError.TOO_LARGE -> f.limit?.let { UiText.Res(R.string.conversation_upload_too_large_of, formatBytes(it)) } ?: UiText.Res(R.string.conversation_upload_too_large)
+    RemoteError.TOO_MANY -> UiText.Res(R.string.conversation_upload_too_many, (f.limit ?: Uploads.MAX_ATTACHMENTS).toInt())
+    RemoteError.UNSUPPORTED_TYPE -> UiText.Res(R.string.conversation_upload_unsupported_type)
+    RemoteError.NO_CONVERSATION -> UiText.Res(R.string.conversation_upload_no_conversation)
+    RemoteError.UNKNOWN_OPERATION -> UiText.Res(R.string.conversation_upload_unknown_operation)
+    Uploads.NO_ANSWER -> UiText.Res(R.string.conversation_upload_no_answer)
+    Uploads.GONE -> UiText.Res(R.string.conversation_upload_gone)
+    Uploads.FILE -> UiText.Res(R.string.conversation_file_unreadable)
+    else -> UiText.Res(R.string.conversation_upload_failed, f.code)
 }
 
-private fun attachNoteText(note: AttachNote): String = when (note) {
-    AttachNote.TOO_MANY_PICKED -> "A reply can carry at most ${Uploads.MAX_ATTACHMENTS} attachments; the rest were not added."
-    AttachNote.KIND -> "Only photos, PDF and text files can be sent."
-    AttachNote.SIZE -> "Larger than the desktop's 10 MB limit."
-    AttachNote.EMPTY -> "The file is empty."
-    AttachNote.UNREADABLE -> "The file could not be read."
-    AttachNote.SEND_NOT_FOUND -> "The session is not running, or an attachment is no longer on the desktop."
+private fun attachNoteText(note: AttachNote): UiText = when (note) {
+    AttachNote.TOO_MANY_PICKED -> UiText.Res(R.string.conversation_note_too_many_picked, Uploads.MAX_ATTACHMENTS)
+    AttachNote.KIND -> UiText.Res(R.string.conversation_note_kind)
+    AttachNote.SIZE -> UiText.Res(R.string.conversation_note_size)
+    AttachNote.EMPTY -> UiText.Res(R.string.conversation_note_empty)
+    AttachNote.UNREADABLE -> UiText.Res(R.string.conversation_file_unreadable)
+    AttachNote.SEND_NOT_FOUND -> UiText.Res(R.string.conversation_note_send_not_found)
 }
 
-private fun blockedText(blocked: Blocked?, answerable: Boolean): String? = when (blocked) {
+private fun blockedText(blocked: Blocked?, answerable: Boolean): UiText? = when (blocked) {
     null, Blocked.Empty -> null
-    Blocked.Paused -> "The connection is paused. Resume it to reply."
-    Blocked.NotConnected -> "Not connected. You can reply once the phone reconnects."
-    Blocked.NotWatching -> "Catching up with the conversation…"
-    is Blocked.AwaitingChoice -> if (answerable) "Answer the choice above." else {
+    Blocked.Paused -> UiText.Res(R.string.conversation_blocked_paused)
+    Blocked.NotConnected -> UiText.Res(R.string.conversation_blocked_not_connected)
+    Blocked.NotWatching -> UiText.Res(R.string.conversation_catching_up)
+    is Blocked.AwaitingChoice -> if (answerable) UiText.Res(R.string.conversation_blocked_answer_above) else {
         // Only what the event carries; an event without the request says so plainly, as the desktop does.
         val asked = listOfNotNull(blocked.pending?.tool, blocked.pending?.arg).filter { it.isNotBlank() }.joinToString(" — ")
-        "The agent asks for a choice" + (if (asked.isEmpty()) "" else ": $asked") + ". Answer it on the desktop."
+        if (asked.isEmpty()) UiText.Res(R.string.conversation_blocked_choice) else UiText.Res(R.string.conversation_blocked_choice_asked, asked)
     }
-    Blocked.Unknown -> "spekterm can't tell whether the agent can take a message now. Reply on the desktop."
-    Blocked.InFlight -> "Sending…"
-    Blocked.Attaching -> "Uploading attachments…"
-    Blocked.AttachmentFailed -> "Retry or remove the attachment that failed to send."
-    Blocked.TooLong -> "Too long to send."
+    Blocked.Unknown -> UiText.Res(R.string.conversation_blocked_unknown)
+    Blocked.InFlight -> UiText.Res(R.string.conversation_sending)
+    Blocked.Attaching -> UiText.Res(R.string.conversation_blocked_attaching)
+    Blocked.AttachmentFailed -> UiText.Res(R.string.conversation_blocked_attachment_failed)
+    Blocked.TooLong -> UiText.Res(R.string.conversation_blocked_too_long)
 }

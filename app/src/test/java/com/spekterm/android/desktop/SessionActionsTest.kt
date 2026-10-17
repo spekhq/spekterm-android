@@ -1,6 +1,8 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.R
 import com.spekterm.android.desktop.SessionActions.Action
+import com.spekterm.android.ui.UiText
 import com.spekterm.android.net.Folder
 import com.spekterm.android.net.Lineage
 import com.spekterm.android.net.Operations
@@ -95,13 +97,13 @@ class SessionActionsTest {
 
     @Test
     fun busyTexts() {
-        assertEquals("The agent is working.", SessionAction.busyText("working"))
-        assertEquals("The agent is waiting for an answer to a choice.", SessionAction.busyText("choice"))
-        assertEquals("A message to the agent has not been confirmed sent yet.", SessionAction.busyText("unsent"))
-        assertEquals("A command is running in it.", SessionAction.busyText("job"))
-        assertEquals("The desktop can't tell whether it is idle.", SessionAction.busyText("unknown"))
-        assertEquals("The desktop can't tell whether it is idle.", SessionAction.busyText("later"))
-        assertEquals("The desktop can't tell whether it is idle.", SessionAction.busyText(null))
+        assertEquals(UiText.Res(R.string.session_busy_working), SessionAction.busyText("working"))
+        assertEquals(UiText.Res(R.string.session_busy_choice), SessionAction.busyText("choice"))
+        assertEquals(UiText.Res(R.string.session_busy_unsent), SessionAction.busyText("unsent"))
+        assertEquals(UiText.Res(R.string.session_busy_job), SessionAction.busyText("job"))
+        assertEquals(UiText.Res(R.string.session_busy_unknown), SessionAction.busyText("unknown"))
+        assertEquals(UiText.Res(R.string.session_busy_unknown), SessionAction.busyText("later"))
+        assertEquals(UiText.Res(R.string.session_busy_unknown), SessionAction.busyText(null))
         val working = SessionAction.Working(SessionAction.Kind.CLOSE, "s1", "A", force = false)
         assertEquals(SessionAction.Busy(SessionAction.Kind.CLOSE, "s1", "A", null), SessionAction.answered(working, busy(null)))
     }
@@ -109,14 +111,14 @@ class SessionActionsTest {
     @Test
     fun errorTexts() {
         val h = SessionAction.Kind.HIBERNATE
-        assertEquals("This session no longer exists.", SessionAction.errorText(h, RemoteError(RemoteError.NOT_FOUND)))
-        assertEquals("spekterm has no open window on the desktop.", SessionAction.errorText(h, RemoteError(RemoteError.NO_WINDOW)))
-        assertEquals("The desktop did not answer in time; it may still happen.", SessionAction.errorText(h, RemoteError(RemoteError.TIMEOUT)))
-        assertEquals("The desktop could not do it. (boom)", SessionAction.errorText(h, RemoteError(RemoteError.CREATE_FAILED, "boom")))
-        assertEquals("Not connected to the desktop. The session list shows whether it happened.", SessionAction.errorText(h, RemoteError(Desktop.NOT_CONNECTED)))
-        assertEquals("Could not hibernate it (BAD_PARAMS).", SessionAction.errorText(h, RemoteError(RemoteError.BAD_PARAMS)))
-        assertEquals("Could not close it (INTERNAL).", SessionAction.errorText(SessionAction.Kind.CLOSE, RemoteError(RemoteError.INTERNAL)))
-        assertEquals("spekterm has no open window on the desktop. Open it there first.", SessionAction.errorText(SessionAction.Kind.WAKE, RemoteError(RemoteError.NO_WINDOW)))
+        assertEquals(UiText.Res(R.string.session_gone), SessionAction.errorText(h, RemoteError(RemoteError.NOT_FOUND)))
+        assertEquals(UiText.Res(R.string.session_no_window), SessionAction.errorText(h, RemoteError(RemoteError.NO_WINDOW)))
+        assertEquals(UiText.Res(R.string.session_timeout), SessionAction.errorText(h, RemoteError(RemoteError.TIMEOUT)))
+        assertEquals(UiText.Res(R.string.session_could_not_message, "boom"), SessionAction.errorText(h, RemoteError(RemoteError.CREATE_FAILED, "boom")))
+        assertEquals(UiText.Res(R.string.session_not_connected_check_list), SessionAction.errorText(h, RemoteError(Desktop.NOT_CONNECTED)))
+        assertEquals(UiText.Res(R.string.session_hibernate_failed, RemoteError.BAD_PARAMS), SessionAction.errorText(h, RemoteError(RemoteError.BAD_PARAMS)))
+        assertEquals(UiText.Res(R.string.session_close_failed, RemoteError.INTERNAL), SessionAction.errorText(SessionAction.Kind.CLOSE, RemoteError(RemoteError.INTERNAL)))
+        assertEquals(UiText.Res(R.string.session_wake_no_window), SessionAction.errorText(SessionAction.Kind.WAKE, RemoteError(RemoteError.NO_WINDOW)))
     }
 
     private val close = SessionAction.Kind.CLOSE
@@ -158,14 +160,14 @@ class SessionActionsTest {
         assertEquals(SessionAction.Working(keep, "s1", "A", force = false), start)
         assertEquals(SessionAction.Done(keep, "s1", "A"), SessionAction.answered(start, null))
         assertEquals(
-            SessionAction.Failed(keep, "s1", "A", "Could not keep it (SESSION_BUSY)."),
+            SessionAction.Failed(keep, "s1", "A", UiText.Res(R.string.session_keep_failed, RemoteError.SESSION_BUSY)),
             SessionAction.answered(start, busy("working")),
         )
-        assertEquals("This session no longer exists.", SessionAction.errorText(keep, RemoteError(RemoteError.NOT_FOUND)))
-        assertEquals("spekterm has no open window on the desktop.", SessionAction.errorText(keep, RemoteError(RemoteError.NO_WINDOW)))
-        assertEquals("The desktop did not answer in time; its card may still show there.", SessionAction.errorText(keep, RemoteError(RemoteError.TIMEOUT)))
-        assertEquals("The desktop could not do it. (boom)", SessionAction.errorText(keep, RemoteError(RemoteError.CREATE_FAILED, "boom")))
-        assertEquals("Not connected to the desktop. The session list shows whether it happened.", SessionAction.errorText(keep, RemoteError(Desktop.NOT_CONNECTED)))
-        assertEquals("Could not keep it (BAD_PARAMS).", SessionAction.errorText(keep, RemoteError(RemoteError.BAD_PARAMS)))
+        assertEquals(UiText.Res(R.string.session_gone), SessionAction.errorText(keep, RemoteError(RemoteError.NOT_FOUND)))
+        assertEquals(UiText.Res(R.string.session_no_window), SessionAction.errorText(keep, RemoteError(RemoteError.NO_WINDOW)))
+        assertEquals(UiText.Res(R.string.session_keep_timeout), SessionAction.errorText(keep, RemoteError(RemoteError.TIMEOUT)))
+        assertEquals(UiText.Res(R.string.session_could_not_message, "boom"), SessionAction.errorText(keep, RemoteError(RemoteError.CREATE_FAILED, "boom")))
+        assertEquals(UiText.Res(R.string.session_not_connected_check_list), SessionAction.errorText(keep, RemoteError(Desktop.NOT_CONNECTED)))
+        assertEquals(UiText.Res(R.string.session_keep_failed, RemoteError.BAD_PARAMS), SessionAction.errorText(keep, RemoteError(RemoteError.BAD_PARAMS)))
     }
 }

@@ -2,6 +2,8 @@
 
 package com.spekterm.android.ui
 
+import com.spekterm.android.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -103,9 +105,9 @@ fun PromptCard(sessionId: String, prompt: Prompt, offer: Offer) {
             )
             Text(
                 when (prompt) {
-                    is Prompt.Permission -> "The agent asks for permission"
-                    is Prompt.Question -> "The agent asks"
-                    is Prompt.Plan -> "The agent asks to approve its plan"
+                    is Prompt.Permission -> stringResource(R.string.prompt_permission)
+                    is Prompt.Question -> stringResource(R.string.prompt_question)
+                    is Prompt.Plan -> stringResource(R.string.prompt_plan)
                 },
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
@@ -125,18 +127,18 @@ fun PromptCard(sessionId: String, prompt: Prompt, offer: Offer) {
         }
         when (offer) {
             is Offer.ReadOnly -> readOnlyText(offer.reason, prompt)?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it.text(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             is Offer.Answerable -> {
                 if (prompt is Prompt.Permission && !prompt.canAllow) {
-                    Text("To allow it, answer on the desktop.", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.prompt_allow_on_desktop), style = MaterialTheme.typography.bodySmall)
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     for (decision in offer.decisions) {
                         val selections = (prompt as? Prompt.Question)?.let { Answers.selections(it, chosen) }
                         val enabled = usable && (decision != Prompt.ANSWER || selections != null)
                         val onClick = { answer(decision, if (decision == Prompt.ANSWER) selections else null) }
-                        val label: @Composable () -> Unit = { Text(decisionLabel(prompt, decision)) }
+                        val label: @Composable () -> Unit = { Text(stringResource(decisionLabel(prompt, decision))) }
                         // Going ahead is filled, auto mode tonal, stopping outlined (D9).
                         when (decision) {
                             Prompt.ALLOW, Prompt.ANSWER, Prompt.APPROVE -> Button(onClick, enabled = enabled) { label() }
@@ -145,7 +147,7 @@ fun PromptCard(sessionId: String, prompt: Prompt, offer: Offer) {
                         }
                     }
                 }
-                Text("${denyLabel(prompt)} stops the agent; it then waits for your reply.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.prompt_deny_stops, stringResource(denyLabel(prompt))), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -158,7 +160,7 @@ private fun QuestionForm(q: Prompt.Question.Item, picked: Set<Int>, enabled: Boo
             Column {
                 if (q.header.isNotBlank()) Text(q.header, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(q.question, style = MaterialTheme.typography.bodyMedium)
-                Text(if (q.multiSelect) "Choose one or more" else "Choose one", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (q.multiSelect) stringResource(R.string.prompt_choose_many) else stringResource(R.string.prompt_choose_one), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         q.options.forEachIndexed { j, option ->
@@ -182,11 +184,11 @@ private fun PlanText(plan: String) {
     Box(Modifier.fillMaxWidth().heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
         SelectionContainer { Text(plan, style = MaterialTheme.typography.bodySmall) }
     }
-    TextButton(onClick = { all = true }) { Text("Show all") }
+    TextButton(onClick = { all = true }) { Text(stringResource(R.string.prompt_show_plan)) }
     if (all) {
         Dialog(onDismissRequest = { all = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(Modifier.fillMaxSize()) {
-                SpekScaffold(topBar = { scroll -> TopBar("Plan", scroll, onBack = { all = false }) }) {
+                SpekScaffold(topBar = { scroll -> TopBar(stringResource(R.string.prompt_plan_title), scroll, onBack = { all = false }) }) {
                     Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
                         SelectionContainer { Text(plan, style = MaterialTheme.typography.bodyMedium) }
                     }
@@ -196,43 +198,39 @@ private fun PlanText(plan: String) {
     }
 }
 
-private fun decisionLabel(prompt: Prompt, decision: String): String = when (decision) {
-    Prompt.ALLOW -> "Allow once"
-    Prompt.ANSWER -> "Send answer"
-    Prompt.APPROVE -> "Approve (ask before edits)"
-    Prompt.APPROVE_AUTO -> "Approve in auto mode"
+private fun decisionLabel(prompt: Prompt, decision: String): Int = when (decision) {
+    Prompt.ALLOW -> R.string.prompt_allow_once
+    Prompt.ANSWER -> R.string.prompt_send_answer
+    Prompt.APPROVE -> R.string.prompt_approve
+    Prompt.APPROVE_AUTO -> R.string.prompt_approve_auto
     else -> denyLabel(prompt)
 }
 
-private fun denyLabel(prompt: Prompt): String = when (prompt) {
-    is Prompt.Permission -> "Deny"
-    is Prompt.Question -> "Decline"
-    is Prompt.Plan -> "Keep planning"
+private fun denyLabel(prompt: Prompt): Int = when (prompt) {
+    is Prompt.Permission -> R.string.prompt_deny
+    is Prompt.Question -> R.string.prompt_decline
+    is Prompt.Plan -> R.string.prompt_keep_planning
 }
 
-private fun readOnlyText(reason: Offer.Reason, prompt: Prompt): String? = when (reason) {
+private fun readOnlyText(reason: Offer.Reason, prompt: Prompt): UiText? = when (reason) {
     // The composer already says why nothing can be sent now.
     Offer.Reason.NotConnected, Offer.Reason.Paused, Offer.Reason.NotWatching -> null
-    Offer.Reason.NoOperation -> "Answer it on the desktop."
-    is Offer.Reason.Open -> "${reason.count} requests are open. Answer them on the desktop."
-    Offer.Reason.TooLarge -> "Too many questions or options to answer on the phone. Answer it on the desktop."
-    Offer.Reason.NotAnswerable -> "This choice can no longer be answered from the phone. Answer it on the desktop."
-    Offer.Reason.Answering -> "Answering…"
-    Offer.Reason.Answered -> if (prompt is Prompt.Question || prompt is Prompt.Plan) "Answered. Waiting for the agent." else "Answered."
+    Offer.Reason.NoOperation -> UiText.Res(R.string.prompt_answer_on_desktop)
+    is Offer.Reason.Open -> UiText.Plural(R.plurals.prompt_open_requests, reason.count)
+    Offer.Reason.TooLarge -> UiText.Res(R.string.prompt_too_large)
+    Offer.Reason.NotAnswerable -> UiText.Res(R.string.prompt_not_answerable)
+    Offer.Reason.Answering -> UiText.Res(R.string.prompt_answering)
+    Offer.Reason.Answered -> UiText.Res(if (prompt is Prompt.Question || prompt is Prompt.Plan) R.string.prompt_answered_waiting else R.string.prompt_answered)
 }
 
 /** How the last answer went (design D4); warnings stay until dismissed. `null` when there is nothing to say. */
-fun answerNote(c: Conversation): String? = when (val outcome = c.answer?.outcome) {
+fun answerNote(c: Conversation): UiText? = when (val outcome = c.answer?.outcome) {
     null, AnswerOutcome.Done -> null
-    AnswerOutcome.Partial -> "Only part of the answer was written. Finish it on the desktop."
-    AnswerOutcome.Mismatch -> "The agent recorded a different answer than chosen. Check the desktop."
-    AnswerOutcome.Gone -> "This choice could no longer be answered from the phone — it changed, or was typed into on the desktop. Nothing was sent."
-    is AnswerOutcome.Refused -> if (outcome.code == RemoteError.NOT_FOUND) {
-        "The session is not running. Nothing was sent."
-    } else {
-        "The desktop did not take that answer from the phone. Nothing was sent; answer it on the desktop."
-    }
-    AnswerOutcome.Unknown -> "Can't tell whether the answer was written. Check the desktop."
+    AnswerOutcome.Partial -> UiText.Res(R.string.prompt_note_partial)
+    AnswerOutcome.Mismatch -> UiText.Res(R.string.prompt_note_mismatch)
+    AnswerOutcome.Gone -> UiText.Res(R.string.prompt_note_gone)
+    is AnswerOutcome.Refused -> UiText.Res(if (outcome.code == RemoteError.NOT_FOUND) R.string.prompt_note_not_running else R.string.prompt_note_refused)
+    AnswerOutcome.Unknown -> UiText.Res(R.string.prompt_note_unknown)
 }
 
 /** The tone of [answerNote] (D5): something that may need finishing is a warning; nothing sent is an error. */

@@ -191,7 +191,7 @@ class SessionsViewTest {
 
     @Test
     fun choicesHoldGlobalThenEveryFolderEvenWithoutSessions() {
-        val choices = SessionsView.choices(list)
+        val choices = SessionsView.choices(list, globalName = "Global")
         assertEquals(listOf(null, "f1", "f2", "empty"), choices.map { it.folderId })
         assertEquals(listOf("Global", "alpha", "beta", "unused"), choices.map { it.name })
     }

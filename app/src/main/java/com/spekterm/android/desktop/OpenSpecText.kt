@@ -1,5 +1,7 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.ui.UiText
+import com.spekterm.android.R
 import com.spekterm.android.net.OsChange
 import com.spekterm.android.net.RemoteError
 import java.util.Locale
@@ -27,17 +29,17 @@ object OpenSpecText {
     }
 
     /** What a failed read of [target] says (design D4). */
-    fun error(target: OpenSpecTarget, error: RemoteError): String = when (error.code) {
+    fun error(target: OpenSpecTarget, error: RemoteError): UiText = when (error.code) {
         RemoteError.NOT_FOUND -> when (target) {
-            is OpenSpecTarget.Changes, is OpenSpecTarget.Specs -> "This folder is no longer in the desktop's workspace."
-            is OpenSpecTarget.Change -> "This change is no longer in the folder."
-            is OpenSpecTarget.Spec -> "This spec is no longer in the folder."
+            is OpenSpecTarget.Changes, is OpenSpecTarget.Specs -> UiText.Res(R.string.openspec_error_folder_gone)
+            is OpenSpecTarget.Change -> UiText.Res(R.string.openspec_error_change_gone)
+            is OpenSpecTarget.Spec -> UiText.Res(R.string.openspec_error_spec_gone)
         }
-        RemoteError.TOO_LARGE -> "Too large for the phone: the desktop sends at most ${error.detailLong("limit")?.let(::megabytes) ?: "1 MB"}."
-        RemoteError.INTERNAL -> "The desktop could not read it."
-        RemoteError.UNKNOWN_OPERATION -> "This desktop does not offer it."
-        Desktop.NOT_CONNECTED -> "Not connected."
-        else -> "The desktop answered ${error.code}."
+        RemoteError.TOO_LARGE -> UiText.Res(R.string.openspec_error_too_large, error.detailLong("limit")?.let(::megabytes) ?: "1 MB")
+        RemoteError.INTERNAL -> UiText.Res(R.string.openspec_error_internal)
+        RemoteError.UNKNOWN_OPERATION -> UiText.Res(R.string.openspec_error_unknown_operation)
+        Desktop.NOT_CONNECTED -> UiText.Res(R.string.openspec_not_connected)
+        else -> UiText.Res(R.string.openspec_error_other, error.code)
     }
 
     private fun megabytes(bytes: Long): String {

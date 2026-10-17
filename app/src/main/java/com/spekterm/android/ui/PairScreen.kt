@@ -2,6 +2,13 @@
 
 package com.spekterm.android.ui
 
+import com.spekterm.android.service.Networks
+import com.spekterm.android.log.ConnectionLog
+import com.spekterm.android.app
+import kotlinx.coroutines.delay
+import com.spekterm.android.R
+import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.LaunchedEffect
 import android.Manifest
 import android.content.ClipboardManager
 import android.content.Context
@@ -45,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,26 +68,56 @@ import com.spekterm.android.store.Pairing
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * Pairing (`device-pairing`): scanning, pasting, and a link handed over by another app. [offered] is such a link,
+ * asked about inline until [onOfferDone]; [start] is one the user already confirmed over another screen, paired at
+ * once ([onStarted] consumes it). [current] is the pairing in place while pairing again. [onBusy] says when a
+ * pairing is under way, so the activity drops a link that arrives meanwhile (`scan-connect-zh` D4).
+ */
 @Composable
-fun PairScreen(pairAgain: Boolean, onPaired: (Pairing) -> Unit, onCancel: (() -> Unit)? = null) {
+fun PairScreen(
+    pairAgain: Boolean,
+    onPaired: (Pairing) -> Unit,
+    onCancel: (() -> Unit)? = null,
+    current: Pairing? = null,
+    offered: String? = null,
+    onOfferDone: () -> Unit = {},
+    start: String? = null,
+    onStarted: () -> Unit = {},
+    onBusy: (Boolean) -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var text by remember { mutableStateOf("") }
+    var text by rememberSaveable { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf<String?>(null) }
-    var message by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf<UiText?>(null) }
+    var message by remember { mutableStateOf<Message?>(null) }
+    /** When the scanner last read a QR code that is not a pairing link; the hint clears 3 s after (D3). */
+    var otherCodeAt by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(otherCodeAt) {
+        val at = otherCodeAt ?: return@LaunchedEffect
+        delay(OTHER_CODE_HINT_MS - (System.currentTimeMillis() - at))
+        if (otherCodeAt == at) otherCodeAt = null
+    }
+    LaunchedEffect(busy != null) { onBusy(busy != null) }
 
     fun pair(raw: String) {
         scanning = false
         when (val parsed = PairingLink.parse(raw)) {
-            is PairingLink.Result.Refused -> message = refusalText(parsed.reason)
+            is PairingLink.Result.Refused -> message = Message(listOf(refusalText(parsed.reason)), Tone.Error)
             is PairingLink.Result.Ok -> {
                 val link = parsed.link
-                busy = "Pairing with ${link.name.ifEmpty { "the desktop" }}…"
+                busy = if (link.name.isEmpty()) UiText.Res(R.string.pair_busy_unnamed) else UiText.Res(R.string.pair_busy, link.name)
                 message = null
                 scope.launch {
                     val result = try {
-                        Pairer.pair(link, deviceName(context), Build.MODEL)
+                        Pairer.pair(
+                            link,
+                            deviceName(context),
+                            Build.MODEL,
+                            network = { Networks.current(context) },
+                            onAttempt = { context.app.log.write(ConnectionLog.Kind.ATTEMPT, "address" to it, "source" to "pair") },
+                        )
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -88,20 +126,36 @@ fun PairScreen(pairAgain: Boolean, onPaired: (Pairing) -> Unit, onCancel: (() ->
                     busy = null
                     when (result) {
                         is Pairer.Result.Paired -> onPaired(result.pairing)
-                        is Pairer.Result.Failed -> message = failureText(result)
+                        is Pairer.Result.Failed -> message = Message(failureText(result, link.port), Tone.Error)
                     }
                 }
             }
         }
     }
 
+    // A link confirmed over another screen pairs at once; one offered here stops scanning and is asked about.
+    LaunchedEffect(start) {
+        val link = start ?: return@LaunchedEffect
+        onStarted()
+        pair(link)
+    }
+    val offer = offered?.let { PairingLink.parse(it) }
+    LaunchedEffect(offered) {
+        if (offered == null) return@LaunchedEffect
+        scanning = false
+        if (offer is PairingLink.Result.Refused) {
+            message = Message(listOf(refusalText(offer.reason)), Tone.Error)
+            onOfferDone()
+        }
+    }
+
     val askCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) scanning = true else message = CAMERA_DENIED
+        if (granted) scanning = true else message = Message(listOf(UiText.Res(R.string.pair_camera_denied)), Tone.Warning)
     }
 
     // Back while re-pairing returns to settings, as the top bar's back does; the pairing stays.
     BackHandler(enabled = onCancel != null) { onCancel?.invoke() }
-    SpekScaffold(topBar = { scroll -> if (onCancel != null) TopBar("Pair again", scroll, onBack = onCancel) }) {
+    SpekScaffold(topBar = { scroll -> if (onCancel != null) TopBar(stringResource(R.string.pair_again_title), scroll, onBack = onCancel) }) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -116,18 +170,39 @@ fun PairScreen(pairAgain: Boolean, onPaired: (Pairing) -> Unit, onCancel: (() ->
                     Modifier.size(72.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Icon(SpekIcons.QrCode, null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) }
-                Text("Pair with spekterm", style = MaterialTheme.typography.headlineSmall)
-                if (pairAgain) {
-                    Notice("The desktop no longer accepts this phone (it was revoked, or remote access was reset). Pair again.", Tone.Warning)
+                Text(stringResource(R.string.pair_title), style = MaterialTheme.typography.headlineSmall)
+                if (pairAgain) Notice(stringResource(R.string.pair_revoked), Tone.Warning)
+                if (offer is PairingLink.Result.Ok && busy == null) {
+                    PairOfferCard(
+                        offer.link,
+                        current,
+                        onPair = {
+                            offered?.let { raw ->
+                                onOfferDone()
+                                pair(raw)
+                            }
+                        },
+                        onCancel = onOfferDone,
+                    )
                 }
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Step(1, "On the desktop, open Settings → Remote access → Pair device.")
-                    Step(2, "Scan the code, or paste its link.")
+                    Step(1, stringResource(R.string.pair_step_1))
+                    Step(2, stringResource(R.string.pair_step_2))
                 }
 
                 if (scanning) {
-                    QrScanner(Modifier.fillMaxWidth().aspectRatio(1f).clip(MaterialTheme.shapes.large)) { pair(it) }
-                    OutlinedButton(onClick = { scanning = false }, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
+                    QrScanner(Modifier.fillMaxWidth().aspectRatio(1f).clip(MaterialTheme.shapes.large)) { decoded ->
+                        // A pairing link stops scanning, even one `parse` then refuses; anything else is skipped (D3).
+                        if (PairingLink.isPairingLink(decoded)) {
+                            pair(decoded)
+                            true
+                        } else {
+                            otherCodeAt = System.currentTimeMillis()
+                            false
+                        }
+                    }
+                    if (otherCodeAt != null) Notice(stringResource(R.string.scan_not_a_pairing_code), Tone.Info)
+                    OutlinedButton(onClick = { scanning = false }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.common_cancel)) }
                 } else {
                     Button(
                         enabled = busy == null,
@@ -143,50 +218,53 @@ fun PairScreen(pairAgain: Boolean, onPaired: (Pairing) -> Unit, onCancel: (() ->
                     ) {
                         Icon(SpekIcons.QrCode, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Scan QR code")
+                        Text(stringResource(R.string.pair_scan))
                     }
                 }
 
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     HorizontalDivider(Modifier.weight(1f))
-                    Text("or", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.pair_or), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     HorizontalDivider(Modifier.weight(1f))
                 }
 
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    label = { Text("Pairing link") },
+                    label = { Text(stringResource(R.string.pair_link_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     trailingIcon = {
                         IconButton(enabled = busy == null, onClick = {
                             val clip = context.getSystemService(ClipboardManager::class.java).primaryClip
                             clip?.getItemAt(0)?.coerceToText(context)?.toString()?.let { text = it }
-                        }) { Icon(SpekIcons.Paste, "Paste link") }
+                        }) { Icon(SpekIcons.Paste, stringResource(R.string.pair_paste)) }
                     },
                 )
                 FilledTonalButton(
                     enabled = busy == null && text.isNotBlank(),
                     onClick = { pair(text) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                ) { Text("Pair") }
+                ) { Text(stringResource(R.string.common_pair)) }
 
                 busy?.let {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
-                        Text(it, style = MaterialTheme.typography.bodyMedium)
+                        Text(it.text(), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                message?.let { Notice(it, messageTone(it)) }
+                message?.let { m -> Notice(m.lines.map { it.text() }.joinToString("\n"), m.tone) }
                 if (onCancel != null) {
-                    Text("The current pairing stays until a new one succeeds.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(enabled = busy == null, onClick = onCancel) { Text("Back to settings") }
+                    Text(stringResource(R.string.pair_current_stays), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(enabled = busy == null, onClick = onCancel) { Text(stringResource(R.string.pair_back_to_settings)) }
                 }
             }
         }
     }
 }
+
+/** A notice's lines and its tone (D5): the camera refused is a warning (pasting still works), failures errors. */
+private data class Message(val lines: List<UiText>, val tone: Tone)
 
 @Composable
 private fun Step(n: Int, text: String) {
@@ -201,26 +279,26 @@ private fun Step(n: Int, text: String) {
     }
 }
 
-/** D5: the camera refused is a warning (pasting still works); a refused link or a failed pairing is an error. */
-private fun messageTone(message: String): Tone = if (message == CAMERA_DENIED) Tone.Warning else Tone.Error
-
-private const val CAMERA_DENIED = "Scanning needs the camera. You can paste the pairing link instead."
+private const val OTHER_CODE_HINT_MS = 3_000L
 
 private fun deviceName(context: Context): String =
     Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
 
-private fun refusalText(reason: PairingLink.Refusal): String = when (reason) {
-    PairingLink.Refusal.UNSUPPORTED_VERSION -> "This link needs a newer version of the app."
-    PairingLink.Refusal.BAD_ADDRESS -> "The link holds an address the phone cannot connect to."
-    else -> "This is not a valid pairing link."
-}
-
-private fun failureText(result: Pairer.Result.Failed): String = when (result.failure) {
-    Pairer.Failure.CODE_INVALID -> "The code is no longer valid (used, expired, or its view was closed). Show a new code on the desktop."
-    Pairer.Failure.THROTTLED -> "Too many failed attempts. Wait a minute and try again."
-    Pairer.Failure.UNSUPPORTED -> "The app and the desktop speak different protocol versions" +
-        (result.detail?.let { " (desktop: $it)" } ?: "") + ". Update the older one."
-    Pairer.Failure.WRONG_CERTIFICATE -> "A server answered at ${result.tried.joinToString()}, but it is not the desktop in the link."
-    Pairer.Failure.UNREACHABLE -> "Could not reach the desktop. Tried: ${result.tried.joinToString()}."
-    Pairer.Failure.OTHER -> "Pairing failed" + (result.detail?.let { ": $it" } ?: ".")
+/** The failure's sentences; an unreachable or wrong-certificate pairing says why, with each address's outcome (D6). */
+private fun failureText(result: Pairer.Result.Failed, port: Int): List<UiText> {
+    val report = result.report
+    return when (result.failure) {
+        Pairer.Failure.CODE_INVALID -> listOf(UiText.Res(R.string.pair_failed_code))
+        Pairer.Failure.THROTTLED -> listOf(UiText.Res(R.string.pair_failed_throttled))
+        Pairer.Failure.UNSUPPORTED -> listOf(
+            result.detail?.let { UiText.Res(R.string.pair_failed_unsupported_versions, it) } ?: UiText.Res(R.string.pair_failed_unsupported),
+        )
+        Pairer.Failure.WRONG_CERTIFICATE, Pairer.Failure.UNREACHABLE -> if (report == null) {
+            listOf(UiText.Res(R.string.pair_failed_unreachable))
+        } else {
+            listOf(UiText.Res(R.string.pair_failed_unreachable), Reasons.said(report, port)) + Reasons.advice(report, port) +
+                report.outcomes.map { (address, outcome) -> UiText.Res(R.string.common_address_outcome, address, Reasons.outcome(outcome)) }
+        }
+        Pairer.Failure.OTHER -> listOf(result.detail?.let { UiText.Res(R.string.pair_failed_other_detail, it) } ?: UiText.Res(R.string.pair_failed_other))
+    }
 }

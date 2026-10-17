@@ -1,5 +1,7 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.ui.UiText
+import com.spekterm.android.R
 import com.spekterm.android.net.Operations
 import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.Session
@@ -75,7 +77,7 @@ sealed interface SessionAction {
 
     data class Busy(override val kind: Kind, override val sessionId: String, override val label: String, val reason: String?) : SessionAction
 
-    data class Failed(override val kind: Kind, override val sessionId: String, override val label: String, val text: String) : SessionAction
+    data class Failed(override val kind: Kind, override val sessionId: String, override val label: String, val text: UiText) : SessionAction
 
     data class Done(override val kind: Kind, override val sessionId: String, override val label: String) : SessionAction
 
@@ -103,41 +105,47 @@ sealed interface SessionAction {
         }
 
         /** Why the desktop thinks the session is busy; a reason not known reads as the desktop not being able to tell. */
-        fun busyText(reason: String?): String = when (reason) {
-            "working" -> "The agent is working."
-            "choice" -> "The agent is waiting for an answer to a choice."
-            "unsent" -> "A message to the agent has not been confirmed sent yet."
-            "job" -> "A command is running in it."
-            else -> "The desktop can't tell whether it is idle."
-        }
+        fun busyText(reason: String?): UiText = UiText.Res(
+            when (reason) {
+                "working" -> R.string.session_busy_working
+                "choice" -> R.string.session_busy_choice
+                "unsent" -> R.string.session_busy_unsent
+                "job" -> R.string.session_busy_job
+                else -> R.string.session_busy_unknown
+            },
+        )
 
         /** Waking's own texts, shared with the dormant screen's "Wake". */
-        fun wakeText(e: RemoteError): String = when (e.code) {
-            RemoteError.NO_WINDOW -> "spekterm has no open window on the desktop. Open it there first."
-            RemoteError.CREATE_FAILED -> "The desktop could not start the session." + e.message.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
-            RemoteError.TIMEOUT -> "The desktop did not answer in time. Try again."
-            RemoteError.NOT_FOUND -> "This session no longer exists."
-            Desktop.NOT_CONNECTED -> "Not connected to the desktop."
-            else -> "Could not wake it (${e.code})."
+        fun wakeText(e: RemoteError): UiText = when (e.code) {
+            RemoteError.NO_WINDOW -> UiText.Res(R.string.session_wake_no_window)
+            RemoteError.CREATE_FAILED -> withMessage(R.string.session_wake_create_failed, R.string.session_wake_create_failed_message, e)
+            RemoteError.TIMEOUT -> UiText.Res(R.string.session_wake_timeout)
+            RemoteError.NOT_FOUND -> UiText.Res(R.string.session_gone)
+            Desktop.NOT_CONNECTED -> UiText.Res(R.string.common_not_connected)
+            else -> UiText.Res(R.string.session_wake_failed, e.code)
         }
 
         /** Keep's texts (D3). A timeout may leave the desktop's card up: its list has dropped the mark already. */
-        fun keepText(e: RemoteError): String = when (e.code) {
-            RemoteError.NOT_FOUND -> "This session no longer exists."
-            RemoteError.NO_WINDOW -> "spekterm has no open window on the desktop."
-            RemoteError.TIMEOUT -> "The desktop did not answer in time; its card may still show there."
-            RemoteError.CREATE_FAILED -> "The desktop could not do it." + e.message.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
-            Desktop.NOT_CONNECTED -> "Not connected to the desktop. The session list shows whether it happened."
-            else -> "Could not keep it (${e.code})."
+        fun keepText(e: RemoteError): UiText = when (e.code) {
+            RemoteError.NOT_FOUND -> UiText.Res(R.string.session_gone)
+            RemoteError.NO_WINDOW -> UiText.Res(R.string.session_no_window)
+            RemoteError.TIMEOUT -> UiText.Res(R.string.session_keep_timeout)
+            RemoteError.CREATE_FAILED -> withMessage(R.string.session_could_not, R.string.session_could_not_message, e)
+            Desktop.NOT_CONNECTED -> UiText.Res(R.string.session_not_connected_check_list)
+            else -> UiText.Res(R.string.session_keep_failed, e.code)
         }
 
-        fun errorText(kind: Kind, e: RemoteError): String = if (kind == Kind.WAKE) wakeText(e) else if (kind == Kind.KEEP) keepText(e) else when (e.code) {
-            RemoteError.NOT_FOUND -> "This session no longer exists."
-            RemoteError.NO_WINDOW -> "spekterm has no open window on the desktop."
-            RemoteError.TIMEOUT -> "The desktop did not answer in time; it may still happen."
-            RemoteError.CREATE_FAILED -> "The desktop could not do it." + e.message.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
-            Desktop.NOT_CONNECTED -> "Not connected to the desktop. The session list shows whether it happened."
-            else -> if (kind == Kind.HIBERNATE) "Could not hibernate it (${e.code})." else "Could not close it (${e.code})."
+        fun errorText(kind: Kind, e: RemoteError): UiText = if (kind == Kind.WAKE) wakeText(e) else if (kind == Kind.KEEP) keepText(e) else when (e.code) {
+            RemoteError.NOT_FOUND -> UiText.Res(R.string.session_gone)
+            RemoteError.NO_WINDOW -> UiText.Res(R.string.session_no_window)
+            RemoteError.TIMEOUT -> UiText.Res(R.string.session_timeout)
+            RemoteError.CREATE_FAILED -> withMessage(R.string.session_could_not, R.string.session_could_not_message, e)
+            Desktop.NOT_CONNECTED -> UiText.Res(R.string.session_not_connected_check_list)
+            else -> UiText.Res(if (kind == Kind.HIBERNATE) R.string.session_hibernate_failed else R.string.session_close_failed, e.code)
         }
+
+        /** The desktop's own message, when it gave one, in parentheses after the sentence. */
+        private fun withMessage(plain: Int, withMessage: Int, e: RemoteError): UiText =
+            e.message.takeIf { it.isNotBlank() }?.let { UiText.Res(withMessage, it) } ?: UiText.Res(plain)
     }
 }

@@ -1,5 +1,8 @@
 package com.spekterm.android.ui
 
+import com.spekterm.android.R
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.PaddingValues
@@ -157,7 +160,7 @@ fun SessionsScreen(
                         if (groups.isNotEmpty()) {
                             val anyExpanded = groups.any { it.key !in collapsed }
                             DropdownMenuItem(
-                                text = { Text(if (anyExpanded) "Collapse all" else "Expand all") },
+                                text = { Text(if (anyExpanded) stringResource(R.string.sessions_collapse_all) else stringResource(R.string.sessions_expand_all)) },
                                 onClick = {
                                     menu = false
                                     setCollapsed(if (anyExpanded) collapsed + groups.map { it.key } else emptySet())
@@ -171,7 +174,7 @@ fun SessionsScreen(
                                 onOpenSpecFolders()
                             })
                         }
-                        DropdownMenuItem(text = { Text("Settings") }, onClick = {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.status_title)) }, onClick = {
                             menu = false
                             onStatus()
                         })
@@ -185,12 +188,14 @@ fun SessionsScreen(
     ) {
         Column(Modifier.fillMaxSize()) {
             when {
-                announcements.paused -> Notice("The connection is paused.", Tone.Warning, "Resume", onResume)
+                announcements.paused -> Notice(stringResource(R.string.sessions_paused), Tone.Warning, stringResource(R.string.common_resume), onResume)
                 !connected || !sessions.current -> {
-                    val age = sessions.receivedAt?.let { " Showing the list from ${time.format(Date(it))}." } ?: " No session list received yet."
-                    Notice(notConnectedReason(status, announcements) + age, Tone.Warning, "Details", onStatus)
+                    val reason = notConnectedReason(status, announcements).text()
+                    val text = sessions.receivedAt?.let { stringResource(R.string.sessions_list_from, reason, time.format(Date(it))) }
+                        ?: stringResource(R.string.sessions_no_list_yet, reason)
+                    Notice(text, Tone.Warning, stringResource(R.string.common_details), onStatus)
                 }
-                list?.window == false -> Notice("spekterm has no open window on the desktop, so it lists no sessions. Open spekterm there.", Tone.Warning)
+                list?.window == false -> Notice(stringResource(R.string.sessions_no_window), Tone.Warning)
             }
             creation?.let { CreationNotice(it, onOpen) }
             if (list == null) {
@@ -200,8 +205,8 @@ fun SessionsScreen(
                 return@Column
             }
             if (list.window && list.sessions.isEmpty()) {
-                CenteredMessage(SpekIcons.Shell, "No sessions on the desktop.") {
-                    if (canCreate) Text("Start one with New session.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                CenteredMessage(SpekIcons.Shell, stringResource(R.string.sessions_empty)) {
+                    if (canCreate) Text(stringResource(R.string.sessions_empty_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 return@Column
             }
@@ -219,8 +224,8 @@ fun SessionsScreen(
                         items(group.rows, key = { "session:${it.session.id}" }, contentType = { "session" }) { row ->
                             SessionRow(
                                 row,
-                                relation = Relations.line(row.session, row.nested, list, existing),
-                                children = Relations.childrenText(row.session, list, existing),
+                                relation = Relations.line(row.session, row.nested, list, existing)?.text(),
+                                children = Relations.childrenText(row.session, list, existing)?.text(),
                                 actions = SessionActions.of(row.session, operations, list),
                                 answers = SessionActions.offerActions(row.session, operations),
                                 actionsEnabled = actionsEnabled,
@@ -238,14 +243,15 @@ fun SessionsScreen(
     SessionDialogsHost(dialogs, actionsEnabled)
 
     if (picking && list != null) {
+        val globalName = stringResource(R.string.sessions_global)
         ModalBottomSheet(onDismissRequest = { picking = false }) {
             Text(
-                "Start an agent session in",
+                stringResource(R.string.sessions_start_in),
                 Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.titleMedium,
             )
             LazyColumn(Modifier.padding(bottom = 24.dp)) {
-                items(SessionsView.choices(list), key = { it.folderId ?: "\u0000global" }) { choice ->
+                items(SessionsView.choices(list, globalName), key = { it.folderId ?: "\u0000global" }) { choice ->
                     Row(
                         Modifier.fillMaxWidth().clickable {
                             picking = false
@@ -276,8 +282,8 @@ fun SessionsScreen(
 private fun NewSessionButton(enabled: Boolean, expanded: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     ExtendedFloatingActionButton(
-        text = { Text("New session") },
-        icon = { Icon(SpekIcons.Add, if (expanded) null else "New session") },
+        text = { Text(stringResource(R.string.sessions_new)) },
+        icon = { Icon(SpekIcons.Add, if (expanded) null else stringResource(R.string.sessions_new)) },
         onClick = { if (enabled) onClick() },
         expanded = expanded,
         containerColor = if (enabled) colors.primaryContainer else colors.surfaceContainerHigh,
@@ -291,23 +297,24 @@ private fun NewSessionButton(enabled: Boolean, expanded: Boolean, onClick: () ->
 private fun CreationNotice(c: Creation, onOpen: (String) -> Unit) {
     val dismiss = { Desktop.consumeCreation() }
     when (c) {
-        is Creation.Starting -> Notice("Starting a session in ${c.name}…", Tone.Info)
+        is Creation.Starting -> Notice(stringResource(R.string.sessions_starting, c.name), Tone.Info)
         is Creation.Opened -> if (!c.autoOpen) {
-            Notice("Started a session in ${c.name}.", Tone.Info, "Open", {
+            Notice(stringResource(R.string.sessions_started, c.name), Tone.Info, stringResource(R.string.sessions_open), {
                 Desktop.consumeCreation()
                 onOpen(c.sessionId)
-            }, "Dismiss", dismiss)
+            }, stringResource(R.string.common_dismiss), dismiss)
         }
-        is Creation.Unlisted -> Notice("Started a session in ${c.name}; it will appear in the list.", Tone.Info, "Dismiss", dismiss)
+        is Creation.Unlisted -> Notice(stringResource(R.string.sessions_started_unlisted, c.name), Tone.Info, stringResource(R.string.common_dismiss), dismiss)
         is Creation.Failed -> Notice(
             when (c.reason) {
-                Creation.Reason.NO_WINDOW -> "Could not start a session in ${c.name}: spekterm has no open window on the desktop."
-                Creation.Reason.CREATE_FAILED -> "The desktop could not start a session in ${c.name}" + (c.message?.let { ": $it" } ?: ".")
-                Creation.Reason.UNKNOWN -> "Can't tell whether a session was started in ${c.name}. If it was, it will appear in the list."
+                Creation.Reason.NO_WINDOW -> stringResource(R.string.sessions_create_no_window, c.name)
+                Creation.Reason.CREATE_FAILED -> c.message?.let { stringResource(R.string.sessions_create_failed_message, c.name, it) }
+                    ?: stringResource(R.string.sessions_create_failed, c.name)
+                Creation.Reason.UNKNOWN -> stringResource(R.string.sessions_create_unknown, c.name)
             },
             // Not knowing is not a failure (D5).
             if (c.reason == Creation.Reason.UNKNOWN) Tone.Warning else Tone.Error,
-            "Dismiss",
+            stringResource(R.string.common_dismiss),
             dismiss,
         )
     }
@@ -329,15 +336,15 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onOpenSpec:
                 .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(SpekIcons.ExpandMore, if (folded) "Expand" else "Collapse", Modifier.size(20.dp).rotate(turn), tint = colors.onSurfaceVariant)
+                Icon(SpekIcons.ExpandMore, if (folded) stringResource(R.string.sessions_expand) else stringResource(R.string.sessions_collapse), Modifier.size(20.dp).rotate(turn), tint = colors.onSurfaceVariant)
                 Spacer(Modifier.width(8.dp))
                 // Name and branch take the rest of the line, so the count always sits at the end.
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         when {
-                            group.global -> "Global"
+                            group.global -> stringResource(R.string.sessions_global)
                             group.name != null -> group.name
-                            else -> "Other folders"
+                            else -> stringResource(R.string.sessions_other_folders)
                         },
                         Modifier.weight(1f, fill = false),
                         style = MaterialTheme.typography.titleSmall,
@@ -360,7 +367,7 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onOpenSpec:
                 // Its own click target: the heading's tap stays collapsing (`openspec-browse` D8).
                 if (onOpenSpec != null) {
                     IconButton(onClick = onOpenSpec, Modifier.padding(start = 4.dp).size(40.dp)) {
-                        Icon(SpekIcons.File, "OpenSpec for ${group.name ?: ""}", Modifier.size(20.dp), tint = colors.onSurfaceVariant)
+                        Icon(SpekIcons.File, stringResource(R.string.conversation_openspec_for, group.name ?: ""), Modifier.size(20.dp), tint = colors.onSurfaceVariant)
                     }
                 }
                 Text(
@@ -375,9 +382,9 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onOpenSpec:
             }
             if (folded) {
                 val parts = listOfNotNull(
-                    group.summary.choice.takeIf { it > 0 }?.let { (if (it == 1) "1 asks for a choice" else "$it ask for a choice") to spek.attention },
-                    group.summary.offers.takeIf { it > 0 }?.let { (if (it == 1) "1 asks to close" else "$it ask to close") to spek.offer },
-                    group.summary.ready.takeIf { it > 0 }?.let { "$it waiting for you" to spek.attention },
+                    group.summary.choice.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.sessions_summary_choice, it, it) to spek.attention },
+                    group.summary.offers.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.sessions_summary_offers, it, it) to spek.offer },
+                    group.summary.ready.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.sessions_summary_ready, it, it) to spek.attention },
                 )
                 if (parts.isNotEmpty()) {
                     Row(Modifier.padding(start = 28.dp, top = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -430,7 +437,7 @@ private fun SessionRow(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Icon(
                     if (session.isAgent) SpekIcons.Agent else SpekIcons.Shell,
-                    if (session.isAgent) "Agent" else "Shell",
+                    if (session.isAgent) stringResource(R.string.sessions_agent) else stringResource(R.string.sessions_shell),
                     Modifier.size(20.dp),
                     // Faint: it tells agent from shell, but most rows are agents and it must not compete with the state.
                     tint = MaterialTheme.colorScheme.outline,

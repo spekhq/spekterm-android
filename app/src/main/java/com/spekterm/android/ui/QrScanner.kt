@@ -1,43 +1,81 @@
 package com.spekterm.android.ui
 
-import androidx.camera.core.CameraSelector
+import android.content.pm.ApplicationInfo
+import android.util.Log
+import android.util.Size
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.view.CameraController
+import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.zxing.BinaryBitmap
-import com.google.zxing.DecodeHintType
-import com.google.zxing.PlanarYUVLuminanceSource
-import com.google.zxing.common.HybridBinarizer
-import com.google.zxing.qrcode.QRCodeReader
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import zxingcpp.BarcodeReader
 
 /**
- * A camera preview that decodes QR codes on the phone with ZXing (design D8) — no network service, no Google
- * Play services. Calls [onText] once, with the first QR code read.
+ * A camera preview that decodes QR codes on the phone with zxing-cpp (`scan-connect-zh` D1, D2) — no network
+ * service, no Google Play services. Tapping focuses and pinching zooms (the controller's defaults). Every decoded
+ * text goes to [onText]; it returns true to stop scanning (D3), after which nothing more is reported.
  */
 @Composable
-fun QrScanner(modifier: Modifier = Modifier, onText: (String) -> Unit) {
+fun QrScanner(modifier: Modifier = Modifier, onText: (String) -> Boolean) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val currentOnText by rememberUpdatedState(onText)
     val executor = remember { Executors.newSingleThreadExecutor() }
     val done = remember { AtomicBoolean(false) }
-    val bound = remember { arrayOfNulls<androidx.camera.core.UseCase>(2) }
+    val controller = remember { LifecycleCameraController(context) }
     DisposableEffect(Unit) {
+        val reader = BarcodeReader(
+            BarcodeReader.Options().apply {
+                formats = setOf(BarcodeReader.Format.QR_CODE)
+                tryHarder = true
+                tryRotate = true
+                tryInvert = true
+                tryDownscale = true
+            },
+        )
+        val main = ContextCompat.getMainExecutor(context)
+        controller.setEnabledUseCases(CameraController.IMAGE_ANALYSIS)
+        controller.imageAnalysisResolutionSelector = ResolutionSelector.Builder()
+            .setResolutionStrategy(ResolutionStrategy(Size(1920, 1080), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER))
+            .build()
+        controller.imageAnalysisBackpressureStrategy = ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
+        controller.setImageAnalysisAnalyzer(executor) { image ->
+            val texts = try {
+                reader.read(image).mapNotNull { it.text }
+            } catch (_: Exception) {
+                emptyList()
+            } finally {
+                image.close()
+            }
+            if (texts.isNotEmpty() && !done.get()) {
+                main.execute {
+                    // The first text the caller accepts ends scanning; frames already queued report nothing.
+                    for (text in texts) if (!done.get() && currentOnText(text)) done.set(true)
+                }
+            }
+        }
+        val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        val zoom = androidx.lifecycle.Observer<androidx.camera.core.ZoomState> { Log.d(TAG, "zoom ratio=${it.zoomRatio}") }
+        if (debuggable) controller.zoomState.observe(lifecycleOwner, zoom)
+        controller.bindToLifecycle(lifecycleOwner)
         onDispose {
             // Release the camera as soon as the scanner leaves the screen, not when the activity stops.
-            val provider = ProcessCameraProvider.getInstance(context)
-            provider.addListener({ provider.get().unbind(*bound.filterNotNull().toTypedArray()) }, ContextCompat.getMainExecutor(context))
+            controller.zoomState.removeObserver(zoom)
+            controller.clearImageAnalysisAnalyzer()
+            controller.unbind()
             executor.shutdown()
         }
     }
@@ -45,44 +83,12 @@ fun QrScanner(modifier: Modifier = Modifier, onText: (String) -> Unit) {
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
-            val view = PreviewView(ctx)
-            val providerFuture = ProcessCameraProvider.getInstance(ctx)
-            providerFuture.addListener({
-                val provider = providerFuture.get()
-                val preview = Preview.Builder().build().also { it.surfaceProvider = view.surfaceProvider }
-                val analysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
-                val reader = QRCodeReader()
-                analysis.setAnalyzer(executor) { image ->
-                    val text = decode(reader, image)
-                    image.close()
-                    if (text != null && done.compareAndSet(false, true)) {
-                        ContextCompat.getMainExecutor(context).execute { onText(text) }
-                    }
-                }
-                provider.unbindAll()
-                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-                bound[0] = preview
-                bound[1] = analysis
-            }, ContextCompat.getMainExecutor(ctx))
-            view
+            PreviewView(ctx).apply {
+                scaleType = PreviewView.ScaleType.FILL_CENTER
+                this.controller = controller
+            }
         },
     )
 }
 
-private val hints = mapOf(DecodeHintType.TRY_HARDER to true)
-
-private fun decode(reader: QRCodeReader, image: ImageProxy): String? {
-    val plane = image.planes[0]
-    val buffer = plane.buffer
-    val data = ByteArray(buffer.remaining()).also { buffer.get(it) }
-    val source = PlanarYUVLuminanceSource(data, plane.rowStride, image.height, 0, 0, image.width, image.height, false)
-    return try {
-        reader.decode(BinaryBitmap(HybridBinarizer(source)), hints).text
-    } catch (_: Exception) {
-        null
-    } finally {
-        reader.reset()
-    }
-}
+private const val TAG = "QrScanner"

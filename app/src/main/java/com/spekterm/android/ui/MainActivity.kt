@@ -1,5 +1,7 @@
 package com.spekterm.android.ui
 
+import com.spekterm.android.R
+import android.widget.Toast
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -78,10 +80,21 @@ class MainActivity : ComponentActivity() {
     private var repairing by mutableStateOf(false)
     /** Set by an intent (a notification tap), consumed by the navigation graph. */
     private var pendingNav by mutableStateOf<Nav?>(null)
+    /** A pairing link from another app, asked about first (`device-pairing`, `scan-connect-zh` D4). Saved. */
+    private var offeredLink by mutableStateOf<String?>(null)
+    /** A link confirmed over the paired screens, for the pairing screen to pair with at once. Saved. */
+    private var startLink by mutableStateOf<String?>(null)
+    /** Whether the pairing screen is pairing: a link arriving meanwhile is dropped (D4). */
+    private var pairingBusy = false
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        savedInstanceState?.let {
+            repairing = it.getBoolean(STATE_REPAIRING)
+            offeredLink = it.getString(STATE_OFFERED)
+            startLink = it.getString(STATE_START)
+        }
         enableEdgeToEdge()
         // Only a fresh launch acts on its intent: a task recreated from recents redelivers the original one.
         val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
@@ -114,9 +127,28 @@ class MainActivity : ComponentActivity() {
                             pairAgain = current == null && announcements.pairAgain,
                             onPaired = { paired -> onPaired(paired) },
                             onCancel = if (current != null) ({ repairing = false }) else null,
+                            current = current,
+                            offered = offeredLink,
+                            onOfferDone = { offeredLink = null },
+                            start = startLink,
+                            onStarted = { startLink = null },
+                            onBusy = { pairingBusy = it },
                         )
                     } else {
                         Paired(current)
+                        // Over whatever screen is showing, so Cancel returns to it as it was (D4).
+                        offeredLink?.let { raw ->
+                            PairOfferDialog(
+                                raw,
+                                current,
+                                onPair = {
+                                    offeredLink = null
+                                    startLink = raw
+                                    repairing = true
+                                },
+                                onCancel = { offeredLink = null },
+                            )
+                        }
                     }
                 }
             }
@@ -254,8 +286,19 @@ class MainActivity : ComponentActivity() {
         if (pairing != null && !announcements.paused) ConnectionService.start(this)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_REPAIRING, repairing)
+        outState.putString(STATE_OFFERED, offeredLink)
+        outState.putString(STATE_START, startLink)
+    }
+
     private fun handle(intent: Intent?) {
         when (intent?.action) {
+            Intent.ACTION_VIEW -> {
+                val data = intent.data
+                if (data?.scheme == PAIR_SCHEME && data.host == PAIR_HOST) offer(intent.dataString.orEmpty()) else return
+            }
             ACTION_RESUME -> {
                 app.announcements.update { it.copy(paused = false, connectionStopped = false) }
                 pendingNav = Nav.Sessions
@@ -267,6 +310,15 @@ class MainActivity : ComponentActivity() {
         }
         // Handled once: returning from recents must not navigate again.
         intent.action = null
+    }
+
+    /** A pairing link from another app: asked about, unless a pairing is already under way (D4). */
+    private fun offer(raw: String) {
+        if (pairingBusy || startLink != null) {
+            Toast.makeText(this, R.string.pair_offer_in_progress, Toast.LENGTH_LONG).show()
+            return
+        }
+        offeredLink = raw
     }
 
     private fun reload() {
@@ -326,5 +378,10 @@ class MainActivity : ComponentActivity() {
         const val ACTION_OPEN_SESSIONS = "com.spekterm.android.OPEN_SESSIONS"
         const val ACTION_OPEN_STATUS = "com.spekterm.android.OPEN_STATUS"
         const val SESSION_SCHEME = "spekterm-session"
+        private const val PAIR_SCHEME = "spekterm"
+        private const val PAIR_HOST = "pair"
+        private const val STATE_REPAIRING = "repairing"
+        private const val STATE_OFFERED = "offeredLink"
+        private const val STATE_START = "startLink"
     }
 }

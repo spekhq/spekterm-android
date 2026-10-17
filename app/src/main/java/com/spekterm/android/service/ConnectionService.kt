@@ -1,5 +1,6 @@
 package com.spekterm.android.service
 
+import com.spekterm.android.R
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.Service
 import android.content.BroadcastReceiver
@@ -27,6 +28,8 @@ import com.spekterm.android.net.RemoteClient
 import com.spekterm.android.net.RemoteConnection
 import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.WatchAnswer
+import com.spekterm.android.net.attempt
+import com.spekterm.android.net.race
 import com.spekterm.android.store.Pairing
 import com.spekterm.android.store.StoreUnavailableException
 import kotlinx.serialization.json.JsonArray
@@ -78,6 +81,11 @@ class ConnectionService : Service() {
             pause()
             return START_NOT_STICKY
         }
+        // "Try now" from the status screen (D7): ends the wait for the next round, nothing else.
+        if (intent?.action == ACTION_TRY_NOW && supervisor?.isActive == true) {
+            kick.trySend(Unit)
+            return START_STICKY
+        }
         // Every start that may have come from `startForegroundService` calls `startForeground` first, even when
         // it then finds nothing to do: stopping before it crashes the app.
         try {
@@ -96,8 +104,8 @@ class ConnectionService : Service() {
                 Notifications.status(
                     this,
                     Notifications.ID_STOPPED,
-                    "Connection to $desktopName stopped",
-                    "Android did not let the app reconnect in the background. Tap to resume.",
+                    getString(R.string.notification_stopped_title, desktopName),
+                    getString(R.string.notification_stopped_text),
                     MainActivity.ACTION_RESUME,
                 )
                 stopSelf(startId)
@@ -144,6 +152,7 @@ class ConnectionService : Service() {
 
     private fun pause() {
         app.announcements.update { it.copy(paused = true) }
+        StatusBoard.update { it.paused() }
         log.write(Kind.PAUSED)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -175,36 +184,63 @@ class ConnectionService : Service() {
         }
     }
 
-    /** One round of attempts and, if one connects, its session. Returns false when the service must stop. */
+    /**
+     * One round of attempts, raced (`scan-connect-zh` D5), and, if one connects, its session. Returns false when the
+     * service must stop.
+     */
     private suspend fun round(pairing: Pairing): Boolean {
         var closeInfo: CloseInfo? = null
         var error: RemoteError? = null
-        var connected = false
-        for (address in pairing.addressOrder()) {
-            if (!alive()) return false
-            setStatus(Status.State.CONNECTING, address)
-            log.write(Kind.ATTEMPT, "address" to address)
-            connectedNetwork = defaultNetwork ?: getSystemService(ConnectivityManager::class.java).activeNetwork
-            when (val result = RemoteClient.open(address, pairing.port, pairing.fingerprint)) {
-                is RemoteClient.OpenResult.PinMismatch -> {
-                    identity.record(IdentityTracker.Outcome.MISMATCH)
-                    log.write(Kind.PIN_MISMATCH, "address" to address, "check" to result.refusedBy)
+        if (!alive()) return false
+        val order = pairing.addressOrder()
+        val network = Networks.current(this)
+        connectedNetwork = defaultNetwork ?: getSystemService(ConnectivityManager::class.java).activeNetwork
+        StatusBoard.update { it.roundStarted() }
+        refreshOngoing()
+        val race = race(
+            order,
+            open = { RemoteClient.open(it, pairing.port, pairing.fingerprint).attempt() },
+            drop = RemoteConnection::cancel,
+            onStart = { address ->
+                log.write(Kind.ATTEMPT, "address" to address)
+                if (alive()) StatusBoard.update { it.attemptStarted(address) }
+            },
+            onOutcome = { address, result ->
+                val outcome = Unreachability.outcome(result)
+                when (result) {
+                    is RemoteClient.OpenResult.PinMismatch -> {
+                        identity.record(IdentityTracker.Outcome.MISMATCH)
+                        log.write(Kind.PIN_MISMATCH, "address" to address, "check" to result.refusedBy, "outcome" to outcome)
+                    }
+                    is RemoteClient.OpenResult.Unreachable -> {
+                        identity.record(IdentityTracker.Outcome.UNREACHABLE)
+                        log.write(Kind.UNREACHABLE, "address" to address, "error" to result.cause?.javaClass?.simpleName, "outcome" to outcome)
+                    }
+                    is RemoteClient.OpenResult.Open -> Unit
                 }
-                is RemoteClient.OpenResult.Unreachable -> {
-                    identity.record(IdentityTracker.Outcome.UNREACHABLE)
-                    log.write(Kind.UNREACHABLE, "address" to address, "error" to result.cause?.javaClass?.simpleName)
-                }
-                is RemoteClient.OpenResult.Open -> {
-                    identity.record(IdentityTracker.Outcome.MATCH)
-                    connected = true
-                    val outcome = session(result.connection, pairing, address)
-                    closeInfo = outcome.first
-                    error = outcome.second ?: outcome.first.error
-                    break
-                }
-            }
-        }
+                if (alive()) StatusBoard.update { it.attemptFinished(address, outcome) }
+            },
+        )
+        val winner = race.winner
+        if (winner != null) identity.record(IdentityTracker.Outcome.MATCH)
         announceIdentity(identity.endRound())
+        if (!alive()) {
+            winner?.second?.cancel()
+            return false
+        }
+        val connected = winner != null
+        if (winner == null) {
+            val report = Unreachability.report(order, race, network)
+            log.write(Kind.ROUND, "network" to network.kind, "vpn" to network.vpn, "reason" to report.reason)
+            StatusBoard.update { it.roundFailed(report) }
+        } else {
+            val (address, connection) = winner
+            StatusBoard.update { it.pinnedOpen(address) }
+            refreshOngoing()
+            val outcome = session(connection, pairing, address)
+            closeInfo = outcome.first
+            error = outcome.second ?: outcome.first.error
+        }
         if (!alive()) return false
 
         if (!connected) {
@@ -338,7 +374,7 @@ class ConnectionService : Service() {
 
     private suspend fun waitToRetry(throttled: Boolean) {
         val delayMs = backoff.nextDelayMs(throttled)
-        if (alive()) StatusBoard.update { it.copy(state = Status.State.WAITING, retryAt = System.currentTimeMillis() + delayMs, since = null) }
+        if (alive()) StatusBoard.update { it.waiting(System.currentTimeMillis() + delayMs, throttled) }
         refreshOngoing()
         log.write(Kind.BACKOFF, "delayMs" to delayMs, "throttled" to throttled)
         if (throttled) delay(delayMs) else withTimeoutOrNull(delayMs) { kick.receive() }
@@ -352,7 +388,7 @@ class ConnectionService : Service() {
             app.collapsed.delete()
             Desktop.clear()
             app.announcements.update { it.copy(pairAgain = true, identityChanged = false) }
-            Notifications.status(this, Notifications.ID_PAIR_AGAIN, "Pair again with $desktopName", "The desktop no longer accepts this phone. Scan a new pairing code.")
+            Notifications.status(this, Notifications.ID_PAIR_AGAIN, getString(R.string.notification_pair_again_title, desktopName), getString(R.string.notification_pair_again_text))
         }
         stopSelf()
     }
@@ -366,17 +402,17 @@ class ConnectionService : Service() {
             Notifications.status(
                 this,
                 Notifications.ID_IDENTITY,
-                "$desktopName's identity changed",
-                "The desktop presents a different certificate than when you paired. If you reset remote access, pair again.",
+                getString(R.string.notification_identity_title, desktopName),
+                getString(R.string.status_identity_changed),
             )
         } else {
             Notifications.cancel(this, Notifications.TAG_STATUS, Notifications.ID_IDENTITY)
         }
     }
 
-    private fun setStatus(state: Status.State, address: String?) {
-        if (!alive()) return
-        StatusBoard.update { it.copy(state = state, address = address, since = null) }
+    /** A language change re-posts the ongoing notification in the new language at once (`scan-connect-zh` D8). */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
         refreshOngoing()
     }
 
@@ -440,6 +476,12 @@ class ConnectionService : Service() {
 
     companion object {
         const val ACTION_PAUSE = "com.spekterm.android.PAUSE"
+        const val ACTION_TRY_NOW = "com.spekterm.android.TRY_NOW"
+
+        /** Ends a backoff wait now (`desktop-connection`, "Reconnect with backoff"); sent from the foreground. */
+        fun tryNow(context: Context) {
+            context.startService(Intent(context, ConnectionService::class.java).setAction(ACTION_TRY_NOW))
+        }
 
         /** Starts the service from the foreground (the app, a notification tap) or an exempt broadcast. */
         fun start(context: Context) {

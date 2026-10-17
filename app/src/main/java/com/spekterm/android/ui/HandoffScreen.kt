@@ -1,5 +1,7 @@
 package com.spekterm.android.ui
 
+import com.spekterm.android.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -104,29 +106,29 @@ fun HandoffScreen(
     SpekScaffold(
         topBar = { scroll ->
             TopBar(
-                title = session?.let { Relations.label(it) } ?: "Handoff",
+                title = session?.let { Relations.label(it) } ?: stringResource(R.string.menu_handoff),
                 scroll = scroll,
                 onBack = onBack,
-                subtitle = { Text("Handoff", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                subtitle = { Text(stringResource(R.string.menu_handoff), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) },
             )
         },
     ) {
         Column(Modifier.fillMaxSize()) {
             when (shows) {
-                Shows.PAUSED -> Notice("The connection is paused. What is shown may be out of date.", Tone.Warning, "Resume", onResume)
-                Shows.NOT_CONNECTED -> Notice(notConnectedReason(status, announcements) + " What is shown may be out of date.", Tone.Warning, "Details", onStatus)
-                Shows.NO_WINDOW -> Notice("spekterm has no open window on the desktop. What is shown may be out of date.", Tone.Warning)
+                Shows.PAUSED -> Notice(stringResource(R.string.conversation_paused), Tone.Warning, stringResource(R.string.common_resume), onResume)
+                Shows.NOT_CONNECTED -> Notice(stringResource(R.string.conversation_out_of_date, notConnectedReason(status, announcements).text()), Tone.Warning, stringResource(R.string.common_details), onStatus)
+                Shows.NO_WINDOW -> Notice(stringResource(R.string.conversation_no_window), Tone.Warning)
                 else -> Unit
             }
             if (shows == Shows.CLOSED || session == null || list == null) {
-                CenteredMessage(SpekIcons.Info, "This session is no longer on the desktop.")
+                CenteredMessage(SpekIcons.Info, stringResource(R.string.conversation_closed))
                 return@Column
             }
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 if (session.lineage != null) {
-                    Section("From") {
+                    Section(stringResource(R.string.handoff_from)) {
                         val source = Relations.source(session, list, existing)
-                        val text = Relations.sourceText(session, list, existing)!!
+                        val text = Relations.sourceText(session, list, existing)!!.text()
                         if (source != null) {
                             Text(
                                 text,
@@ -139,12 +141,12 @@ fun HandoffScreen(
                         }
                     }
                     if (Operations.HANDOFFS_BRIEF in operations) {
-                        Section("Handoff note") { NoteBody(note) { attempt++ } }
+                        Section(stringResource(R.string.handoff_note)) { NoteBody(note) { attempt++ } }
                     }
-                    Section("Latest report") {
+                    Section(stringResource(R.string.handoff_latest_report)) {
                         val report = HandoffView.latestReport((note as? Note.Loaded)?.brief?.report, entry)
                         if (report == null) {
-                            Body("No report yet.", faint = true)
+                            Body(stringResource(R.string.handoff_no_report), faint = true)
                         } else {
                             report.reportedAt?.let { Body(DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it)), faint = true) }
                             SelectionContainer { Body(report.summary) }
@@ -153,7 +155,7 @@ fun HandoffScreen(
                 }
                 val children = Relations.children(session, list, existing)
                 if (children.isNotEmpty()) {
-                    Section("Handed off from here") {
+                    Section(stringResource(R.string.handoff_children)) {
                         for (child in children) {
                             Column(
                                 Modifier.fillMaxWidth().clickable { onOpen(child.id) }.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
@@ -161,7 +163,7 @@ fun HandoffScreen(
                             ) {
                                 Text(Relations.label(child), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(
-                                    listOfNotNull(Relations.groupName(child, list), Relations.stateText(child.lifecycle)).joinToString(" · "),
+                                    listOfNotNull(Relations.groupName(child, list), Relations.stateText(child.lifecycle)).map { it.text() }.joinToString(" · "),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
@@ -205,15 +207,13 @@ private fun Body(text: String, faint: Boolean = false) {
 @Composable
 private fun NoteBody(note: Note, onRetry: () -> Unit) {
     when (note) {
-        Note.Loading -> Body("Loading…", faint = true)
-        is Note.Loaded -> note.brief.body?.let { SelectionContainer { Body(it) } } ?: Body(NO_NOTE, faint = true)
-        Note.Missing -> Body(NO_NOTE, faint = true)
-        Note.NeedsConnection -> Body("Reading the note needs the connection to the desktop.", faint = true)
+        Note.Loading -> Body(stringResource(R.string.handoff_loading), faint = true)
+        is Note.Loaded -> note.brief.body?.let { SelectionContainer { Body(it) } } ?: Body(stringResource(R.string.handoff_no_note), faint = true)
+        Note.Missing -> Body(stringResource(R.string.handoff_no_note), faint = true)
+        Note.NeedsConnection -> Body(stringResource(R.string.handoff_needs_connection), faint = true)
         is Note.Failed -> {
-            Body("The desktop could not give the note (${note.code}).", faint = true)
-            TextButton(onClick = onRetry, Modifier.padding(horizontal = 8.dp)) { Text("Try again") }
+            Body(stringResource(R.string.handoff_note_failed, note.code), faint = true)
+            TextButton(onClick = onRetry, Modifier.padding(horizontal = 8.dp)) { Text(stringResource(R.string.handoff_try_again)) }
         }
     }
 }
-
-private const val NO_NOTE = "The desktop kept no note for this handoff."

@@ -1,5 +1,7 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.R
+import com.spekterm.android.ui.UiText
 import com.spekterm.android.net.Folder
 import com.spekterm.android.net.Lineage
 import com.spekterm.android.net.Session
@@ -27,53 +29,53 @@ class RelationsTest {
     @Test
     fun theSourceDescription() {
         val l = list(s("p", "f1", label = "planner"), s("c", "f2", "p"), s("g", null, label = "lead"), s("cg", "f2", "g"))
-        assertEquals("From alpha › planner", Relations.sourceText(l.sessions[1], l))
-        assertEquals("From Global › lead", Relations.sourceText(l.sessions[3], l))
-        assertEquals("From planner (closed)", Relations.sourceText(s("c", parent = "gone", title = "planner"), l))
-        assertEquals("From a session that has closed", Relations.sourceText(s("c", parent = "gone", title = " "), l))
-        assertEquals("From a session that has closed", Relations.sourceText(s("c", parent = "gone"), l))
+        assertEquals(UiText.Res(R.string.relations_from, UiText.Raw("alpha"), "planner"), Relations.sourceText(l.sessions[1], l))
+        assertEquals(UiText.Res(R.string.relations_from, UiText.Res(R.string.sessions_global), "lead"), Relations.sourceText(l.sessions[3], l))
+        assertEquals(UiText.Res(R.string.relations_from_closed, "planner"), Relations.sourceText(s("c", parent = "gone", title = "planner"), l))
+        assertEquals(UiText.Res(R.string.relations_from_gone), Relations.sourceText(s("c", parent = "gone", title = " "), l))
+        assertEquals(UiText.Res(R.string.relations_from_gone), Relations.sourceText(s("c", parent = "gone"), l))
         assertNull(Relations.sourceText(s("c"), l))
     }
 
     @Test
     fun aSourceInAnUnnamedFolderIsClosedAndADormantOneExists() {
         val l = list(s("p", "gone", label = "old"), s("c", parent = "p", title = "old"), s("d", running = false, label = "sleepy"), s("c2", parent = "d"))
-        assertEquals("From old (closed)", Relations.sourceText(l.sessions[1], l))
-        assertEquals("From alpha › sleepy", Relations.sourceText(l.sessions[3], l))
+        assertEquals(UiText.Res(R.string.relations_from_closed, "old"), Relations.sourceText(l.sessions[1], l))
+        assertEquals(UiText.Res(R.string.relations_from, UiText.Raw("alpha"), "sleepy"), Relations.sourceText(l.sessions[3], l))
     }
 
     @Test
     fun aRenamedSourceReadsItsNewLabel() {
         val l = list(s("p", label = "renamed"), s("c", "f2", "p", title = "original"))
-        assertEquals("From alpha › renamed", Relations.sourceText(l.sessions[1], l))
+        assertEquals(UiText.Res(R.string.relations_from, UiText.Raw("alpha"), "renamed"), Relations.sourceText(l.sessions[1], l))
     }
 
     @Test
     fun theRowLine() {
         val l = list(s("p", label = "planner"), s("c", "f2", "p", lifecycle = "working"))
-        assertEquals("From alpha › planner · Working", Relations.line(l.sessions[1], nested = false, list = l))
-        assertEquals("Handoff · Working", Relations.line(l.sessions[1], nested = true, list = l))
-        assertEquals("Handoff · Not done yet", Relations.line(s("c", parent = "p", lifecycle = "waiting"), true, l))
-        assertEquals("Handoff · Done", Relations.line(s("c", parent = "p", lifecycle = "done"), true, l))
-        assertEquals("Handoff", Relations.line(s("c", parent = "p", lifecycle = "idle"), true, l))
-        assertEquals("Handoff", Relations.line(s("c", parent = "p", lifecycle = "someday"), true, l))
-        assertEquals("Handoff", Relations.line(s("c", parent = "p"), true, l))
+        assertEquals(UiText.Joined(listOf(UiText.Res(R.string.relations_from, UiText.Raw("alpha"), "planner"), UiText.Res(R.string.relations_state_working))), Relations.line(l.sessions[1], nested = false, list = l))
+        assertEquals(UiText.Joined(listOf(UiText.Res(R.string.relations_handoff), UiText.Res(R.string.relations_state_working))), Relations.line(l.sessions[1], nested = true, list = l))
+        assertEquals(UiText.Joined(listOf(UiText.Res(R.string.relations_handoff), UiText.Res(R.string.relations_state_waiting))), Relations.line(s("c", parent = "p", lifecycle = "waiting"), true, l))
+        assertEquals(UiText.Joined(listOf(UiText.Res(R.string.relations_handoff), UiText.Res(R.string.relations_state_done))), Relations.line(s("c", parent = "p", lifecycle = "done"), true, l))
+        assertEquals(UiText.Joined(listOf(UiText.Res(R.string.relations_handoff))), Relations.line(s("c", parent = "p", lifecycle = "idle"), true, l))
+        assertEquals(UiText.Joined(listOf(UiText.Res(R.string.relations_handoff))), Relations.line(s("c", parent = "p", lifecycle = "someday"), true, l))
+        assertEquals(UiText.Joined(listOf(UiText.Res(R.string.relations_handoff))), Relations.line(s("c", parent = "p"), true, l))
         assertNull(Relations.line(s("p"), false, l))
     }
 
     @Test
     fun aNestedRowsSourceDescriptionStillNamesItsSource() {
         val l = list(s("p", label = "planner"), s("c", parent = "p"))
-        assertEquals("From alpha › planner", Relations.sourceText(l.sessions[1], l))
+        assertEquals(UiText.Res(R.string.relations_from, UiText.Raw("alpha"), "planner"), Relations.sourceText(l.sessions[1], l))
     }
 
     @Test
     fun theChildrenLineCountsExistingChildrenAcrossGroups() {
         val p = s("p")
-        assertEquals("Handed off 1 session", Relations.childrenText(p, list(p, s("c", "f2", "p"))))
-        assertEquals("Handed off 2 sessions · 1 of 2 done", Relations.childrenText(p, list(p, s("c1", "f2", "p", lifecycle = "done"), s("c2", null, "p", lifecycle = "working"))))
-        assertEquals("Handed off 2 sessions · all done", Relations.childrenText(p, list(p, s("c1", parent = "p", lifecycle = "done"), s("c2", parent = "p", lifecycle = "done"))))
-        assertEquals("Handed off 1 session", Relations.childrenText(p, list(p, s("c1", parent = "p"), s("c2", "gone", "p"))))
+        assertEquals(UiText.Plural(R.plurals.relations_handed_off, 1), Relations.childrenText(p, list(p, s("c", "f2", "p"))))
+        assertEquals(UiText.Joined(listOf(UiText.Plural(R.plurals.relations_handed_off, 2), UiText.Res(R.string.relations_done_of, 1, 2))), Relations.childrenText(p, list(p, s("c1", "f2", "p", lifecycle = "done"), s("c2", null, "p", lifecycle = "working"))))
+        assertEquals(UiText.Joined(listOf(UiText.Plural(R.plurals.relations_handed_off, 2), UiText.Res(R.string.relations_all_done))), Relations.childrenText(p, list(p, s("c1", parent = "p", lifecycle = "done"), s("c2", parent = "p", lifecycle = "done"))))
+        assertEquals(UiText.Plural(R.plurals.relations_handed_off, 1), Relations.childrenText(p, list(p, s("c1", parent = "p"), s("c2", "gone", "p"))))
         assertNull(Relations.childrenText(p, list(p, s("other"))))
     }
 

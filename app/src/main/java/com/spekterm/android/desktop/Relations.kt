@@ -1,5 +1,7 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.ui.UiText
+import com.spekterm.android.R
 import com.spekterm.android.net.Session
 import com.spekterm.android.net.SessionList
 
@@ -68,39 +70,39 @@ object Relations {
     }
 
     /** Where [session] came from, wherever it sits (D2), in the desktop's words; `null` without a lineage. */
-    fun sourceText(session: Session, list: SessionList, existing: Set<String> = existing(list)): String? {
+    fun sourceText(session: Session, list: SessionList, existing: Set<String> = existing(list)): UiText? {
         val lineage = session.lineage ?: return null
-        source(session, list, existing)?.let { return "From ${groupName(it, list)} › ${label(it)}" }
+        source(session, list, existing)?.let { return UiText.Res(R.string.relations_from, groupName(it, list), label(it)) }
         val title = lineage.title?.takeIf { it.isNotBlank() }
-        return if (title != null) "From $title (closed)" else "From a session that has closed"
+        return if (title != null) UiText.Res(R.string.relations_from_closed, title) else UiText.Res(R.string.relations_from_gone)
     }
 
     /** A handoff state in words (D2); `null` for `idle`, an unknown value or none. */
-    fun stateText(lifecycle: String?): String? = when (lifecycle) {
-        "working" -> "Working"
-        "waiting" -> "Not done yet"
-        "done" -> "Done"
+    fun stateText(lifecycle: String?): UiText? = when (lifecycle) {
+        "working" -> UiText.Res(R.string.relations_state_working)
+        "waiting" -> UiText.Res(R.string.relations_state_waiting)
+        "done" -> UiText.Res(R.string.relations_state_done)
         else -> null
     }
 
     /** The row's handoff line (D2): the source when a root, "Handoff" when nested, then the state; `null` without a lineage. */
-    fun line(session: Session, nested: Boolean, list: SessionList, existing: Set<String> = existing(list)): String? {
+    fun line(session: Session, nested: Boolean, list: SessionList, existing: Set<String> = existing(list)): UiText? {
         if (session.lineage == null) return null
-        val head = if (nested) "Handoff" else sourceText(session, list, existing)
-        return listOfNotNull(head, stateText(session.lifecycle)).joinToString(" · ")
+        val head = if (nested) UiText.Res(R.string.relations_handoff) else sourceText(session, list, existing)
+        return UiText.Joined(listOfNotNull(head, stateText(session.lifecycle)))
     }
 
     /** The row's children line (D2), for an existing session with existing children; else `null`. */
-    fun childrenText(session: Session, list: SessionList, existing: Set<String> = existing(list)): String? {
+    fun childrenText(session: Session, list: SessionList, existing: Set<String> = existing(list)): UiText? {
         val children = children(session, list, existing)
         if (children.isEmpty()) return null
         val n = children.size
         val done = children.count { it.lifecycle == "done" }
-        val head = if (n == 1) "Handed off 1 session" else "Handed off $n sessions"
+        val head = UiText.Plural(R.plurals.relations_handed_off, n)
         return when {
             done == 0 -> head
-            done == n -> "$head · all done"
-            else -> "$head · $done of $n done"
+            done == n -> UiText.Joined(listOf(head, UiText.Res(R.string.relations_all_done)))
+            else -> UiText.Joined(listOf(head, UiText.Res(R.string.relations_done_of, done, n)))
         }
     }
 
@@ -111,8 +113,12 @@ object Relations {
         return children(session, list, existing ?: existing(list)).isNotEmpty()
     }
 
-    fun groupName(session: Session, list: SessionList): String =
-        if (session.folderId == null) "Global" else list.folders.firstOrNull { it.id == session.folderId }?.name?.ifEmpty { null } ?: session.folderId
+    fun groupName(session: Session, list: SessionList): UiText =
+        if (session.folderId == null) {
+            UiText.Res(R.string.sessions_global)
+        } else {
+            UiText.Raw(list.folders.firstOrNull { it.id == session.folderId }?.name?.ifEmpty { null } ?: session.folderId)
+        }
 
     fun label(session: Session): String = session.label.ifEmpty { session.id }
 }

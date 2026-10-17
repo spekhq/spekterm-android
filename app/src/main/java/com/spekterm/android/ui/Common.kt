@@ -1,5 +1,7 @@
 package com.spekterm.android.ui
 
+import androidx.compose.ui.res.stringResource
+import com.spekterm.android.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -79,7 +81,7 @@ fun TopBar(
                 subtitle?.invoke()
             }
         },
-        navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(SpekIcons.Back, "Back") } },
+        navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(SpekIcons.Back, stringResource(R.string.common_back)) } },
         actions = { actions() },
         scrollBehavior = scroll,
         colors = TopAppBarDefaults.topAppBarColors(scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -89,7 +91,7 @@ fun TopBar(
 /** The overflow button of a top bar or a row. */
 @Composable
 fun MoreButton(onClick: () -> Unit, enabled: Boolean = true) {
-    IconButton(onClick = onClick, enabled = enabled) { Icon(SpekIcons.More, "More options") }
+    IconButton(onClick = onClick, enabled = enabled) { Icon(SpekIcons.More, stringResource(R.string.common_more_options)) }
 }
 
 /** How serious a notice is; every notice states it (D5). */
@@ -149,7 +151,7 @@ fun StateLabel(state: RowState, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     when (state) {
         RowState.CHOICE -> Text(
-            "Asks for a choice",
+            stringResource(R.string.state_choice),
             modifier
                 .background(colors.primaryContainer, CircleShape)
                 .padding(horizontal = 10.dp, vertical = 3.dp),
@@ -157,14 +159,17 @@ fun StateLabel(state: RowState, modifier: Modifier = Modifier) {
             fontWeight = FontWeight.SemiBold,
             color = colors.onPrimaryContainer,
         )
-        RowState.READY -> DotText("Waiting for you", spek.attention, spek.attention, FontWeight.SemiBold, modifier)
-        RowState.BUSY -> DotText("Working", spek.working, colors.onSurfaceVariant, FontWeight.Normal, modifier)
-        RowState.IDLE -> DotText("Idle", spek.working, colors.onSurfaceVariant, FontWeight.Normal, modifier, hollow = true)
+        RowState.READY -> DotText(stringResource(R.string.state_ready), spek.attention, spek.attention, FontWeight.SemiBold, modifier)
+        RowState.BUSY -> DotText(stringResource(R.string.state_busy), spek.working, colors.onSurfaceVariant, FontWeight.Normal, modifier)
+        RowState.IDLE -> DotText(stringResource(R.string.state_idle), spek.working, colors.onSurfaceVariant, FontWeight.Normal, modifier, hollow = true)
         RowState.DORMANT -> Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             StatusDot(spek.dormant, hollow = true)
-            Text("Dormant", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+            Text(stringResource(R.string.state_dormant), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
         }
-        RowState.NONE -> StatusDot(spek.working, modifier = modifier.semantics { contentDescription = "Running" })
+        RowState.NONE -> {
+            val running = stringResource(R.string.state_running)
+            StatusDot(spek.working, modifier = modifier.semantics { contentDescription = running })
+        }
     }
 }
 
@@ -195,13 +200,15 @@ fun CenteredMessage(icon: androidx.compose.ui.graphics.vector.ImageVector, text:
  * not current"). [attached] is whether the desktop layer has a connection; the service may already be
  * connected while the layer is still catching up.
  */
-fun notConnectedReason(status: Status, announcements: Announcements): String = when {
-    announcements.unsupported != null -> "The app and the desktop do not support the same protocol version."
-    announcements.identityChanged -> "The desktop's identity changed: it presents a different certificate than when you paired."
-    announcements.connectionStopped -> "The connection stopped. Resume it from the connection status."
-    status.remoteOff -> "Remote access is off on the desktop, or spekterm quit."
-    status.state == Status.State.CONNECTING -> "Connecting to the desktop…"
-    status.state == Status.State.WAITING -> "Not connected — waiting to retry."
-    status.state == Status.State.CONNECTED -> "Connected — catching up with the desktop…"
-    else -> "Not connected to the desktop."
-}
+fun notConnectedReason(status: Status, announcements: Announcements): UiText = UiText.Res(
+    when {
+        announcements.unsupported != null -> R.string.common_not_connected_unsupported
+        announcements.identityChanged -> R.string.common_not_connected_identity
+        announcements.connectionStopped -> R.string.common_not_connected_stopped
+        status.remoteOff -> R.string.common_not_connected_remote_off
+        status.state == Status.State.CONNECTING -> R.string.common_not_connected_connecting
+        status.state == Status.State.WAITING -> R.string.common_not_connected_waiting
+        status.state == Status.State.CONNECTED -> R.string.common_not_connected_catching_up
+        else -> R.string.common_not_connected
+    },
+)

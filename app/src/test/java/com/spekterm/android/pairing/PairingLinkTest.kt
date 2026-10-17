@@ -3,6 +3,8 @@ package com.spekterm.android.pairing
 import com.spekterm.android.pairing.PairingLink.Refusal
 import com.spekterm.android.pairing.PairingLink.Result
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PairingLinkTest {
@@ -101,5 +103,15 @@ class PairingLinkTest {
     @Test
     fun neverPrintsTheCode() {
         assert(!ok(desktopLink).toString().contains(code))
+    }
+
+    @Test
+    fun recognizesPairingLinksForTheScanner() {
+        assertTrue(PairingLink.isPairingLink(desktopLink))
+        assertTrue(PairingLink.isPairingLink("SPEKTERM://PAIR?v=2"))
+        assertTrue(PairingLink.isPairingLink("  $desktopLink\n"))
+        assertFalse(PairingLink.isPairingLink("https://example.org"))
+        assertFalse(PairingLink.isPairingLink("spekterm://other?v=1"))
+        assertFalse(PairingLink.isPairingLink("hello there"))
     }
 }

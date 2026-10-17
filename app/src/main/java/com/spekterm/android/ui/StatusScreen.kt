@@ -2,6 +2,12 @@
 
 package com.spekterm.android.ui
 
+import com.spekterm.android.attention.AttentionNotifier
+import androidx.compose.ui.res.pluralStringResource
+import com.spekterm.android.service.Unreachability
+import com.spekterm.android.service.ConnectionService
+import com.spekterm.android.R
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import android.os.PowerManager
 import android.provider.Settings
@@ -76,13 +82,13 @@ fun StatusScreen(
     var allAddresses by remember { mutableStateOf(false) }
 
     // The app's settings: everything it lets the user set already lives here, the connection first (design D4, D10).
-    SpekScaffold(topBar = { scroll -> TopBar("Settings", scroll, onBack = onBack) }) {
+    SpekScaffold(topBar = { scroll -> TopBar(stringResource(R.string.status_title), scroll, onBack = onBack) }) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(Modifier.widthIn(max = 600.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Section("Connection")
+                Section(stringResource(R.string.status_section_connection))
                 Column(
                     Modifier.fillMaxWidth().background(colors.surfaceContainer, MaterialTheme.shapes.large).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -94,87 +100,120 @@ fun StatusScreen(
                     Text(desktop, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
                     // The full state, with the address in use and since when; the title above is its short form.
                     stateText(status, announcements.paused, time).takeIf { it != stateTitle(status, announcements.paused) }?.let { Small(it) }
-                    status.lastClose?.let { Small("Last disconnect: $it") }
-                    Small("Connections this session: ${status.reconnects}")
+                    status.lastClose?.let { Small(stringResource(R.string.status_last_disconnect, it)) }
+                    Small(stringResource(R.string.status_connections, status.reconnects))
 
-                    // The order they are tried; more than three collapse until asked (`desktop-connection`, D10).
+                    // Why the last round reached no address (`scan-connect-zh` D6), unless a stronger state says more.
+                    val report = status.report?.takeIf {
+                        !announcements.paused && !status.throttled && !announcements.identityChanged && announcements.unsupported == null
+                    }
+                    if (report != null) {
+                        val advice = Reasons.advice(report, pairing.port).map { it.text() }
+                        Notice((listOf(Reasons.said(report, pairing.port).text()) + advice).joinToString("\n"), Tone.Warning)
+                    }
+
+                    // The order they are tried; more than three collapse until asked (`desktop-connection`, D10) —
+                    // except while a round is under way or its failure is shown: then each address shows its outcome.
+                    val outcomes: List<Pair<String, Unreachability.Outcome?>>? = when {
+                        status.attempts.isNotEmpty() -> pairing.addressOrder().filter { it in status.attempts }.map { it to status.attempts[it] }
+                        report != null -> report.outcomes
+                        else -> null
+                    }
                     val addresses = pairing.addressOrder()
-                    if (addresses.size <= 3 || allAddresses) {
-                        Small("Addresses, in the order they are tried · port ${pairing.port}")
+                    if (outcomes != null) {
+                        Small(stringResource(R.string.status_addresses_order, pairing.port))
+                        for ((address, outcome) in outcomes) {
+                            // A long IPv6 address wraps; its outcome stays on one line beside it.
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(address, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                                Text(
+                                    Reasons.outcome(outcome).text(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
+                            }
+                        }
+                    } else if (addresses.size <= 3 || allAddresses) {
+                        Small(stringResource(R.string.status_addresses_order, pairing.port))
                         for (address in addresses) Mono(address)
                     } else {
-                        Small("${addresses.size} addresses · port ${pairing.port}")
-                        TextButton(onClick = { allAddresses = true }, contentPadding = PaddingValues(0.dp)) { Text("Show all") }
+                        Small(pluralStringResource(R.plurals.status_addresses_count, addresses.size, addresses.size, pairing.port))
+                        TextButton(onClick = { allAddresses = true }, contentPadding = PaddingValues(0.dp)) { Text(stringResource(R.string.status_show_all)) }
                     }
 
                     // States also announced by notifications, so they show without the notification permission.
                     if (announcements.identityChanged) {
-                        Notice("The desktop presents a different certificate than when you paired. If you reset remote access, pair again.", Tone.Error, "Dismiss", {
+                        Notice(stringResource(R.string.status_identity_changed), Tone.Error, stringResource(R.string.common_dismiss), {
                             onAnnouncements { it.copy(identityChanged = false) }
                         })
                     }
                     if (announcements.connectionStopped) {
-                        Notice("Android stopped the connection in the background. Resume below.", Tone.Warning, "Dismiss", {
+                        Notice(stringResource(R.string.status_connection_stopped), Tone.Warning, stringResource(R.string.common_dismiss), {
                             onAnnouncements { it.copy(connectionStopped = false) }
                         })
                     }
                     announcements.unsupported?.let { hint ->
                         val who = when (hint) {
-                            "UPDATE_APP" -> "Update this app."
-                            "UPDATE_DESKTOP" -> "Update spekterm on the desktop."
-                            else -> "Update the app or the desktop."
+                            "UPDATE_APP" -> stringResource(R.string.status_update_app)
+                            "UPDATE_DESKTOP" -> stringResource(R.string.status_update_desktop)
+                            else -> stringResource(R.string.status_update_either)
                         }
-                        Notice("The app and the desktop speak different protocol versions. $who", Tone.Error, "Dismiss", {
+                        Notice(stringResource(R.string.status_unsupported, who), Tone.Error, stringResource(R.string.common_dismiss), {
                             onAnnouncements { it.copy(unsupported = null) }
                         })
                     }
 
                     Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (announcements.paused || status.state == Status.State.STOPPED) {
-                            FilledTonalButton(onClick = onResume) { Text("Resume") }
+                            FilledTonalButton(onClick = onResume) { Text(stringResource(R.string.common_resume)) }
                         } else {
-                            FilledTonalButton(onClick = onPause) { Text("Pause") }
+                            FilledTonalButton(onClick = onPause) { Text(stringResource(R.string.status_pause)) }
                         }
-                        TextButton(onClick = { exportLog(context) }) { Text("Export log") }
+                        if (status.canTryNow(announcements.paused)) {
+                            TextButton(onClick = { ConnectionService.tryNow(context) }) { Text(stringResource(R.string.status_try_now)) }
+                        }
+                        TextButton(onClick = { exportLog(context) }) { Text(stringResource(R.string.status_export_log)) }
                     }
                 }
 
-                Section("Appearance")
+                Section(stringResource(R.string.status_section_appearance))
                 val theme by context.app.theme.collectAsStateWithLifecycle()
                 AppearanceSection(theme) { context.app.chooseTheme(it) }
 
-                Section("Notifications")
+                Section(stringResource(R.string.status_section_notifications))
                 SettingRow(
-                    "Attention notifications",
-                    if (notificationsOn) "On" else "Off",
-                    if (notificationsOn) null else "Notification settings" to {
+                    stringResource(R.string.status_attention_notifications),
+                    if (notificationsOn) stringResource(R.string.status_on) else stringResource(R.string.status_off),
+                    if (notificationsOn) null else stringResource(R.string.status_notification_settings) to {
                         context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
                     },
                 )
                 SettingRow(
-                    "Battery optimization",
-                    if (batteryExempt) "Off for this app" else "On — Android may stop the connection",
-                    "Battery settings" to { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) },
+                    stringResource(R.string.status_battery_optimization),
+                    if (batteryExempt) stringResource(R.string.status_battery_off) else stringResource(R.string.status_battery_on),
+                    stringResource(R.string.status_battery_settings) to { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) },
                 )
 
-                Section("Recent events")
-                if (status.recent.isEmpty()) Small("None yet.")
+                Section(stringResource(R.string.status_section_recent))
+                if (status.recent.isEmpty()) Small(stringResource(R.string.status_recent_none))
                 for (event in status.recent) {
                     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(time.format(Date(event.receivedAt)), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
-                            Text(event.kind, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(AttentionNotifier.headline(event.kind)), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(event.title, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(event.outcome, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                            Text(recentOutcome(event.outcome), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                         }
                     }
                 }
 
-                Section("Pairing")
-                OutlinedButton(onClick = onPairAgain) { Text("Pair with a new code") }
-                TextButton(onClick = { unpairing = true }) { Text("Unpair", color = colors.error) }
+                Section(stringResource(R.string.status_section_pairing))
+                OutlinedButton(onClick = onPairAgain) { Text(stringResource(R.string.status_pair_new_code)) }
+                TextButton(onClick = { unpairing = true }) { Text(stringResource(R.string.status_unpair), color = colors.error) }
                 Spacer(Modifier.height(16.dp))
             }
         }
@@ -192,17 +231,17 @@ fun StatusScreen(
 fun UnpairDialog(desktop: String, onUnpair: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Unpair from $desktop?") },
-        text = { Text("The phone stops connecting and forgets this desktop. To use it again, pair from the desktop's Remote access settings.") },
-        confirmButton = { TextButton(onClick = onUnpair) { Text("Unpair", color = MaterialTheme.colorScheme.error) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        title = { Text(stringResource(R.string.status_unpair_title, desktop)) },
+        text = { Text(stringResource(R.string.status_unpair_body)) },
+        confirmButton = { TextButton(onClick = onUnpair) { Text(stringResource(R.string.status_unpair), color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 
 /** Light or dark as the phone is set, or fixed (`app-appearance`, D13); a tap applies at once. */
 @Composable
 fun AppearanceSection(choice: ThemeChoice, onChoose: (ThemeChoice) -> Unit) {
-    val options = listOf(ThemeChoice.SYSTEM to "System", ThemeChoice.LIGHT to "Light", ThemeChoice.DARK to "Dark")
+    val options = listOf(ThemeChoice.SYSTEM to stringResource(R.string.status_theme_system), ThemeChoice.LIGHT to stringResource(R.string.status_theme_light), ThemeChoice.DARK to stringResource(R.string.status_theme_dark))
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
         options.forEachIndexed { i, (value, label) ->
             SegmentedButton(
@@ -261,23 +300,41 @@ private fun stateColor(status: Status, announcements: Announcements): Color {
     }
 }
 
-private fun stateTitle(status: Status, paused: Boolean): String = when {
-    paused -> "Paused"
-    status.state == Status.State.CONNECTED -> "Connected"
-    status.remoteOff -> "Remote access is off"
-    status.state == Status.State.CONNECTING -> "Connecting…"
-    status.state == Status.State.WAITING -> "Waiting to retry"
-    else -> "Not connected"
+@Composable
+private fun stateTitle(status: Status, paused: Boolean): String = stringResource(
+    when {
+        paused -> R.string.status_paused
+        status.state == Status.State.CONNECTED -> R.string.status_connected
+        status.remoteOff -> R.string.status_remote_off
+        status.state == Status.State.CONNECTING -> R.string.status_connecting
+        status.state == Status.State.WAITING -> R.string.status_waiting
+        else -> R.string.status_not_connected
+    },
+)
+
+@Composable
+private fun stateText(status: Status, paused: Boolean, time: DateFormat): String = when {
+    paused -> stringResource(R.string.status_paused)
+    status.state == Status.State.CONNECTED -> status.since?.let {
+        stringResource(R.string.status_connected_via_since, status.address.orEmpty(), time.format(Date(it)))
+    } ?: stringResource(R.string.status_connected_via, status.address.orEmpty())
+    status.remoteOff -> stringResource(R.string.status_remote_off_long)
+    status.state == Status.State.CONNECTING ->
+        status.address?.let { stringResource(R.string.status_connecting_to, it) } ?: stringResource(R.string.status_connecting)
+    status.state == Status.State.WAITING ->
+        status.retryAt?.let { stringResource(R.string.status_waiting_at, time.format(Date(it))) } ?: stringResource(R.string.status_waiting)
+    else -> stringResource(R.string.status_not_connected)
 }
 
-private fun stateText(status: Status, paused: Boolean, time: DateFormat): String = when {
-    paused -> "Paused"
-    status.state == Status.State.CONNECTED ->
-        "Connected via ${status.address}" + (status.since?.let { " since ${time.format(Date(it))}" } ?: "")
-    status.remoteOff -> "Remote access is off, or the desktop quit"
-    status.state == Status.State.CONNECTING -> "Connecting to ${status.address}…"
-    status.state == Status.State.WAITING -> "Waiting to retry" + (status.retryAt?.let { " at ${time.format(Date(it))}" } ?: "")
-    else -> "Not connected"
+/** What happened to a recent event, in words; an outcome the app does not know is shown as recorded. */
+@Composable
+private fun recentOutcome(outcome: String): String = when (outcome) {
+    "notified" -> stringResource(R.string.status_recent_notified)
+    "suppressed" -> stringResource(R.string.status_recent_suppressed)
+    "visible" -> stringResource(R.string.status_recent_visible)
+    "summarized" -> stringResource(R.string.status_recent_summarized)
+    "replaced" -> stringResource(R.string.status_recent_replaced)
+    else -> outcome
 }
 
 private fun exportLog(context: android.content.Context) {
@@ -289,5 +346,5 @@ private fun exportLog(context: android.content.Context) {
         .setType("text/plain")
         .putExtra(Intent.EXTRA_STREAM, uri)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(Intent.createChooser(send, "Export connection log"))
+    context.startActivity(Intent.createChooser(send, context.getString(R.string.status_export_chooser)))
 }
