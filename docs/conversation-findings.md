@@ -241,3 +241,69 @@ Seen on the desktop during the run, not in the phone's behavior (the phone showe
 - The desktop switched a session to its conversation view by itself after the agent's turn. A prompt sent from that
   view's composer stayed in the agent's input line unsubmitted ("尚未確認"), and was submitted only after switching
   back to the terminal view and pressing Enter there.
+
+## Appearance
+
+Change `ui-polish`, 2026-10-17. No protocol change; checked against the installed spekterm (0.2.x, port 47615).
+
+| Check | Where | Outcome |
+|---|---|---|
+| `./gradlew test assembleDebug`: 204 JVM tests, including the new `ConversationItemsTest` (18: a call with its result, parallel calls paired by id, same id paired in call order, unpaired results alone, a run of seven with thinking, a single call not a run, other entries ending a run, a run's key stable as it grows, every worked case of design D7's anchor table, every entry shown once) and `ThemeTest` (both schemes set all 48 Material 3 color slots; none left at the baseline but neutrals) | host | pass |
+| `connectedDebugAndroidTest`: 61 tests, including the new `UnpairDialogTest` (Cancel does not unpair and closes the dialog; Unpair unpairs once) | emulator (AVD `Pixel_9`, Android 16), only the emulator listed by `adb devices` | pass (the first run failed both new cases: the test's own dialog state was not remembered; fixed in the test) |
+
+Screenshots on the emulator, paired with the installed spekterm, in light and dark mode, reviewed against design
+D1–D12 and spec `app-appearance` (kept outside the repository):
+
+| Screen or state | Outcome |
+|---|---|
+| Cold start, light and dark: the starting window and the splash in the mode's background, status icons dark on light and light on dark from the first frame; the splash icon legible on light (the launcher icon draws its own dark circle, so no icon background was needed) | pass |
+| Session list, light and dark: system bars in the app's background with contrasting icons (the earlier build showed dark icons on a dark bar in light mode); "Waiting for you" with an attention dot stands out from a column of quiet "Dormant" rows; agent icon per row, folder headings with chevron, monospace branch and count pill; the "New session" button, collapsing to its icon on scroll | pass |
+| Accessibility labels (`uiautomator dump`): list — "More options", "Agent" per row, "Collapse" per heading, "New session" on the collapsed button; conversation — "Back", "More options", "Attach", "Send" | pass |
+| Conversation: the agent's seven Bash calls as one "7 tool calls" line with the latest call under it; opened, seven calls each with a success mark; the user's message a quiet bubble at the end; the top bar's "Waiting for you" with its dot; "Jump to newest" a small round button in the corner; send filled in the accent only once something is typed | pass |
+| Settings: top bar with back, a connection card ("Connected" with a green dot, then "Connected via … since …"), "7 addresses · port 47615" with "Show all", notifications and battery rows, pairing at the end | pass (the first build put the whole "Connected via … since …" in the card's title, which wrapped; split into a title and a detail line) |
+| Unpair: the dialog "Unpair from kewang-7420?"; Cancel left the screen at "Connected via …" | pass |
+| Rename dialog: "Clear name" at the start, "Cancel" and "Rename" at the end; cancelled | pass |
+| Re-pairing: "Pair again" top bar, the scan button, "or", the link field with its paste icon; a refused link shows an error notice; system back returns to settings, then to the list | pass (the first build's system back left the app from this screen; a back handler was added) |
+| First pairing (after the instrumented run unpaired the emulator), light and dark | pass |
+| The composer with the keyboard open | not produced — the emulator's keyboard runs floating (hardware-keyboard mode) and takes no room; left to the phone |
+| The prompt card, an attachment, the working indicator, the close-offer card | not produced — they need an agent driven into a prompt or an upload to the user's desktop; left to the phone |
+
+On the Pixel 7, the debug build installed with `adb install -r` (pairing kept), used for real by the maintainer
+against the installed spekterm over the LAN, 2026-10-17 04:03–04:20 Z, in light and dark mode: "all fine"
+(pass, maintainer). Evidence from the app's connection log:
+
+| What was used | Evidence |
+|---|---|
+| Conversations opened and left | `conversation event=watch` / `unwatch` from 04:04 Z |
+| Replies sent from the new composer | `send outcome=Submitted` at 04:16:38, 04:18:46 and 04:20:11 Z |
+| A photo attached, uploaded, then removed from its card | `attach event=prepared bytes=2221849` 04:18:11, `complete` 04:18:14, `removed` 04:18:22 Z |
+| A question answered from the restyled prompt card | `answer kind=question decision=answer outcome=Done` 04:19:09 Z |
+| A session renamed from the new dialog | `rename cleared=false` 04:05:06 Z |
+
+Scrolling the session list stuttered at first and smoothed after a few flings. Frame stats read with
+`dumpsys gfxinfo` (passively, from the maintainer's own use): the debug build had 4.78% janky frames (6918 frames;
+95th percentile 26 ms, 99th 65 ms; 327 slow UI-thread frames; GPU 99th 5 ms). The same code as a non-debuggable
+`profile` build, compiled `speed-profile` after install, had 1.96% (1629 frames; 95th 15 ms, 99th 30 ms; 31 slow
+UI-thread frames). Most of the stutter is the debug build's (debuggable code is JIT-only). The list's floating
+button now reads the scroll position through `derivedStateOf`, and its lazy items carry a content type. R8 for the
+release build is left to the change that prepares publishing.
+
+### Choosing light or dark in the app
+
+Added after the phone run (design D13). On the emulator (AVD `Pixel_9`, API 36, unpaired: Settings needs a pairing,
+so the choice was written to the app's `no_backup/theme.json` with `run-as` and the app force-stopped and relaunched;
+screenshots kept outside the repository):
+
+| Check | Outcome |
+|---|---|
+| `ThemeStoreTest` (default `SYSTEM`; each choice reads back; unreadable and unknown values read `SYSTEM`) and `AppearanceSectionTest` (the current choice selected; another tapped is reported, the current one is not) | pass |
+| Settings rendered in a test in both themes: "Appearance" between Connection and Notifications, "System · Light · Dark" with the choice checked | pass |
+| Dark on a light phone: the screens dark with light status icons; the splash dark from the second start on | pass (the first start after writing the file kept the phone's mode for the splash: the system learns the choice only in that start's `App.onCreate`; a choice made in Settings tells it at once) |
+| Light on a dark phone: light screens, dark status icons | pass |
+| Dark chosen, the phone's mode toggled light → dark → light: the app stayed dark | pass |
+| Dark chosen, `adb reboot`, cold start: splash and screens dark | pass |
+| The live path, run inside the app's process (a scratch instrumented probe calling `chooseTheme` with the activity open): Dark → the activity's configuration dark; System → light (the phone light); Light → light; System → light; no activity recreated | pass |
+| `SYSTEM` after a start that removed a Dark override (file written directly): stayed dark until the next start, even across phone toggles; after that start it followed the phone both ways | expected divergence path, recorded in design Risks |
+| Unpairing, pairing again, the desktop's revocation leave the choice: by reading — `theme.json` is touched by none of `MainActivity.unpair`, `onPaired`, `ConnectionService` | pass (read) |
+| API 29–30 (starting window follows the phone, the first frame switches) | not run — no image for those levels here; by reading only |
+| `./gradlew test assembleDebug` and `connectedDebugAndroidTest`, emulator only: 242 JVM and 74 instrumented tests in the shared tree (with another change's work in progress); this change alone, applied to a clean worktree of master: 204 JVM tests pass and everything compiles | pass |

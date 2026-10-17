@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        The window, the starting window and the splash in the light theme's background, with dark bar icons, so a
+        cold start matches the mode before Compose draws (ui-polish D2). On API 31+ the splash background defaults
+        to windowBackground; there is no values-v31, which a night qualifier would outrank.
+    -->
+    <style name="Theme.Spekterm" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

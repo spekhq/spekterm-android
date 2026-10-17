@@ -256,3 +256,19 @@ class AnnouncementStore(context: Context, private val onChange: () -> Unit = {})
         return next
     }
 }
+
+/** Light or dark: as the phone is set, or fixed by the user (`app-appearance`, `ui-polish` D13). */
+enum class ThemeChoice { SYSTEM, LIGHT, DARK }
+
+@Serializable
+private data class StoredTheme(val choice: String)
+
+/** The app's appearance choice; the app's setting, not the pairing's, so nothing that ends a pairing deletes it. */
+class ThemeStore(context: Context) {
+    private val file = JsonFile(AtomicFile(File(context.noBackupFilesDir, "theme.json")), StoredTheme.serializer())
+
+    /** [ThemeChoice.SYSTEM] when nothing, something unreadable, or a value this version does not know is stored. */
+    @Synchronized fun load(): ThemeChoice = file.read()?.let { stored -> ThemeChoice.entries.firstOrNull { it.name == stored.choice } } ?: ThemeChoice.SYSTEM
+    @Synchronized fun save(choice: ThemeChoice) = file.write(StoredTheme(choice.name))
+    @Synchronized fun delete() = file.delete()
+}

@@ -8,13 +8,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import android.os.Build
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,6 +28,9 @@ import com.spekterm.android.service.Notifications
 import com.spekterm.android.store.Announcements
 import com.spekterm.android.store.Pairing
 import com.spekterm.android.store.StoreUnavailableException
+import com.spekterm.android.ui.theme.SpektermTheme
+import com.spekterm.android.store.ThemeChoice
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -78,8 +80,23 @@ class MainActivity : ComponentActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) { app.changes.collect { reload() } }
         }
         setContent {
-            MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
-                Surface(Modifier.fillMaxSize().safeDrawingPadding()) {
+            val choice by app.theme.collectAsStateWithLifecycle()
+            val dark = when (choice) {
+                ThemeChoice.SYSTEM -> isSystemInDarkTheme()
+                ThemeChoice.LIGHT -> false
+                ThemeChoice.DARK -> true
+            }
+            // The activity is not recreated on a light/dark switch (configChanges), so the bars follow from here (D2).
+            LaunchedEffect(dark) {
+                val transparent = Color.Transparent.toArgb()
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(transparent, transparent) { dark },
+                    navigationBarStyle = SystemBarStyle.auto(transparent, transparent) { dark },
+                )
+            }
+            SpektermTheme(dark) {
+                // Edge to edge: each screen's Scaffold keeps its content clear of the bars and the keyboard (D2).
+                Surface(Modifier.fillMaxSize()) {
                     val current = pairing
                     if (current == null || repairing) {
                         PairScreen(

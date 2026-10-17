@@ -22,6 +22,14 @@ android {
         release {
             isMinifyEnabled = false
         }
+        // A release build signed with the debug key, installable over a debug build (same key, data kept), to
+        // judge smoothness on the phone: a debug build is debuggable, which keeps ART from compiling it ahead of
+        // time, so it stutters until the JIT has warmed up.
+        create("profile") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {

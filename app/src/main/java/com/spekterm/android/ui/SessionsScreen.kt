@@ -1,6 +1,21 @@
 package com.spekterm.android.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
+import com.spekterm.android.service.Status
+import com.spekterm.android.ui.theme.spekColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -23,17 +38,16 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
@@ -123,63 +137,77 @@ fun SessionsScreen(
     }
     LaunchedEffect(canCreate) { if (!canCreate) picking = false }
 
-    Column(Modifier.fillMaxSize()) {
-        TopBar(desktopName) {
-            TextButton(onClick = { picking = true }, enabled = canCreate) { Text("New") }
-            Box {
-                TextButton(onClick = { menu = true }) { Text("⋮") }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    if (groups.isNotEmpty()) {
-                        val anyExpanded = groups.any { it.key !in collapsed }
-                        DropdownMenuItem(
-                            text = { Text(if (anyExpanded) "Collapse all" else "Expand all") },
-                            onClick = {
-                                menu = false
-                                setCollapsed(if (anyExpanded) collapsed + groups.map { it.key } else emptySet())
-                            },
-                        )
+    val listState = rememberLazyListState()
+    // Read through derivedStateOf: the button changes only when this flips, not on every scrolled row.
+    val atTop by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+    SpekScaffold(
+        topBar = { scroll ->
+            TopBar(desktopName, scroll) {
+                Box {
+                    MoreButton({ menu = true })
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        if (groups.isNotEmpty()) {
+                            val anyExpanded = groups.any { it.key !in collapsed }
+                            DropdownMenuItem(
+                                text = { Text(if (anyExpanded) "Collapse all" else "Expand all") },
+                                onClick = {
+                                    menu = false
+                                    setCollapsed(if (anyExpanded) collapsed + groups.map { it.key } else emptySet())
+                                },
+                            )
+                        }
+                        DropdownMenuItem(text = { Text("Settings") }, onClick = {
+                            menu = false
+                            onStatus()
+                        })
                     }
-                    DropdownMenuItem(text = { Text("Settings") }, onClick = {
-                        menu = false
-                        onStatus()
-                    })
                 }
             }
-        }
-        when {
-            announcements.paused -> Notice("The connection is paused.", "Resume", onResume)
-            !connected || !sessions.current -> {
-                val age = sessions.receivedAt?.let { " Showing the list from ${time.format(Date(it))}." } ?: " No session list received yet."
-                Notice(notConnectedReason(status, announcements) + age, "Details", onStatus)
+        },
+        floatingActionButton = {
+            if (list != null) NewSessionButton(canCreate, expanded = atTop) { picking = true }
+        },
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            when {
+                announcements.paused -> Notice("The connection is paused.", Tone.Warning, "Resume", onResume)
+                !connected || !sessions.current -> {
+                    val age = sessions.receivedAt?.let { " Showing the list from ${time.format(Date(it))}." } ?: " No session list received yet."
+                    Notice(notConnectedReason(status, announcements) + age, Tone.Warning, "Details", onStatus)
+                }
+                list?.window == false -> Notice("spekterm has no open window on the desktop, so it lists no sessions. Open spekterm there.", Tone.Warning)
             }
-            list?.window == false -> Notice("spekterm has no open window on the desktop, so it lists no sessions. Open spekterm there.")
-        }
-        creation?.let { CreationNotice(it, onOpen) }
-        if (list == null || (list.window && list.sessions.isEmpty())) {
-            if (list != null) Text("No sessions on the desktop.", Modifier.padding(16.dp))
-            return@Column
-        }
-        LazyColumn(Modifier.fillMaxSize()) {
-            for (group in groups) {
-                val folded = group.key in collapsed
-                stickyHeader(key = "group:${group.key}") {
-                    Column {
+            creation?.let { CreationNotice(it, onOpen) }
+            if (list == null) {
+                // Only while a list is on its way; otherwise the notice above says why there is none (D6).
+                val coming = !announcements.paused && (status.state == Status.State.CONNECTING || status.state == Status.State.CONNECTED)
+                if (coming) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                return@Column
+            }
+            if (list.window && list.sessions.isEmpty()) {
+                CenteredMessage(SpekIcons.Shell, "No sessions on the desktop.") {
+                    if (canCreate) Text("Start one with New session.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                return@Column
+            }
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 88.dp)) {
+                for (group in groups) {
+                    val folded = group.key in collapsed
+                    stickyHeader(key = "group:${group.key}", contentType = "heading") {
                         GroupHeading(group, folded) { setCollapsed(if (folded) collapsed - group.key else collapsed + group.key) }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
-                }
-                if (!folded) {
-                    items(group.rows, key = { "session:${it.session.id}" }) { row ->
-                        SessionRow(
-                            row,
-                            actions = SessionActions.of(row.session, operations),
-                            answers = SessionActions.offerActions(row.session, operations),
-                            actionsEnabled = actionsEnabled,
-                            onClick = { onOpen(row.session.id) },
-                            onAction = { dialogs.choose(it, row.session) },
-                            onAnswer = { dialogs.answerOffer(it, row.session) },
-                        )
-                        HorizontalDivider()
+                    if (!folded) {
+                        items(group.rows, key = { "session:${it.session.id}" }, contentType = { "session" }) { row ->
+                            SessionRow(
+                                row,
+                                actions = SessionActions.of(row.session, operations),
+                                answers = SessionActions.offerActions(row.session, operations),
+                                actionsEnabled = actionsEnabled,
+                                onClick = { onOpen(row.session.id) },
+                                onAction = { dialogs.choose(it, row.session) },
+                                onAnswer = { dialogs.answerOffer(it, row.session) },
+                            )
+                        }
                     }
                 }
             }
@@ -192,20 +220,25 @@ fun SessionsScreen(
         ModalBottomSheet(onDismissRequest = { picking = false }) {
             Text(
                 "Start an agent session in",
-                Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.titleMedium,
             )
             LazyColumn(Modifier.padding(bottom = 24.dp)) {
                 items(SessionsView.choices(list), key = { it.folderId ?: "\u0000global" }) { choice ->
-                    Column(
+                    Row(
                         Modifier.fillMaxWidth().clickable {
                             picking = false
                             Desktop.create(choice.folderId, choice.name)
-                        }.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+                        }.heightIn(min = 56.dp).padding(horizontal = 24.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        Text(choice.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        choice.branch?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Icon(SpekIcons.Folder, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.weight(1f)) {
+                            Text(choice.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            choice.branch?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }
@@ -214,86 +247,122 @@ fun SessionsScreen(
     }
 }
 
+/**
+ * Starting a session (D6). Always shown, as `session-create` wants the offer kept while it can't be used: then it is
+ * dimmed, ignores taps and says it is disabled. Collapsed to its icon, the icon carries the label.
+ */
+@Composable
+private fun NewSessionButton(enabled: Boolean, expanded: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    ExtendedFloatingActionButton(
+        text = { Text("New session") },
+        icon = { Icon(SpekIcons.Add, if (expanded) null else "New session") },
+        onClick = { if (enabled) onClick() },
+        expanded = expanded,
+        containerColor = if (enabled) colors.primaryContainer else colors.surfaceContainerHigh,
+        contentColor = if (enabled) colors.onPrimaryContainer else colors.outline,
+        modifier = if (enabled) Modifier else Modifier.semantics { disabled() },
+    )
+}
+
 /** What happened to the session being started (design D7). */
 @Composable
 private fun CreationNotice(c: Creation, onOpen: (String) -> Unit) {
     val dismiss = { Desktop.consumeCreation() }
     when (c) {
-        is Creation.Starting -> Notice("Starting a session in ${c.name}…")
+        is Creation.Starting -> Notice("Starting a session in ${c.name}…", Tone.Info)
         is Creation.Opened -> if (!c.autoOpen) {
-            Notice("Started a session in ${c.name}.", "Open", {
+            Notice("Started a session in ${c.name}.", Tone.Info, "Open", {
                 Desktop.consumeCreation()
                 onOpen(c.sessionId)
             }, "Dismiss", dismiss)
         }
-        is Creation.Unlisted -> Notice("Started a session in ${c.name}; it will appear in the list.", "Dismiss", dismiss)
+        is Creation.Unlisted -> Notice("Started a session in ${c.name}; it will appear in the list.", Tone.Info, "Dismiss", dismiss)
         is Creation.Failed -> Notice(
             when (c.reason) {
                 Creation.Reason.NO_WINDOW -> "Could not start a session in ${c.name}: spekterm has no open window on the desktop."
                 Creation.Reason.CREATE_FAILED -> "The desktop could not start a session in ${c.name}" + (c.message?.let { ": $it" } ?: ".")
                 Creation.Reason.UNKNOWN -> "Can't tell whether a session was started in ${c.name}. If it was, it will appear in the list."
             },
+            // Not knowing is not a failure (D5).
+            if (c.reason == Creation.Reason.UNKNOWN) Tone.Warning else Tone.Error,
             "Dismiss",
             dismiss,
         )
     }
 }
 
-/** A folder's heading: set apart from the rows, stays on top while its rows scroll, toggles collapsing (D2). */
+/** A folder's heading: set apart from the rows, stays on top while its rows scroll, toggles collapsing (D2, D6). */
 @Composable
 private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onToggle: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(onClick = onToggle)
-            .heightIn(min = 48.dp)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (folded) "▸" else "▾", Modifier.width(20.dp), style = MaterialTheme.typography.titleSmall)
-            // Name and branch take the rest of the line, so the count always sits at the end.
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    when {
-                        group.global -> "Global"
-                        group.name != null -> group.name
-                        else -> "Other folders"
-                    },
-                    Modifier.weight(1f, fill = false),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                group.branch?.let {
+    val colors = MaterialTheme.colorScheme
+    val spek = spekColors
+    val turn by animateFloatAsState(if (folded) -90f else 0f, label = "chevron")
+    Column(Modifier.fillMaxWidth().background(colors.surface)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .clickable(onClick = onToggle)
+                .heightIn(min = 48.dp)
+                .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(SpekIcons.ExpandMore, if (folded) "Expand" else "Collapse", Modifier.size(20.dp).rotate(turn), tint = colors.onSurfaceVariant)
+                Spacer(Modifier.width(8.dp))
+                // Name and branch take the rest of the line, so the count always sits at the end.
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        it,
-                        Modifier.widthIn(max = 140.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        when {
+                            group.global -> "Global"
+                            group.name != null -> group.name
+                            else -> "Other folders"
+                        },
+                        Modifier.weight(1f, fill = false),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    group.branch?.let {
+                        Text(
+                            it,
+                            Modifier.widthIn(max = 140.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontFamily = FontFamily.Monospace,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
+                Text(
+                    "${group.rows.size}",
+                    Modifier
+                        .padding(start = 12.dp)
+                        .background(colors.surfaceContainerHigh, CircleShape)
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.onSurfaceVariant,
+                )
             }
-            Text("${group.rows.size}", Modifier.padding(start = 12.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (folded) {
-            val parts = listOfNotNull(
-                group.summary.choice.takeIf { it > 0 }?.let { (if (it == 1) "1 asks for a choice" else "$it ask for a choice") to MaterialTheme.colorScheme.error },
-                group.summary.offers.takeIf { it > 0 }?.let { (if (it == 1) "1 asks to close" else "$it ask to close") to MaterialTheme.colorScheme.primary },
-                group.summary.ready.takeIf { it > 0 }?.let { "$it waiting for you" to MaterialTheme.colorScheme.primary },
-            )
-            if (parts.isNotEmpty()) {
-                Row(Modifier.padding(start = 20.dp, top = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    parts.forEachIndexed { i, (text, color) ->
-                        if (i > 0) Text("·", style = MaterialTheme.typography.labelMedium)
-                        Text(text, style = MaterialTheme.typography.labelMedium, color = color)
+            if (folded) {
+                val parts = listOfNotNull(
+                    group.summary.choice.takeIf { it > 0 }?.let { (if (it == 1) "1 asks for a choice" else "$it ask for a choice") to spek.attention },
+                    group.summary.offers.takeIf { it > 0 }?.let { (if (it == 1) "1 asks to close" else "$it ask to close") to spek.offer },
+                    group.summary.ready.takeIf { it > 0 }?.let { "$it waiting for you" to spek.attention },
+                )
+                if (parts.isNotEmpty()) {
+                    Row(Modifier.padding(start = 28.dp, top = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        parts.forEachIndexed { i, (text, color) ->
+                            if (i > 0) Text("·", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                            Text(text, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = color)
+                        }
                     }
                 }
             }
         }
+        HorizontalDivider(color = colors.outlineVariant)
     }
 }
 
@@ -324,35 +393,31 @@ private fun SessionRow(
                         }
                     },
                 )
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .heightIn(min = 56.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
+            verticalArrangement = Arrangement.Center,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Icon(
+                    if (session.isAgent) SpekIcons.Agent else SpekIcons.Shell,
+                    if (session.isAgent) "Agent" else "Shell",
+                    Modifier.size(20.dp),
+                    // Faint: it tells agent from shell, but most rows are agents and it must not compete with the state.
+                    tint = MaterialTheme.colorScheme.outline,
+                )
                 Column(Modifier.weight(1f)) {
                     Text(session.label.ifEmpty { session.id }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val second = listOfNotNull(
-                        if (session.isAgent) "Agent" else "Shell",
-                        session.lifecycle?.let { "handoff: $it" },
-                    ).joinToString(" · ")
-                    Text(second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    session.lifecycle?.let {
+                        Text("handoff: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 // An offer takes the place of "Waiting for you" only; working or a choice still shows (close-offer D5).
-                stateLabel(row.state).takeUnless { row.offered && row.state == RowState.READY }?.let { (text, color) ->
-                    Text(text, style = MaterialTheme.typography.labelMedium, color = color ?: MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                if (!(row.offered && row.state == RowState.READY)) StateLabel(row.state)
             }
-            if (row.offered) CloseOffer(answers, actionsEnabled, onAnswer, Modifier.fillMaxWidth().padding(top = 4.dp))
+            if (row.offered) CloseOffer(answers, actionsEnabled, onAnswer, Modifier.fillMaxWidth().padding(start = 34.dp, top = 4.dp))
         }
         SessionMenu(menu, { menu = false }, actions, actionsEnabled, onAction)
     }
-}
-
-@Composable
-private fun stateLabel(state: RowState): Pair<String, Color?>? = when (state) {
-    RowState.DORMANT -> "Dormant" to null
-    RowState.READY -> "Waiting for you" to MaterialTheme.colorScheme.primary
-    RowState.BUSY -> "Working" to null
-    RowState.CHOICE -> "Asks for a choice" to MaterialTheme.colorScheme.error
-    RowState.NONE -> null
 }
 
 /** Writes the collapsed groups off the main thread, one write at a time, always the latest set (design D3). */

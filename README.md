@@ -10,18 +10,19 @@ you forward — with no relay and no push service in between.
 
 ## What it does
 
-- **Pairing** by scanning the desktop's pairing QR code, or pasting its link.
+- **Pairing** by scanning the desktop's pairing QR code, or pasting its link. Unpairing from the phone asks first.
+- **A look of spekterm's own**, light or dark as the phone is set, or as chosen in Settings → Appearance.
 - **Notifications** when an agent waits for you, asks for a choice, finishes a handoff, or an inbox item
   arrives — over the app's own held connection. Tapping one about a session opens its conversation.
 - **Sessions**: the desktop's sessions by folder, with each agent's state (waiting for you, working, asks for a
   choice) or dormant, kept live. Folders can be collapsed; a collapsed folder still shows what waits for you.
-  Long-pressing a session (or "⋮" on its screen) renames, hibernates, wakes or closes it. Closing asks first,
+  Long-pressing a session (or the menu on its screen) renames, hibernates, wakes or closes it. Closing asks first,
   and so does stopping a session the desktop says is busy. When an agent asks to close its own session, its row
   and its screen say so with "Close" and "Keep"; that Close is the answer, so it does not ask again.
 - **New sessions**: start an agent session in any of the desktop's folders, quietly, and continue in its
   conversation on the phone.
-- **Conversations**: an agent session's messages, thinking, tool calls and results; a dormant session can be
-  woken. Agent text is Markdown that loads nothing from the network.
+- **Conversations**: an agent session's messages, thinking, tool calls and results — a tool call shown with its
+  result, and a run of calls summarized in one line that opens to each; a dormant session can be woken. Agent text is Markdown that loads nothing from the network.
 - **Replies**: free text to the agent while it waits or works, with photos (HEIC converted to JPEG), PDF or
   text files attached, shown as unconfirmed until it appears in the conversation.
 - **Prompts**: a permission request, the agent's questions or a plan to approve is shown as plain text and,

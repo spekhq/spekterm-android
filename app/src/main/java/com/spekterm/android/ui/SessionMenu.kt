@@ -1,9 +1,20 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.spekterm.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import com.spekterm.android.ui.theme.spekColors
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -131,16 +142,18 @@ fun SessionMenu(expanded: Boolean, onDismiss: () -> Unit, actions: List<SessionA
  */
 @Composable
 fun CloseOffer(answers: List<SessionAction.Kind>, enabled: Boolean, onAnswer: (SessionAction.Kind) -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             "The agent asked to close this session.",
             Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
+            color = spekColors.offer,
         )
         for (answer in answers) {
-            TextButton(enabled = enabled, onClick = { onAnswer(answer) }) {
-                Text(if (answer == SessionAction.Kind.CLOSE) "Close" else "Keep")
+            if (answer == SessionAction.Kind.CLOSE) {
+                OutlinedButton(enabled = enabled, onClick = { onAnswer(answer) }, contentPadding = PaddingValues(horizontal = 14.dp)) { Text("Close") }
+            } else {
+                TextButton(enabled = enabled, onClick = { onAnswer(answer) }) { Text("Keep") }
             }
         }
     }
@@ -169,11 +182,11 @@ private fun RenameDialog(sessionId: String, label: String, enabled: Boolean, onC
             if (e == null) onClose() else error = e
         }
     }
-    AlertDialog(
-        onDismissRequest = { if (!working) onClose() },
-        title = { Text("Rename session") },
-        text = {
-            Column {
+    // Its own button row: "Clear name" apart at the start, Cancel and Rename at the end (D12).
+    BasicAlertDialog(onDismissRequest = { if (!working) onClose() }) {
+        Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 6.dp) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Rename session", style = MaterialTheme.typography.headlineSmall)
                 OutlinedTextField(
                     value = text,
                     // One line: newlines cannot be typed; at most 200 characters, as the desktop keeps.
@@ -186,18 +199,15 @@ private fun RenameDialog(sessionId: String, label: String, enabled: Boolean, onC
                     modifier = Modifier.fillMaxWidth(),
                 )
                 error?.let { Text(renameError(it), color = MaterialTheme.colorScheme.error) }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(enabled = enabled && !working, onClick = { send("") }) { Text("Clear name") }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(enabled = !working, onClick = onClose) { Text("Cancel") }
+                    TextButton(enabled = enabled && !working && text.isNotBlank(), onClick = { send(text) }) { Text(if (working) "Renaming…" else "Rename") }
+                }
             }
-        },
-        confirmButton = {
-            TextButton(enabled = enabled && !working && text.isNotBlank(), onClick = { send(text) }) { Text(if (working) "Renaming…" else "Rename") }
-        },
-        dismissButton = {
-            Column {
-                TextButton(enabled = enabled && !working, onClick = { send("") }) { Text("Clear name") }
-                TextButton(enabled = !working, onClick = onClose) { Text("Cancel") }
-            }
-        },
-    )
+        }
+    }
 }
 
 private fun renameError(e: RemoteError): String = when (e.code) {
@@ -217,20 +227,27 @@ private fun ActionDialog(action: SessionAction, enabled: Boolean, dialogs: Sessi
             onDismissRequest = close,
             title = { Text("Close $name?") },
             text = { Text("It leaves the desktop for good and can't be reopened. Attachments not sent yet are removed.") },
-            confirmButton = { TextButton(enabled = enabled, onClick = { dialogs.run(SessionAction.confirmed(action) as SessionAction.Working) }) { Text("Close session") } },
+            confirmButton = {
+                TextButton(enabled = enabled, onClick = { dialogs.run(SessionAction.confirmed(action) as SessionAction.Working) }) {
+                    Text("Close session", color = MaterialTheme.colorScheme.error)
+                }
+            },
             dismissButton = { TextButton(onClick = close) { Text("Cancel") } },
         )
         is SessionAction.Working -> AlertDialog(
             onDismissRequest = {},
             text = {
-                Text(
-                    when (action.kind) {
-                        SessionAction.Kind.HIBERNATE -> "Hibernating $name…"
-                        SessionAction.Kind.CLOSE -> "Closing $name…"
-                        SessionAction.Kind.WAKE -> "Waking $name…"
-                        SessionAction.Kind.KEEP -> "Keeping $name…"
-                    },
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Text(
+                        when (action.kind) {
+                            SessionAction.Kind.HIBERNATE -> "Hibernating $name…"
+                            SessionAction.Kind.CLOSE -> "Closing $name…"
+                            SessionAction.Kind.WAKE -> "Waking $name…"
+                            SessionAction.Kind.KEEP -> "Keeping $name…"
+                        },
+                    )
+                }
             },
             confirmButton = {},
         )
@@ -251,7 +268,7 @@ private fun ActionDialog(action: SessionAction, enabled: Boolean, dialogs: Sessi
             },
             confirmButton = {
                 TextButton(enabled = enabled, onClick = { dialogs.run(SessionAction.agreed(action) as SessionAction.Working) }) {
-                    Text(if (action.kind == SessionAction.Kind.CLOSE) "Close anyway" else "Hibernate anyway")
+                    Text(if (action.kind == SessionAction.Kind.CLOSE) "Close anyway" else "Hibernate anyway", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = { TextButton(onClick = close) { Text("Cancel") } },

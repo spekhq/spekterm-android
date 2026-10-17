@@ -1,6 +1,9 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.spekterm.android.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,11 +14,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -76,21 +82,35 @@ fun PromptCard(sessionId: String, prompt: Prompt, offer: Offer) {
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.large)
+            .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.large)
             .heightIn(max = maxHeight)
             .verticalScroll(rememberScrollState())
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            when (prompt) {
-                is Prompt.Permission -> "The agent asks for permission"
-                is Prompt.Question -> "The agent asks"
-                is Prompt.Plan -> "The agent asks to approve its plan"
-            },
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-        )
+        // Set apart with the accent: it is what the agent waits for (D9).
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(
+                when (prompt) {
+                    is Prompt.Permission -> SpekIcons.Warning
+                    is Prompt.Question -> SpekIcons.Help
+                    is Prompt.Plan -> SpekIcons.Plan
+                },
+                null,
+                Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                when (prompt) {
+                    is Prompt.Permission -> "The agent asks for permission"
+                    is Prompt.Question -> "The agent asks"
+                    is Prompt.Plan -> "The agent asks to approve its plan"
+                },
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
         when (prompt) {
             is Prompt.Permission -> SelectionContainer {
                 Column {
@@ -111,13 +131,18 @@ fun PromptCard(sessionId: String, prompt: Prompt, offer: Offer) {
                 if (prompt is Prompt.Permission && !prompt.canAllow) {
                     Text("To allow it, answer on the desktop.", style = MaterialTheme.typography.bodySmall)
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     for (decision in offer.decisions) {
                         val selections = (prompt as? Prompt.Question)?.let { Answers.selections(it, chosen) }
-                        OutlinedButton(
-                            enabled = usable && (decision != Prompt.ANSWER || selections != null),
-                            onClick = { answer(decision, if (decision == Prompt.ANSWER) selections else null) },
-                        ) { Text(decisionLabel(prompt, decision)) }
+                        val enabled = usable && (decision != Prompt.ANSWER || selections != null)
+                        val onClick = { answer(decision, if (decision == Prompt.ANSWER) selections else null) }
+                        val label: @Composable () -> Unit = { Text(decisionLabel(prompt, decision)) }
+                        // Going ahead is filled, auto mode tonal, stopping outlined (D9).
+                        when (decision) {
+                            Prompt.ALLOW, Prompt.ANSWER, Prompt.APPROVE -> Button(onClick, enabled = enabled) { label() }
+                            Prompt.APPROVE_AUTO -> FilledTonalButton(onClick, enabled = enabled) { label() }
+                            else -> OutlinedButton(onClick, enabled = enabled) { label() }
+                        }
                     }
                 }
                 Text("${denyLabel(prompt)} stops the agent; it then waits for your reply.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -161,9 +186,8 @@ private fun PlanText(plan: String) {
     if (all) {
         Dialog(onDismissRequest = { all = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(Modifier.fillMaxSize()) {
-                Column(Modifier.padding(16.dp)) {
-                    TextButton(onClick = { all = false }) { Text("‹ Back") }
-                    Box(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                SpekScaffold(topBar = { scroll -> TopBar("Plan", scroll, onBack = { all = false }) }) {
+                    Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
                         SelectionContainer { Text(plan, style = MaterialTheme.typography.bodyMedium) }
                     }
                 }
@@ -209,4 +233,10 @@ fun answerNote(c: Conversation): String? = when (val outcome = c.answer?.outcome
         "The desktop did not take that answer from the phone. Nothing was sent; answer it on the desktop."
     }
     AnswerOutcome.Unknown -> "Can't tell whether the answer was written. Check the desktop."
+}
+
+/** The tone of [answerNote] (D5): something that may need finishing is a warning; nothing sent is an error. */
+fun answerTone(c: Conversation): Tone = when (c.answer?.outcome) {
+    AnswerOutcome.Gone, is AnswerOutcome.Refused -> Tone.Error
+    else -> Tone.Warning
 }

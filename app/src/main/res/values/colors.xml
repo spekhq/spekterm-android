@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The theme's background, for the window before Compose draws (ui-polish D2). -->
+    <color name="window_background">#FFF8FAFC</color>
+</resources>
