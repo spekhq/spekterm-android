@@ -439,4 +439,10 @@
     <string name="status_recent_visible">正在畫面上</string>
     <string name="status_recent_summarized">已彙整</string>
     <string name="status_recent_replaced">已取代</string>
+
+    <!-- OpenSpec 計數 -->
+    <plurals name="openspec_related_changes">
+        <item quantity="other">%1$d 個 change</item>
+    </plurals>
+    <string name="openspec_tasks_done">%2$d 個中 %1$d 個已完成</string>
 </resources>

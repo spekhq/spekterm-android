@@ -441,4 +441,11 @@
     <string name="status_recent_visible">on screen</string>
     <string name="status_recent_summarized">summarized</string>
     <string name="status_recent_replaced">replaced</string>
+
+    <!-- OpenSpec counts -->
+    <plurals name="openspec_related_changes">
+        <item quantity="one">%1$d change</item>
+        <item quantity="other">%1$d changes</item>
+    </plurals>
+    <string name="openspec_tasks_done">%1$d of %2$d done</string>
 </resources>

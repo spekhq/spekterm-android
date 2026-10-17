@@ -18,19 +18,23 @@ class DesktopRaceTest {
     private val args = InstrumentationRegistry.getArguments()
 
     @Test
-    fun droppedAttemptsAreNotCountedAsFailures() = runBlocking<Unit> {
+    fun droppedAttemptsAreNotCountedAsFailures() {
         val addresses = args.getString("desktopAddresses")?.split(',')?.filter { it.isNotBlank() }
         val port = args.getString("desktopPort")?.toIntOrNull()
         val fingerprint = args.getString("desktopFingerprint")
+        // Outside the coroutine, so the runner reports a skip rather than a failure.
         assumeTrue(addresses != null && port != null && fingerprint != null)
-        addresses!!
+        race(addresses!!, port!!, fingerprint!!)
+    }
+
+    private fun race(addresses: List<String>, port: Int, fingerprint: String) = runBlocking<Unit> {
 
         // Twelve races at once, each dropping every connection that opens — the winner too — without a frame.
         var opened = 0
         repeat(12) {
-            val race = race(
+            val race = com.spekterm.android.net.race(
                 addresses,
-                open = { RemoteClient.open(it, port!!, fingerprint!!).attempt() },
+                open = { RemoteClient.open(it, port, fingerprint).attempt() },
                 drop = { opened++; it.cancel() },
                 stagger = 0,
             )
@@ -42,7 +46,7 @@ class DesktopRaceTest {
 
         // Each path reaches the desktop from its own source address: each must answer as usual, not THROTTLED.
         for (address in addresses) {
-            val connection = (RemoteClient.open(address, port!!, fingerprint!!) as RemoteClient.OpenResult.Open).connection
+            val connection = (RemoteClient.open(address, port, fingerprint) as RemoteClient.OpenResult.Open).connection
             val answer = try {
                 connection.call("hello", Frames.hello("not-a-device", "not-a-secret"))
             } finally {

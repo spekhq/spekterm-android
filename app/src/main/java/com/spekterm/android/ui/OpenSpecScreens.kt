@@ -2,6 +2,7 @@
 
 package com.spekterm.android.ui
 
+import androidx.compose.ui.res.pluralStringResource
 import com.spekterm.android.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
@@ -342,7 +343,7 @@ private fun SpecList(specs: List<*>?, openable: Boolean, onOpen: (String) -> Uni
                 Column(Modifier.weight(1f)) {
                     Text(spec.topic, style = MaterialTheme.typography.bodyLarge, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        if (spec.relatedChangeCount == 1) "1 change" else "${spec.relatedChangeCount} changes",
+                        pluralStringResource(R.plurals.openspec_related_changes, spec.relatedChangeCount, spec.relatedChangeCount),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -449,7 +450,7 @@ private fun Tasks(tasks: TaskList) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
         item(key = "progress") {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("${tasks.completed} of ${tasks.total} done", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.openspec_tasks_done, tasks.completed, tasks.total), style = MaterialTheme.typography.titleSmall)
                 if (tasks.total > 0) LinearProgressIndicator(progress = { tasks.completed.toFloat() / tasks.total }, modifier = Modifier.fillMaxWidth(), drawStopIndicator = {})
             }
         }

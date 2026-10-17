@@ -462,3 +462,99 @@ session, in `spekterm-android`, a folder with OpenSpec:
 | The folder's watch stopped after leaving: `openspec op=watch stop=true` 4.9 s after the conversation came back | pass |
 | A further agent message live: the next turn's tool calls and "Working" appeared while on screen | pass |
 | A global session without the icon: seen on the emulator only | pass (emulator) |
+
+
+## Scanning, connection and language
+
+Change `scan-connect-zh`, 2026-10-17, on the emulator (Pixel_9 AVD, Android 16), paired with the dev desktop run
+from spekterm `18db1cf` (a clean export of HEAD, profile `~/.config/spekterm-dev`, port 47616). The desktop lists
+five addresses: 192.168.0.199, two global IPv6 addresses, 100.106.81.33 and fd7a:115c:a1e0::6432:5121.
+
+### Decoding (tasks 1.3)
+
+`QrDecodeTest` drew the pairing link as the desktop does (ECC M, border 2) and decoded it at a share of the
+preview's width, in the old path's 480 px crop (ZXing Java, CameraX's default 640×480) and the new path's 1080 px
+crop (zxing-cpp). The px figures are pixels per module, old/new. The test asserts the new path reads every
+five-address frame at 1/5 and larger: pass.
+
+```
+five addresses: 320 bytes, 73 modules with the border
+five 1/4: 0° old=✗ new=✓ (1.6/3.7 px) 0°+blur old=✗ new=✓ (1.6/3.7 px) 15° old=✗ new=✓ (1.6/3.7 px) 15°+blur old=✗ new=✓ (1.6/3.7 px) 90° old=✗ new=✓ (1.6/3.7 px) 90°+blur old=✗ new=✓ (1.6/3.7 px)
+five 1/5: 0° old=✗ new=✓ (1.3/3.0 px) 0°+blur old=✗ new=✓ (1.3/3.0 px) 15° old=✗ new=✓ (1.3/3.0 px) 15°+blur old=✗ new=✓ (1.3/3.0 px) 90° old=✗ new=✓ (1.3/3.0 px) 90°+blur old=✗ new=✓ (1.3/3.0 px)
+five 1/6: 0° old=✗ new=✓ (1.1/2.5 px) 0°+blur old=✗ new=✗ (1.1/2.5 px) 15° old=✗ new=✓ (1.1/2.5 px) 15°+blur old=✗ new=✗ (1.1/2.5 px) 90° old=✗ new=✓ (1.1/2.5 px) 90°+blur old=✗ new=✗ (1.1/2.5 px)
+five 1/8: 0° old=✗ new=✓ (0.8/1.8 px) 0°+blur old=✗ new=✗ (0.8/1.8 px) 15° old=✗ new=✗ (0.8/1.8 px) 15°+blur old=✗ new=✗ (0.8/1.8 px) 90° old=✗ new=✓ (0.8/1.8 px) 90°+blur old=✗ new=✗ (0.8/1.8 px)
+seven addresses: 432 bytes, 85 modules with the border
+seven 1/4: 0° old=✗ new=✓ (1.4/3.2 px) 0°+blur old=✗ new=✓ (1.4/3.2 px) 15° old=✗ new=✓ (1.4/3.2 px) 15°+blur old=✗ new=✓ (1.4/3.2 px) 90° old=✗ new=✓ (1.4/3.2 px) 90°+blur old=✗ new=✓ (1.4/3.2 px)
+seven 1/5: 0° old=✗ new=✓ (1.1/2.5 px) 0°+blur old=✗ new=✓ (1.1/2.5 px) 15° old=✗ new=✓ (1.1/2.5 px) 15°+blur old=✗ new=✓ (1.1/2.5 px) 90° old=✗ new=✓ (1.1/2.5 px) 90°+blur old=✗ new=✓ (1.1/2.5 px)
+seven 1/6: 0° old=✗ new=✓ (0.9/2.1 px) 0°+blur old=✗ new=✗ (0.9/2.1 px) 15° old=✗ new=✓ (0.9/2.1 px) 15°+blur old=✗ new=✗ (0.9/2.1 px) 90° old=✗ new=✓ (0.9/2.1 px) 90°+blur old=✗ new=✗ (0.9/2.1 px)
+seven 1/8: 0° old=✗ new=✓ (0.7/1.6 px) 0°+blur old=✗ new=✗ (0.7/1.6 px) 15° old=✗ new=✓ (0.7/1.6 px) 15°+blur old=✗ new=✗ (0.7/1.6 px) 90° old=✗ new=✓ (0.7/1.6 px) 90°+blur old=✗ new=✗ (0.7/1.6 px)
+connections opened and dropped: 14 of 24 attempts
+```
+
+The old path read none of these frames: at 1/4 of the preview the real code gets 1.6 px per module, which is why
+the code had to fill most of the frame. The new path reads every frame down to 1/5, sharp frames down to 1/8.
+
+| Item | Outcome |
+|---|---|
+| Dependencies (1.1): `camera-core` resolves to 1.6.2, no `com.google.zxing:core` at runtime; `libzxingcpp_android.so` for the four ABIs; `zipalign -c -P 16 -v 4` passes | pass |
+| The scanner (1.2) on the emulator's virtual scene: opens; a tap starts focus metering (`startFocusAndMetering`); leaving closes the camera (`CameraDevice-10#close`). Pinching could not be produced with `adb input`; the debug log line `zoom ratio=` is there for the Pixel run | pass; pinch on the Pixel |
+| A pairing link opened while scanning (1.5 f): scanning stopped, the camera closed, the card shown | pass |
+
+### Pairing links from other apps (1.5)
+
+| Case | Outcome |
+|---|---|
+| (a) Unpaired, a real link from the dev desktop (`startPairing` over CDP): the card inline, "要與 kewang-7420 配對嗎？", five addresses; Pair paired (`attempt source=pair` ×2, `authenticated` over 192.168.0.199) | pass |
+| (b) Paired, a conversation open, a link with another fingerprint giving the paired desktop's name: a dialog over the conversation, titled "Pair with a different desktop?", saying it "calls itself kewang-7420" and replaces kewang-7420; Cancel returned to the same conversation, no `source=pair` in the log, still connected | pass |
+| (c) Paired, a link with the pairing's fingerprint: "Pair again with kewang-7420?", "a new pairing code for kewang-7420" | pass |
+| (d) A 63-digit `fp`: "This is not a valid pairing link." | pass |
+| (e) A second link while a pairing to 192.0.2.1 ran: toast "A pairing is already in progress.", no attempt to the second link's address; the first pairing went on and failed with its reason | pass |
+
+The first emulator run titled (b) "Pair with kewang-7420?", the name the link gave. Changed so another desktop is
+never titled by the name it claims.
+
+### Racing and the desktop's throttle (2.1–2.4)
+
+| Item | Outcome |
+|---|---|
+| `AddressRaceTest`, `PairerTest` (JVM, virtual time) | pass |
+| `AddressRaceDeviceTest`: 10.255.255.1 then the loopback desktop: authenticated within 1.5 s, the first attempt still running when the second won | pass |
+| `DesktopRaceTest` against the dev desktop over 10.0.2.2 and 192.168.0.199: twelve races at stagger 0, 14 of 24 attempts opened and dropped without a frame; then `hello` with a made-up device on each address answered `AUTH_FAILED`, not `THROTTLED` | pass |
+| Reconnecting after the dev desktop started: authenticated over 192.168.0.199 0.19 s after the round began; the second address never started | pass |
+| Pairing on the emulator: the LAN handshake took longer than 250 ms, so 100.106.81.33 started at +0.38 s; the LAN address won and the other was dropped | pass |
+
+### Why the desktop cannot be reached (3.1–3.5)
+
+| Item | Outcome |
+|---|---|
+| The dev desktop not running, every address refusing (all five `outcome=REFUSED`, `ConnectException`): "192.168.0.199 refused connections on port 47616. If that is your desktop, check that spekterm is running with remote access on.", each address "refused" | pass |
+| Airplane mode: `round network=NONE … reason=NO_NETWORK`, "The phone has no network.", each address "no route" (`ENETUNREACH` text in `ConnectException`) | pass |
+| The dev desktop quit while connected: `disconnected code=4005`, then the next round `reason=REFUSED`; the screen named the refusing address (3.3) | pass |
+| Started again: "Connected via 192.168.0.199", no notice, the address list collapsed again (spec "Connected again") | pass |
+| "Try now" (3.4) during a 37.6 s wait: the next round's first `attempt` 0.2 s after the tap; the following wait 40.6 s, not shorter | pass |
+| Pairing failures (3.5): a link to 192.0.2.1 → "The desktop doesn't answer on any of its addresses… port 47616", "192.0.2.1 · timed out"; a link to 10.0.2.2 port 1 → "10.0.2.2 refused connections on port 1" | pass |
+| A long IPv6 address pushed its outcome onto two lines ("refuse/d"); the outcome now stays on one line beside the wrapped address | fixed |
+
+Exceptions seen on the emulator: refused and no-route both arrive as `ConnectException` with the errno text in the
+chain, as D6 matched them. Timed out was produced only through pairing (192.0.2.1). The Pixel's mobile-data
+case is still to be recorded.
+
+### Language (4.x–6.x)
+
+| Item | Outcome |
+|---|---|
+| `StringsTest`, `HardcodedTextTest` (JVM): pass. The emulator's zh-TW screens still showed "3 changes" under each spec and a "… of … done" line: both began with a template, which the first version of the scan missed. Both moved to resources, and the scan now also catches a lowercase word beside a number or a template | pass after the fix |
+| `./gradlew test` (311 tests) and `connectedDebugAndroidTest` on the emulator only (80 tests; the Pixel was not on adb): pass. `DesktopRaceTest` without its arguments first reported its skip as a failure (the assumption was inside `runBlocking`); moved out, it reports a skip | pass |
+| Switching the app to zh-TW (`cmd locale set-app-locales`) with the rename dialog open and text typed: the list and the dialog in Chinese, the dialog and its text kept, no `disconnected` in the log | pass |
+| The ongoing notification in Chinese at once ("透過 192.168.0.199 連線"); the channels "與桌機的連線", "連線問題" | pass |
+| ja-JP: English | pass |
+| Screenshots in zh-TW and English: session list with folders and handoff lines, the overflow menu, the session menu, a dormant conversation, a conversation's menu, the handoff screen, OpenSpec (folder, change, specs, a spec), settings, pairing again, the card for an opened link, the notification shade. No English left in zh-TW except what the desktop and repositories send (session names, artifact titles, spec text). The English screens read as before | pass |
+| A conversation with a run of tool calls and a prompt card: every dev session was dormant; not produced | not run |
+| "Waiting for you" notification in zh-TW: needs an agent turn ending; for the Pixel run | Pixel |
+
+### Follow-up for spekterm (the desktop)
+
+The code is dense because the link carries every address, global and temporary IPv6 included (five addresses:
+320 bytes, version 13; seven: 432 bytes, 85 modules), drawn at 192 CSS px with a two-module border. A larger code,
+a four-module border, and leaving global and temporary IPv6 addresses out of the link would each make it easier to
+scan. That is a spekterm change, not this app's.

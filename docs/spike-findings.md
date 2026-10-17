@@ -163,7 +163,8 @@ for a way without it. There is none without something in between. The candidates
 
 Smaller follow-ups seen in the same run: the status should say plainly that the desktop is not reachable from
 this network (and why), and the retry rate while unreachable for hours on mobile data needs its own battery
-measurement — the overnight run is on Wi-Fi.
+measurement — the overnight run is on Wi-Fi. Change `scan-connect-zh` (2026-10-17) addressed the first, and the slow failover:
+the status says why no address connected, and addresses are raced 250 ms apart instead of tried one by one.
 
 The desktop's address can also change under a pairing. On 2026-10-15 the desktop's LAN address moved from
 192.168.50.22 to 192.168.0.199 (seen by the session-conversation run), and the phone could reach it only over Tailscale.

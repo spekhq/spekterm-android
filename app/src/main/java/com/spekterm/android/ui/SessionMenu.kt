@@ -2,6 +2,8 @@
 
 package com.spekterm.android.ui
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.MutableState
 import com.spekterm.android.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
@@ -51,9 +53,13 @@ import kotlinx.coroutines.launch
  * the list may drop while a request is out (design D8, D9).
  */
 @Stable
-class SessionDialogs(private val scope: CoroutineScope, private val onDone: (SessionAction.Done) -> Unit) {
-    /** The session being renamed: its id and its label when the dialog opened. */
-    var renaming by mutableStateOf<Pair<String, String>?>(null)
+class SessionDialogs(
+    private val scope: CoroutineScope,
+    renamingState: MutableState<Pair<String, String>?>,
+    private val onDone: (SessionAction.Done) -> Unit,
+) {
+    /** The session being renamed: its id and its label when the dialog opened. Kept across a recreation. */
+    var renaming by renamingState
     var action by mutableStateOf<SessionAction?>(null)
 
     fun choose(choice: SessionActions.Action, session: Session) {
@@ -111,7 +117,9 @@ class SessionDialogs(private val scope: CoroutineScope, private val onDone: (Ses
 fun rememberSessionDialogs(onDone: (SessionAction.Done) -> Unit = {}): SessionDialogs {
     val scope = rememberCoroutineScope()
     val latest = rememberUpdatedState(onDone)
-    return remember { SessionDialogs(scope) { latest.value(it) } }
+    // A language change recreates the activity: the rename dialog and its text come back (`scan-connect-zh` 6.1).
+    val renaming = rememberSaveable { mutableStateOf<Pair<String, String>?>(null) }
+    return remember { SessionDialogs(scope, renaming) { latest.value(it) } }
 }
 
 /** The items of [session]'s menu; [enabled] per D8's conditions. */
@@ -174,7 +182,7 @@ fun SessionDialogsHost(dialogs: SessionDialogs, enabled: Boolean) {
 @Composable
 private fun RenameDialog(sessionId: String, label: String, enabled: Boolean, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var text by remember(sessionId) { mutableStateOf(label) }
+    var text by rememberSaveable(sessionId) { mutableStateOf(label) }
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<RemoteError?>(null) }
     fun send(name: String) {

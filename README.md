@@ -10,8 +10,15 @@ you forward — with no relay and no push service in between.
 
 ## What it does
 
-- **Pairing** by scanning the desktop's pairing QR code, or pasting its link. Unpairing from the phone asks first.
+- **Pairing** by scanning the desktop's pairing QR code — tap to focus, pinch to zoom; another QR code in view is
+  skipped — or pasting its link. A pairing link opened from another app (the phone's camera, a scanner, a browser)
+  pairs only after asking, and says whether it is the paired desktop or another. Unpairing from the phone asks first.
 - **A look of spekterm's own**, light or dark as the phone is set, or as chosen in Settings → Appearance.
+- **English or Traditional Chinese (Taiwan)**, as the phone is set, or per app in Android 13+'s language settings,
+  in the desktop's own words. What the desktop and its repositories send is shown as sent.
+- **Connecting**: the desktop's addresses are tried a quarter of a second apart, the first that answers winning.
+  When none does, Settings says why — no network, an address refusing, off the desktop's network, or no answer —
+  with each address's outcome, and "Try now" ends the wait.
 - **Notifications** when an agent waits for you, asks for a choice, finishes a handoff, or an inbox item
   arrives — over the app's own held connection. Tapping one about a session opens its conversation.
 - **Sessions**: the desktop's sessions by folder, with each agent's state (waiting for you, working, asks for a
@@ -86,3 +93,7 @@ events on a schedule (see [`tools/README.md`](tools/README.md)).
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
+
+## Third-party
+
+- [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) (Apache-2.0) decodes the pairing QR code on the phone.
