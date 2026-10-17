@@ -1,10 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    The desktop icon's mark (build/icon.svg, 512 units). The viewport is 768 so the 512 tile maps to the 72dp a
+    launcher mask shows, centered by the outer translation; the inner groups are the SVG's own transforms.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:fillColor="#FFCDD6F4"
-        android:pathData="M36,38L50,54L36,70L40,74L58,54L40,34ZM56,68L74,68L74,74L56,74Z" />
+    android:viewportWidth="768"
+    android:viewportHeight="768">
+    <group
+        android:translateX="135"
+        android:translateY="122">
+        <group
+            android:pivotX="256"
+            android:pivotY="256"
+            android:scaleX="1.02"
+            android:scaleY="1.02"
+            android:translateX="10"
+            android:translateY="20">
+            <path
+                android:pathData="M320,136C320,136 368,136 368,184C368,232 320,256 256,256C192,256 144,280 144,328C144,376 192,376 192,376"
+                android:strokeWidth="56"
+                android:strokeLineCap="round">
+                <aapt:attr name="android:strokeColor">
+                    <gradient
+                        android:type="linear"
+                        android:startX="120"
+                        android:startY="110"
+                        android:endX="410"
+                        android:endY="420"
+                        android:startColor="#FFFBBF24"
+                        android:endColor="#FFDD8B09" />
+                </aapt:attr>
+            </path>
+        </group>
+        <path
+            android:pathData="M119.6,119L206,173L119.6,227"
+            android:strokeColor="#FFFBBF24"
+            android:strokeWidth="50"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="miter" />
+        <path
+            android:fillColor="#FFFBBF24"
+            android:pathData="M289,375H389A23,23 0,0 1,389 421H289A23,23 0,0 1,289 375Z" />
+    </group>
 </vector>

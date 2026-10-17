@@ -1,11 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder notification icon: a terminal prompt. The real icon is designed later. -->
+<!--
+    spekterm's mark in white, the launcher geometry cropped to the mark: its bounds (about 318 by 333 units) fill
+    22 of the 24dp, centered by the outer translation.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M4,5L11,12L4,19L5.4,20.4L13.8,12L5.4,3.6ZM12,18L20,18L20,20L12,20Z" />
+    android:viewportWidth="364"
+    android:viewportHeight="364">
+    <group
+        android:translateX="-71.5"
+        android:translateY="-78.5">
+        <group
+            android:pivotX="256"
+            android:pivotY="256"
+            android:scaleX="1.02"
+            android:scaleY="1.02"
+            android:translateX="10"
+            android:translateY="20">
+            <path
+                android:pathData="M320,136C320,136 368,136 368,184C368,232 320,256 256,256C192,256 144,280 144,328C144,376 192,376 192,376"
+                android:strokeColor="#FFFFFFFF"
+                android:strokeWidth="56"
+                android:strokeLineCap="round" />
+        </group>
+        <path
+            android:pathData="M119.6,119L206,173L119.6,227"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="50"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="miter" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M289,375H389A23,23 0,0 1,389 421H289A23,23 0,0 1,289 375Z" />
+    </group>
 </vector>
