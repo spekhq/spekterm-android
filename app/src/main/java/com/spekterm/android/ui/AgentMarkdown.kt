@@ -13,16 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
-import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.model.NoOpImageTransformerImpl
 import com.mikepenz.markdown.model.markdownAnimations
-import com.mikepenz.markdown.model.markdownAnnotator
-import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.model.rememberMarkdownState
-import org.intellij.markdown.MarkdownElementTypes
-import org.intellij.markdown.MarkdownTokenTypes
-import org.intellij.markdown.ast.getTextInNode
 
 /**
  * Agent and user text as Markdown (`conversation-view`, design D5). The text is agent- or third-party
@@ -48,27 +42,11 @@ fun AgentMarkdown(text: String, modifier: Modifier = Modifier) {
             error = { Text(text, modifier = it, style = MaterialTheme.typography.bodyMedium) },
             imageTransformer = NoOpImageTransformerImpl(),
             animations = markdownAnimations(animateTextSize = { this }),
-            annotator = markdownAnnotator(
-                // A line break in agent or user text is kept: agents and people do not hard-wrap their lines,
-                // and joining them with spaces breaks poems, lists without markers, and CJK text.
-                config = markdownAnnotatorConfig(eolAsNewLine = true),
-                annotate = { content, child ->
-                    if (child.type == MarkdownTokenTypes.HTML_TAG) {
-                        append(child.getTextInNode(content).toString())
-                        true
-                    } else {
-                        false
-                    }
-                },
-            ),
-            components = markdownComponents(
-                // Called for every block type the renderer does not know; only HTML blocks are shown.
-                custom = { type, model ->
-                    if (type == MarkdownElementTypes.HTML_BLOCK) {
-                        Text(model.node.getTextInNode(model.content).toString(), style = MaterialTheme.typography.bodyMedium)
-                    }
-                },
-            ),
+            // A line break in agent or user text is kept: agents and people do not hard-wrap their lines, and
+            // joining them with spaces breaks poems, lists without markers, and CJK text.
+            annotator = remember { safeAnnotator(softBreaks = false, inertLinks = false) },
+            // Called for every block type the renderer does not know; only HTML blocks are shown.
+            components = safeComponents(),
         )
     }
 }

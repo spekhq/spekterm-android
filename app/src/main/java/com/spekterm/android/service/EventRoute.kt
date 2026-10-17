@@ -11,7 +11,7 @@ enum class EventRoute {
     IGNORED;
 
     companion object {
-        private val DESKTOP_KINDS = setOf("sessions.changed", "conversation.update", "conversation.wait", "conversation.ended")
+        private val DESKTOP_KINDS = setOf("sessions.changed", "conversation.update", "conversation.wait", "conversation.ended", "openspec.changed")
 
         fun of(kind: String): EventRoute = when (kind) {
             "attention" -> ATTENTION

@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
@@ -61,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.spekterm.android.app
 import com.spekterm.android.desktop.Creation
 import com.spekterm.android.desktop.Desktop
+import com.spekterm.android.desktop.OpenSpecGates
 import com.spekterm.android.desktop.SessionAction
 import com.spekterm.android.desktop.SessionActions
 import com.spekterm.android.desktop.SessionsView
@@ -90,6 +92,8 @@ fun SessionsScreen(
     onOpen: (String) -> Unit,
     onStatus: () -> Unit,
     onResume: () -> Unit,
+    onOpenSpecFolders: () -> Unit,
+    onOpenSpecFolder: (String) -> Unit,
 ) {
     val sessions by Desktop.sessions.collectAsStateWithLifecycle()
     val connected by Desktop.connected.collectAsStateWithLifecycle()
@@ -111,6 +115,7 @@ fun SessionsScreen(
     val operations by Desktop.operations.collectAsStateWithLifecycle()
     val actionsEnabled = SessionActions.enabled(connected, announcements.paused, sessions)
     val dialogs = rememberSessionDialogs()
+    val openspec = OpenSpecGates.of(operations)
 
     // A created session opens by itself only while this screen is at the front (design D7).
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -156,6 +161,13 @@ fun SessionsScreen(
                                 },
                             )
                         }
+                        // Also reaches folders with no session, which have no heading (`openspec-browse` D8).
+                        if (openspec.menu(list?.folders.orEmpty())) {
+                            DropdownMenuItem(text = { Text("OpenSpec") }, onClick = {
+                                menu = false
+                                onOpenSpecFolders()
+                            })
+                        }
                         DropdownMenuItem(text = { Text("Settings") }, onClick = {
                             menu = false
                             onStatus()
@@ -194,7 +206,11 @@ fun SessionsScreen(
                 for (group in groups) {
                     val folded = group.key in collapsed
                     stickyHeader(key = "group:${group.key}", contentType = "heading") {
-                        GroupHeading(group, folded) { setCollapsed(if (folded) collapsed - group.key else collapsed + group.key) }
+                        GroupHeading(
+                            group,
+                            folded,
+                            onOpenSpec = group.folderId?.takeIf { openspec.heading(group) }?.let { id -> { onOpenSpecFolder(id) } },
+                        ) { setCollapsed(if (folded) collapsed - group.key else collapsed + group.key) }
                     }
                     if (!folded) {
                         items(group.rows, key = { "session:${it.session.id}" }, contentType = { "session" }) { row ->
@@ -294,7 +310,7 @@ private fun CreationNotice(c: Creation, onOpen: (String) -> Unit) {
 
 /** A folder's heading: set apart from the rows, stays on top while its rows scroll, toggles collapsing (D2, D6). */
 @Composable
-private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onToggle: () -> Unit) {
+private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onOpenSpec: (() -> Unit)?, onToggle: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val spek = spekColors
     val turn by animateFloatAsState(if (folded) -90f else 0f, label = "chevron")
@@ -336,10 +352,16 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onToggle: (
                         )
                     }
                 }
+                // Its own click target: the heading's tap stays collapsing (`openspec-browse` D8).
+                if (onOpenSpec != null) {
+                    IconButton(onClick = onOpenSpec, Modifier.padding(start = 4.dp).size(40.dp)) {
+                        Icon(SpekIcons.File, "OpenSpec for ${group.name ?: ""}", Modifier.size(20.dp), tint = colors.onSurfaceVariant)
+                    }
+                }
                 Text(
                     "${group.rows.size}",
                     Modifier
-                        .padding(start = 12.dp)
+                        .padding(start = if (onOpenSpec != null) 4.dp else 12.dp)
                         .background(colors.surfaceContainerHigh, CircleShape)
                         .padding(horizontal = 8.dp, vertical = 2.dp),
                     style = MaterialTheme.typography.labelMedium,

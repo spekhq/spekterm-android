@@ -73,6 +73,9 @@ class ConnectionLog(
         ANSWER, ATTACH, RENAME, HIBERNATE, CLOSE,
         // `close-offer`: keeping a session whose agent offered to close it (error code only).
         KEEP,
+        // `openspec-browse`: OpenSpec reads and watches (operation, cause, error code, counts; never a slug, topic or
+        // text).
+        OPENSPEC,
     }
 
     companion object {

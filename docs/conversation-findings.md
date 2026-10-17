@@ -311,3 +311,46 @@ screenshots kept outside the repository):
 On the Pixel 7: this change's final debug build installed with `adb install -r` at 2026-10-17 05:16 Z, pairing kept
 (`no_backup/pairing.bin` present after the install), no theme choice stored yet (`SYSTEM`). The maintainer's use of
 the live switch in Settings → Appearance is pending and will be recorded here.
+
+## OpenSpec
+
+Change `openspec-browse`, 2026-10-17, against spekterm master at `7814c15` (0.2.8, which carries
+`remote-openspec-browse`, `0fcdc1f`) run from source (`npm run dev`, profile `~/.config/spekterm-dev`, remote port
+47616), and spekterm 0.2.7 (`99ca1ce`) run from an exported copy of its source with its own profile
+(`~/.config/spekterm-027`, remote port 47617). Test folders: a scratch repository with an active change, a change
+holding a 1.7 MB JSON file, an archived change, a main spec, and a second working tree on branch `feat` holding
+its own change; and a repository with an empty `openspec/`.
+
+| Check | Where | Outcome |
+|---|---|---|
+| `./gradlew testDebugUnitTest assembleDebug`: 242 JVM tests, including `OpenSpecTest` (each artifact kind, unknown and unreadable kinds, omitted pieces, an older desktop's pass-through answers, payloads), `OpenSpecTrackerTest` (23 cases of watch-then-read, one watch in flight, refused folders, events before answers, reconnects, the linger), `OpenSpecTextTest`, `OpenSpecGatesTest`, `SessionsViewTest`, `EventRouteTest` | host | pass |
+| `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`, the Pixel detached from adb (only the emulator listed): 74 instrumented tests, including `DesktopTest`'s six OpenSpec cases (watch before read; one read per event; watch again after a reconnect; no watch on an older desktop; the stop after the linger and not within it; a vanished change found in the archive; a refused watch marks the target not live) and `AgentMarkdownTest`'s three repository cases (soft breaks joined, agent text keeps them; a relative link and an anchor plain text, a web link a link; nothing fetched, HTML as text) | emulator (AVD `Pixel_9`, Android 16) | pass |
+
+On the emulator, paired with the dev desktop, driven over adb, with screenshots (kept outside the repository) in
+light and dark mode, and the app's connection log:
+
+| Scenario (spec) | Outcome |
+|---|---|
+| The session list: the OpenSpec icon in the headings of folders that have it (`content-desc` "OpenSpec for go", "OpenSpec for spekterm"); tapping it opens the folder and leaves the group expanded (session-list) | pass |
+| The list's menu → "OpenSpec": every folder with OpenSpec in rail order, including `spekterm-android` and the test folders, which have no session (session-list) | pass |
+| A folder: "Active" with task progress and start dates, a `feat` chip on the worktree's change, "Archived · 1" folded; expanded, the archive date; spekterm's own folder (no active change) opens with its 86 archived changes unfolded (openspec-browse) | pass |
+| The empty repository: "No changes in this folder." | pass |
+| Specs tab: `thing`, "1 change"; the spec: its text, "Main working tree · main", "History · 1" listing the active change without a date, which opens it | pass |
+| A change: Proposal, Specs, Design, Tasks in the desktop's order; a hard-wrapped paragraph shown as one; `[the design](design.md)` and an anchor plain text, `[the site](https://…)` a link; `<b>`, `<img>` and `<script>` shown as text; the image shown as "[image: remote image]", nothing loaded; a table rendered | pass |
+| Tasks: "1 of 4 done", sections, a two-line task as one item, check-box icons labeled "Done" / "Not done" | pass |
+| A task ticked in `tasks.md` on disk while on screen: "2 of 4 done" seen 5.7 s after the write (polled with `uiautomator dump`, which itself takes about a second per poll); log `openspec op=change cause=event` | pass |
+| A YAML file added to the change while on screen: its tab appeared by itself; shown as wrapping monospace text | pass |
+| The 1.7 MB JSON file: "Left out by the desktop: too large to send with the rest (1.8 MB)." in its tab, the proposal still shown | pass |
+| The change archived on disk while on screen: first the `feat` worktree's copy of the same slug was shown, labeled `feat` (the desktop's election, correct); with that copy removed too, "This change was archived." with "Open archived change", which replaced the screen with the archived copy | pass |
+| spekterm's largest change (`2026-08-02-global-session`, 234 KB on disk): content within 5 s of the tap, measured by polling `uiautomator dump` (an upper bound); switching to Design, Specs and Tasks logged no skipped frames; its 11 deltas start folded | pass on the emulator; the Pixel's timing is in the phone run |
+| Back to the session list: `openspec op=watch stop=true` 5 s after leaving; Home with a folder open: the stop 7 s after | pass |
+| Paused (Settings › Pause): "Not connected. Showing what was read at 1:30 PM.", Refresh dimmed; Resume reconnected | pass |
+| spekterm 0.2.7: the same screens read; "This desktop doesn't update OpenSpec by itself. Read at …"; a task ticked on disk not shown until Refresh, then "1 of 1 done" (log `cause=refresh`); no `op=watch` line after pairing with it | pass |
+| The connection log: `openspec` lines with `op`, `cause`, `items`, `omitted`, `stop` and error codes; no slug, topic or text | pass |
+
+Fixed during the run: Markdown headings took display sizes (now title sizes), unselected tabs took the accent
+color, an unloaded image left an empty block (now its alt text), and a vanished change that was archived showed a
+redundant "no longer in the folder" error above the archive notice.
+
+Seen on the desktop, not the phone: a change's artifacts came in a different order active (Proposal, Specs, Design,
+Tasks) and archived (Proposal, Design, Specs, Tasks); the phone shows the desktop's order either way.

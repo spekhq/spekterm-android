@@ -49,6 +49,8 @@ object SessionsView {
         val global: Boolean,
         val rows: List<Row>,
         val branch: String? = null,
+        /** The desktop marks the folder as having OpenSpec (`openspec-browse`). */
+        val hasOpenSpec: Boolean = false,
     ) {
         val key: String = when {
             global -> GLOBAL
@@ -102,7 +104,7 @@ object SessionsView {
             rows.filter { it.session.folderId == null }.takeIf { it.isNotEmpty() }?.let { add(Group(null, null, true, it)) }
             for (folder in list.folders) {
                 rows.filter { it.session.folderId == folder.id }.takeIf { it.isNotEmpty() }
-                    ?.let { add(Group(folder.id, folder.name, false, it, folder.branch)) }
+                    ?.let { add(Group(folder.id, folder.name, false, it, folder.branch, folder.hasOpenSpec)) }
             }
             rows.filter { it.session.folderId != null && it.session.folderId !in known }.takeIf { it.isNotEmpty() }
                 ?.let { add(Group(null, null, false, it)) }

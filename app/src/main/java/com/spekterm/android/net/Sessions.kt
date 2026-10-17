@@ -314,9 +314,9 @@ object WaitState {
     }
 }
 
-private inline fun <T> each(element: JsonElement?, decode: (JsonElement) -> T?): List<T> =
+internal inline fun <T> each(element: JsonElement?, decode: (JsonElement) -> T?): List<T> =
     (element as? JsonArray)?.mapNotNull { runCatching { decode(it) }.getOrNull() } ?: emptyList()
 
-private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+internal fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
 
-private fun JsonObject.bool(key: String): Boolean = (this[key] as? JsonPrimitive)?.booleanOrNull ?: false
+internal fun JsonObject.bool(key: String): Boolean = (this[key] as? JsonPrimitive)?.booleanOrNull ?: false

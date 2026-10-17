@@ -732,4 +732,130 @@ class DesktopTest {
         assertEquals(Screen.Closed, Screen.of(true, false, Desktop.sessions.value, closed, "s1"))
         withTimeout(5_000) { while (file.exists()) delay(20) }
     }
+
+    // ---- OpenSpec (`openspec-browse`) ----
+
+    private val openspec = setOf(
+        Operations.OPENSPEC_CHANGES, Operations.OPENSPEC_CHANGE, Operations.OPENSPEC_SPECS, Operations.OPENSPEC_SPEC, Operations.OPENSPEC_WATCH,
+    )
+
+    private val detail = """{"slug":"x","status":"active","createdDate":null,"archivedDate":null,"artifacts":[{"id":"proposal","title":"Proposal","kind":"markdown","content":"# Why"}]}"""
+
+    /** A desktop answering the OpenSpec reads; [watchGate] holds watch answers until it is released. */
+    private fun Scripted.openspec(changeAnswer: (Scripted.Req) -> String = { ok(it.id, detail) }, watchGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null) {
+        handle = { req, ws ->
+            when (req.method) {
+                "sessions.list" -> ws.send(ok(req.id, list()))
+                "openspec.watch" -> if (watchGate == null) ws.send(ok(req.id, "{}")) else pump.launch { watchGate.await(); ws.send(ok(req.id, "{}")) }
+                "openspec.change" -> ws.send(changeAnswer(req))
+                "openspec.changes" -> ws.send(ok(req.id, """{"active":[],"archived":[{"slug":"2026-10-17-x","status":"archived","description":"x","createdDate":null,"archivedDate":"2026-10-17","timestamp":null,"taskStats":null}]}"""))
+                else -> ws.send(ok(req.id, "{}"))
+            }
+        }
+    }
+
+    private suspend fun loaded(target: OpenSpecTarget, predicate: (OpenSpecLoaded) -> Boolean): OpenSpecLoaded =
+        withTimeout(5_000) { Desktop.openspec.first { map -> map[target]?.let(predicate) == true }[target]!! }
+
+    private suspend fun Scripted.awaitCount(method: String, n: Int) = withTimeout(5_000) { while (count(method) < n) delay(20) }
+
+    @Test
+    fun openspecWatchesBeforeItReadsAndReadsAgainOnEachChange() = runBlocking<Unit> {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val desktop = Scripted().apply { openspec(watchGate = gate) }
+        connect(desktop, openspec)
+        val target = OpenSpecTarget.Change("f", "x")
+        Desktop.openspecFocus("o1", target)
+        desktop.awaitCount("openspec.watch", 1)
+        assertEquals("""{"folderId":"f"}""", desktop.requests.single { it.method == "openspec.watch" }.params.toString())
+        delay(300)
+        assertEquals("no read before the watch answers", 0, desktop.count("openspec.change"))
+        assertTrue(Desktop.openspec.value[target]!!.pending)
+        gate.complete(Unit)
+        val first = loaded(target) { it.value != null && !it.pending }
+        assertEquals("x", (first.value as com.spekterm.android.net.OsChangeDetail).slug)
+        desktop.socket!!.send(evt("openspec.changed", """{"folderId":"f"}"""))
+        desktop.awaitCount("openspec.change", 2)
+        delay(300)
+        assertEquals(2, desktop.count("openspec.change"))
+        // Another folder's event reads nothing.
+        desktop.socket!!.send(evt("openspec.changed", """{"folderId":"g"}"""))
+        delay(300)
+        assertEquals(2, desktop.count("openspec.change"))
+    }
+
+    @Test
+    fun openspecWatchesAgainAfterAReconnect() = runBlocking<Unit> {
+        val first = Scripted().apply { openspec() }
+        val connection = connect(first, openspec)
+        val target = OpenSpecTarget.Change("f", "x")
+        Desktop.openspecFocus("o1", target)
+        loaded(target) { it.value != null && !it.pending }
+        connection.cancel()
+        withTimeout(5_000) { Desktop.connected.first { !it } }
+        assertFalse(Desktop.openspec.value[target]!!.pending)
+        val second = Scripted().apply { openspec() }
+        connect(second, openspec)
+        second.awaitCount("openspec.change", 1)
+        assertEquals(listOf("openspec.watch", "openspec.change"), second.requests.map { it.method }.filter { it.startsWith("openspec.") })
+    }
+
+    @Test
+    fun anOlderDesktopIsReadWithoutAWatchAndRefreshReads() = runBlocking<Unit> {
+        val desktop = Scripted().apply { openspec() }
+        connect(desktop, openspec - Operations.OPENSPEC_WATCH)
+        val target = OpenSpecTarget.Change("f", "x")
+        Desktop.openspecFocus("o1", target)
+        loaded(target) { it.value != null && !it.pending }
+        Desktop.openspecRefresh()
+        desktop.awaitCount("openspec.change", 2)
+        assertEquals(0, desktop.count("openspec.watch"))
+    }
+
+    @Test
+    fun leavingStopsTheWatchAfterTheLingerUnlessAScreenReturns() = runBlocking<Unit> {
+        Desktop.openspecLingerMs = 500
+        val desktop = Scripted().apply { openspec() }
+        connect(desktop, openspec)
+        val target = OpenSpecTarget.Change("f", "x")
+        Desktop.openspecFocus("o1", target)
+        loaded(target) { it.value != null && !it.pending }
+        Desktop.openspecUnfocus("o1")
+        delay(200)
+        Desktop.openspecFocus("o2", target)
+        delay(600)
+        assertEquals("a focus within the linger keeps the watch", 1, desktop.count("openspec.watch"))
+        Desktop.openspecUnfocus("o2")
+        delay(200)
+        assertEquals(1, desktop.count("openspec.watch"))
+        desktop.awaitCount("openspec.watch", 2)
+        assertEquals("""{"folderId":null}""", desktop.requests.filter { it.method == "openspec.watch" }[1].params.toString())
+    }
+
+    @Test
+    fun aVanishedChangeIsLookedUpInTheArchiveAndClearForgetsEverything() = runBlocking<Unit> {
+        val desktop = Scripted().apply { openspec(changeAnswer = { err(it.id, "NOT_FOUND") }) }
+        connect(desktop, openspec)
+        val target = OpenSpecTarget.Change("f", "x")
+        Desktop.openspecFocus("o1", target)
+        val gone = loaded(target) { it.archivedAs != null }
+        assertEquals("NOT_FOUND", gone.error?.code)
+        assertEquals("2026-10-17-x", gone.archivedAs?.slug)
+        Desktop.clear()
+        withTimeout(5_000) { Desktop.openspec.first { it.isEmpty() } }
+    }
+
+    @Test
+    fun aRefusedWatchMarksTheTargetNotLive() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            openspec()
+            val base = handle
+            handle = { req, ws -> if (req.method == "openspec.watch" && req.params["folderId"] is JsonPrimitive && (req.params["folderId"] as JsonPrimitive).isString) ws.send(err(req.id, "INTERNAL")) else base(req, ws) }
+        }
+        connect(desktop, openspec)
+        val target = OpenSpecTarget.Change("f", "x")
+        Desktop.openspecFocus("o1", target)
+        val shown = loaded(target) { it.value != null && !it.pending }
+        assertTrue(shown.notLive)
+    }
 }

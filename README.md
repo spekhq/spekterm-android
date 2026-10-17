@@ -29,11 +29,15 @@ you forward — with no relay and no push service in between.
   when the desktop says it can be, answered from the phone — allow once or deny, the questions' options or
   declining, approve or keep planning. "Tell Claude what to change" and a question's free-text answer are not
   offered: decline, then reply.
+- **OpenSpec**, read-only: each folder's active and archived changes, a change's proposal, design, delta specs,
+  tasks and data files, and the main specs with the changes that touched them. While a folder is on screen, it
+  follows the desktop's files — an agent ticking a task shows up by itself — on a desktop that offers that;
+  otherwise a refresh reads them again. Repository text loads nothing and opens a link only when tapped.
 
-These need spekterm 29a5d0a or later (hibernating and closing: 9b02f53; an agent's close offer: spekterm with
-`remote-close-offer`); against an older desktop the app shows none of them.
+These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
+following OpenSpec files live: 0fcdc1f, 0.2.8); against an older desktop the app shows none of them.
 
-Not yet: the terminal view (shell sessions), the inbox, handoffs, and OpenSpec browsing.
+Not yet: the terminal view (shell sessions), the inbox and handoffs.
 
 ## How it talks to spekterm
 

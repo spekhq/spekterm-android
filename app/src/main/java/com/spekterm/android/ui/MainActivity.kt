@@ -56,6 +56,14 @@ private sealed interface Nav {
 
 @Serializable private data object StatusRoute
 
+@Serializable private data object OpenSpecFoldersRoute
+
+@Serializable private data class OpenSpecFolderRoute(val folderId: String)
+
+@Serializable private data class OpenSpecChangeRoute(val folderId: String, val slug: String)
+
+@Serializable private data class OpenSpecSpecRoute(val folderId: String, val topic: String)
+
 /**
  * Pairing when nothing is paired (outside the navigation graph); otherwise the session list, a session's
  * conversation, and the connection status (`session-conversation` design D8).
@@ -139,6 +147,52 @@ class MainActivity : ComponentActivity() {
                     onOpen = { nav.navigate(ConversationRoute(it)) },
                     onStatus = { nav.navigate(StatusRoute) { launchSingleTop = true } },
                     onResume = { resume() },
+                    onOpenSpecFolders = { nav.navigate(OpenSpecFoldersRoute) { launchSingleTop = true } },
+                    onOpenSpecFolder = { nav.navigate(OpenSpecFolderRoute(it)) },
+                )
+            }
+            // A folder's OpenSpec, pushed over the session list (`openspec-browse` design D6).
+            composable<OpenSpecFoldersRoute> {
+                OpenSpecFoldersScreen(
+                    announcements = announcements,
+                    onBack = { nav.popBackStack() },
+                    onOpen = { nav.navigate(OpenSpecFolderRoute(it)) },
+                )
+            }
+            composable<OpenSpecFolderRoute> { entry ->
+                val route = entry.toRoute<OpenSpecFolderRoute>()
+                OpenSpecFolderScreen(
+                    folderId = route.folderId,
+                    owner = entry.id,
+                    announcements = announcements,
+                    onBack = { nav.popBackStack() },
+                    onOpenChange = { nav.navigate(OpenSpecChangeRoute(route.folderId, it)) },
+                    onOpenSpec = { nav.navigate(OpenSpecSpecRoute(route.folderId, it)) },
+                )
+            }
+            composable<OpenSpecChangeRoute> { entry ->
+                val route = entry.toRoute<OpenSpecChangeRoute>()
+                OpenSpecChangeScreen(
+                    folderId = route.folderId,
+                    slug = route.slug,
+                    owner = entry.id,
+                    announcements = announcements,
+                    onBack = { nav.popBackStack() },
+                    // The archived copy replaces the vanished change (design D5).
+                    onOpenArchived = { slug ->
+                        nav.navigate(OpenSpecChangeRoute(route.folderId, slug)) { popUpTo(entry.destination.id) { inclusive = true } }
+                    },
+                )
+            }
+            composable<OpenSpecSpecRoute> { entry ->
+                val route = entry.toRoute<OpenSpecSpecRoute>()
+                OpenSpecSpecScreen(
+                    folderId = route.folderId,
+                    topic = route.topic,
+                    owner = entry.id,
+                    announcements = announcements,
+                    onBack = { nav.popBackStack() },
+                    onOpenChange = { nav.navigate(OpenSpecChangeRoute(route.folderId, it)) },
                 )
             }
             composable<ConversationRoute> { entry ->

@@ -680,7 +680,7 @@ private fun AttachmentCard(a: Attachment) {
         Column(Modifier.weight(1f, fill = false).padding(vertical = 6.dp)) {
             Text(a.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                listOfNotNull(sizeText(a.size).takeIf { a.size > 0 }, attachmentStateText(a)).joinToString(" · "),
+                listOfNotNull(formatBytes(a.size).takeIf { a.size > 0 }, attachmentStateText(a)).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (failed != null) colors.error else colors.onSurfaceVariant,
                 maxLines = 3,
@@ -700,11 +700,6 @@ private fun attachmentIcon(name: String): ImageVector =
 /** D5: too many picked is a warning; a file that cannot go is an error. */
 private fun attachNoteTone(note: AttachNote): Tone = if (note == AttachNote.TOO_MANY_PICKED) Tone.Warning else Tone.Error
 
-private fun sizeText(bytes: Long): String = when {
-    bytes >= 1024 * 1024 -> String.format(java.util.Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024))
-    bytes >= 1024 -> "${bytes / 1024} KB"
-    else -> "$bytes B"
-}
 
 private fun attachmentStateText(a: Attachment): String = when (val s = a.state) {
     AttachmentState.Preparing -> "Preparing…"
@@ -715,7 +710,7 @@ private fun attachmentStateText(a: Attachment): String = when (val s = a.state) 
 }
 
 private fun failedText(f: AttachmentState.Failed): String = when (f.code) {
-    RemoteError.TOO_LARGE -> "The desktop refused it: over its limit" + (f.limit?.let { " of ${sizeText(it)}" } ?: "") + "."
+    RemoteError.TOO_LARGE -> "The desktop refused it: over its limit" + (f.limit?.let { " of ${formatBytes(it)}" } ?: "") + "."
     RemoteError.TOO_MANY -> "The desktop holds ${f.limit ?: Uploads.MAX_ATTACHMENTS} attachments not sent yet for this session; removed ones count for 24 hours."
     RemoteError.UNSUPPORTED_TYPE -> "The desktop does not accept this kind of file."
     RemoteError.NO_CONVERSATION -> "Only an agent session takes attachments."

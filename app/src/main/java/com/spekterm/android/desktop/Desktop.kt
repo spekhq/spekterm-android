@@ -8,7 +8,15 @@ import com.spekterm.android.net.CreateResult
 import com.spekterm.android.net.ConversationUpdate
 import com.spekterm.android.net.ConversationWait
 import com.spekterm.android.net.Frames
+import com.spekterm.android.net.OpenSpec
 import com.spekterm.android.net.Operations
+import com.spekterm.android.net.OsChange
+import com.spekterm.android.net.OsChangeDetail
+import com.spekterm.android.net.OsChanges
+import com.spekterm.android.net.OsSpec
+import com.spekterm.android.net.OsSpecSummary
+import com.spekterm.android.net.OsArtifact
+import com.spekterm.android.net.Piece
 import com.spekterm.android.net.PutResult
 import com.spekterm.android.net.RemoteConnection
 import com.spekterm.android.net.RemoteError
@@ -31,6 +39,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * The desktop as the screens see it (`session-conversation` design D1): the session list, the conversation of
@@ -87,6 +97,17 @@ object Desktop {
     /** How long a created session may take to be listed running (design D6); shortened by tests. */
     @Volatile var createWaitMs: Long = 10_000L
 
+    private val mutableOpenspec = MutableStateFlow<Map<OpenSpecTarget, OpenSpecLoaded>>(emptyMap())
+
+    /**
+     * What the OpenSpec screens show (`openspec-browse` design D4): the last read of each recent target, with
+     * whether it is pending and whether its folder is not followed live. In memory only.
+     */
+    val openspec: StateFlow<Map<OpenSpecTarget, OpenSpecLoaded>> = mutableOpenspec
+
+    /** How long after the last OpenSpec screen is left the folder's watch stops (design D3); shortened by tests. */
+    @Volatile var openspecLingerMs: Long = 5_000L
+
     /** The session whose conversation is on screen: no notification is raised for it (design D8). */
     @Volatile var visibleSession: String? = null
         private set
@@ -105,6 +126,13 @@ object Desktop {
     private var nextAttachmentId = 0L
     private var uploadJob: Job? = null
 
+    private var tracker = OpenSpecTracker()
+    /** In order of last focus, oldest first (design D4). */
+    private val openspecCache = LinkedHashMap<OpenSpecTarget, OpenSpecLoaded>()
+    private var openspecLinger: Job? = null
+    /** Why the focused target is stale, for the log: the last input that made it so. */
+    private var openspecCause = "focus"
+
     /** Bumped when everything is dropped ([clear]): a create of an older generation writes nothing. */
     private var generation = 0L
 
@@ -119,6 +147,8 @@ object Desktop {
         mutableConnected.value = true
         attachments.value++
         pumpUploads()
+        openspecCause = "attach"
+        openspecStep(tracker.attached(live = Operations.OPENSPEC_WATCH in operations))
         a.scope.launch {
             val answer = request(a, "sessions.list") ?: return@launch
             if (answer.ok) SessionList.decode(answer.result)?.let { applyList(a, answer.seq, it) }
@@ -144,6 +174,10 @@ object Desktop {
                     log(Kind.CONVERSATION, "event" to "ended", "reason" to ended.reason)
                 }
             }
+            "openspec.changed" -> ((event.data as? JsonObject)?.get("folderId") as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { folderId ->
+                openspecCause = "event"
+                openspecStep(tracker.changed(folderId))
+            }
         }
     }
 
@@ -155,6 +189,7 @@ object Desktop {
         mutableSessions.value = mutableSessions.value.copy(current = false)
         track(CreateTracker.detached(trackerState(), a))
         mutableConversation.value?.let { mutableConversation.value = ConversationReducer.disconnected(it) }
+        openspecStep(tracker.detached())
     }
 
     // ---- Calls for the screens ----
@@ -417,6 +452,43 @@ object Desktop {
         scope.launch { if (mutableCreation.value !is Creation.Starting) mutableCreation.value = null }
     }
 
+    // ---- OpenSpec (`openspec-browse`) ----
+
+    /** The screen [owner] (its back-stack entry id) shows [target] and is visible: watch its folder, then read it. */
+    fun openspecFocus(owner: String, target: OpenSpecTarget) {
+        scope.launch {
+            openspecLinger?.cancel()
+            openspecLinger = null
+            // Most recently focused last; the oldest beyond the bound go, never the focused one.
+            openspecCache.remove(target)?.let { openspecCache[target] = it }
+            openspecCause = "focus"
+            openspecStep(tracker.focus(owner, target))
+            while (openspecCache.size > OPENSPEC_CACHE) openspecCache.remove(openspecCache.keys.first())
+            publishOpenspec()
+        }
+    }
+
+    /** The screen [owner] is no longer visible. The watch stops after the linger unless a screen takes the focus. */
+    fun openspecUnfocus(owner: String) {
+        scope.launch {
+            if (tracker.focus?.owner != owner) return@launch
+            openspecStep(tracker.unfocus(owner))
+            openspecLinger?.cancel()
+            openspecLinger = scope.launch {
+                delay(openspecLingerMs)
+                openspecStep(tracker.idle())
+            }
+        }
+    }
+
+    /** Reads the focused target again; on a live desktop, first watches a folder whose watch was refused. */
+    fun openspecRefresh() {
+        scope.launch {
+            openspecCause = "refresh"
+            openspecStep(tracker.refresh())
+        }
+    }
+
     /** Unpaired: nothing of the old desktop is kept. */
     fun clear() {
         scope.launch {
@@ -430,6 +502,7 @@ object Desktop {
             mutableSessions.value = SessionsState()
             setHeld(null)
             dropCreation()
+            dropOpenspec()
         }
     }
 
@@ -446,8 +519,10 @@ object Desktop {
         mutableSessions.value = SessionsState()
         setHeld(null)
         dropCreation()
+        dropOpenspec()
         listOnScreen = false
         createWaitMs = 10_000L
+        openspecLingerMs = 5_000L
     }
 
     // ---- Internals, on the dispatcher ----
@@ -472,6 +547,110 @@ object Desktop {
         createTimer = null
         pendingCreate = null
         mutableCreation.value = null
+    }
+
+    private fun dropOpenspec() {
+        openspecLinger?.cancel()
+        openspecLinger = null
+        tracker = OpenSpecTracker()
+        openspecCache.clear()
+        publishOpenspec()
+    }
+
+    /** Applies a tracker step and sends what it asks for. */
+    private fun openspecStep(step: OpenSpecTracker.Step) {
+        tracker = step.state
+        step.watch?.let { openspecWatch(it.folderId) }
+        step.read?.let { openspecRead(it, openspecCause) }
+        publishOpenspec()
+    }
+
+    private fun publishOpenspec() {
+        val shown = LinkedHashMap(openspecCache)
+        tracker.focus?.target?.let { if (it !in shown) shown[it] = OpenSpecLoaded() }
+        mutableOpenspec.value = shown.mapValues { (target, loaded) ->
+            loaded.copy(pending = tracker.pending(target), notLive = tracker.notLive(target))
+        }
+    }
+
+    private fun openspecWatch(folderId: String?) {
+        val a = attached ?: return
+        a.scope.launch {
+            // No answer: the connection ended, and its detach resets the tracker.
+            val answer = request(a, Operations.OPENSPEC_WATCH, Frames.openspecWatch(folderId), OPENSPEC_TIMEOUT_MS) ?: return@launch
+            log(Kind.OPENSPEC, "op" to "watch", "stop" to (folderId == null), "error" to answer.error?.code)
+            if (attached !== a) return@launch
+            openspecStep(tracker.watchAnswered(answer.ok))
+        }
+    }
+
+    private fun openspecRead(target: OpenSpecTarget, cause: String) {
+        val a = attached ?: return
+        a.scope.launch {
+            val (method, params) = when (target) {
+                is OpenSpecTarget.Changes -> Operations.OPENSPEC_CHANGES to Frames.openspecChanges(target.folderId)
+                is OpenSpecTarget.Specs -> Operations.OPENSPEC_SPECS to Frames.openspecSpecs(target.folderId)
+                is OpenSpecTarget.Change -> Operations.OPENSPEC_CHANGE to Frames.openspecChange(target.folderId, target.slug)
+                is OpenSpecTarget.Spec -> Operations.OPENSPEC_SPEC to Frames.openspecSpec(target.folderId, target.topic)
+            }
+            val answer = request(a, method, params, OPENSPEC_TIMEOUT_MS) ?: return@launch
+            if (attached !== a) return@launch
+            val value: Any? = answer.result?.takeIf { answer.ok }?.let {
+                when (target) {
+                    is OpenSpecTarget.Changes -> OpenSpec.changes(it)
+                    is OpenSpecTarget.Specs -> OpenSpec.specs(it)
+                    is OpenSpecTarget.Change -> OpenSpec.changeDetail(it)
+                    is OpenSpecTarget.Spec -> OpenSpec.spec(it)
+                }
+            }
+            val error = answer.error ?: if (value == null) RemoteError(RemoteError.INTERNAL, "malformed answer") else null
+            val (items, omitted) = openspecCounts(value)
+            log(Kind.OPENSPEC, "op" to method.removePrefix("openspec."), "cause" to cause, "error" to error?.code, "items" to items, "omitted" to omitted)
+            val before = openspecCache[target] ?: OpenSpecLoaded()
+            openspecCache[target] = if (error == null) {
+                OpenSpecLoaded(value = value, readAt = now())
+            } else {
+                before.copy(error = error)
+            }
+            if (target is OpenSpecTarget.Change && error?.code == RemoteError.NOT_FOUND && !OpenSpecText.dated(target.slug)) {
+                openspecArchivedAs(a, target)
+            }
+            openspecStep(tracker.readAnswered())
+        }
+    }
+
+    /** A vanished active change: where was it archived to? One read of the list, outside the tracker (design D5). */
+    private fun openspecArchivedAs(a: Attached, target: OpenSpecTarget.Change) {
+        a.scope.launch {
+            val answer = request(a, Operations.OPENSPEC_CHANGES, Frames.openspecChanges(target.folderId), OPENSPEC_TIMEOUT_MS) ?: return@launch
+            val changes = answer.result?.takeIf { answer.ok }?.let { OpenSpec.changes(it) }
+            log(Kind.OPENSPEC, "op" to "changes", "cause" to "archived", "error" to (answer.error?.code ?: if (changes == null) RemoteError.INTERNAL else null), "items" to changes?.let { it.active.size + it.archived.size })
+            if (attached !== a || changes == null) return@launch
+            openspecCache[OpenSpecTarget.Changes(target.folderId)]?.let {
+                openspecCache[OpenSpecTarget.Changes(target.folderId)] = it.copy(value = changes, readAt = now(), error = null)
+            }
+            openspecCache[target]?.let { held ->
+                if (held.error?.code == RemoteError.NOT_FOUND) openspecCache[target] = held.copy(archivedAs = OpenSpecText.archivedAs(target.slug, changes.archived))
+            }
+            publishOpenspec()
+        }
+    }
+
+    /** For the log: how many items an answer holds, and how many of its pieces were left out. */
+    private fun openspecCounts(value: Any?): Pair<Int?, Int?> = when (value) {
+        is OsChanges -> (value.active.size + value.archived.size) to null
+        is List<*> -> value.size to null
+        is OsChangeDetail -> value.artifacts.size to value.artifacts.sumOf { artifact ->
+            when (artifact) {
+                is OsArtifact.Markdown -> if (artifact.content is Piece.Omitted) 1 else 0
+                is OsArtifact.Data -> if (artifact.content is Piece.Omitted) 1 else 0
+                is OsArtifact.Tasks -> if (artifact.tasks is Piece.Omitted) 1 else 0
+                is OsArtifact.Specs -> artifact.deltas.count { it.content is Piece.Omitted }
+                is OsArtifact.Other -> 0
+            }
+        }
+        is OsSpec -> value.history.size to (if (value.content is Piece.Omitted) 1 else 0)
+        else -> null to null
     }
 
     private fun CreateOutcome.logName(): String = when (this) {
@@ -669,6 +848,29 @@ object Desktop {
     /** Above the worst answer (37 keys 250 ms apart, 3 s of confirmation, a queued reply); never retried. */
     const val ANSWER_TIMEOUT_MS = 30_000L
 
+    /**
+     * An OpenSpec watch or read (`openspec-browse` design D3): a first watch scans the folder, git history included,
+     * and an older desktop's answer is unbounded. No answer in time ends the connection.
+     */
+    const val OPENSPEC_TIMEOUT_MS = 60_000L
+
+    /** The OpenSpec targets kept in memory (design D4). */
+    const val OPENSPEC_CACHE = 8
+
     /** One 64 KiB chunk on a slow link (design D6). */
     const val PUT_TIMEOUT_MS = 30_000L
 }
+
+/**
+ * The last read of one OpenSpec target (`openspec-browse` design D4). [value] is the decoded answer: [OsChanges],
+ * a list of [OsSpecSummary], an [OsChangeDetail] or an [OsSpec]. [error] is the last read's, kept with the value it
+ * failed to replace. [archivedAs] is where a vanished active change was archived to (design D5).
+ */
+data class OpenSpecLoaded(
+    val value: Any? = null,
+    val readAt: Long? = null,
+    val error: RemoteError? = null,
+    val pending: Boolean = false,
+    val notLive: Boolean = false,
+    val archivedAs: OsChange? = null,
+)

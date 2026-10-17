@@ -104,6 +104,12 @@ class SessionsViewTest {
     }
 
     @Test
+    fun aGroupCarriesItsFoldersOpenSpecMark() {
+        val marked = list.copy(folders = listOf(Folder("f1", "alpha", hasOpenSpec = true), Folder("f2", "beta")))
+        assertEquals(listOf(false, true, false, false), SessionsView.groups(marked).map { it.hasOpenSpec })
+    }
+
+    @Test
     fun aSummaryCountsChoicesAndWaitingAgentsOnly() {
         val many = SessionList(
             true,

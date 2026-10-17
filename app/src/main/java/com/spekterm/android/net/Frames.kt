@@ -152,6 +152,25 @@ object Frames {
         if (attachmentId != null) put("attachmentId", attachmentId)
     }
 
+    fun openspecChanges(folderId: String): JsonObject = buildJsonObject { put("folderId", folderId) }
+
+    fun openspecChange(folderId: String, slug: String): JsonObject = buildJsonObject {
+        put("folderId", folderId)
+        put("slug", slug)
+    }
+
+    fun openspecSpecs(folderId: String): JsonObject = buildJsonObject { put("folderId", folderId) }
+
+    fun openspecSpec(folderId: String, topic: String): JsonObject = buildJsonObject {
+        put("folderId", folderId)
+        put("topic", topic)
+    }
+
+    /** One folder per connection; `null` stops watching (`openspec-browse` design D3). */
+    fun openspecWatch(folderId: String?): JsonObject = buildJsonObject {
+        put("folderId", folderId?.let(::JsonPrimitive) ?: JsonNull)
+    }
+
     /**
      * `operations` of a `hello` or `pair` answer (design D1): what the desktop accepts besides authentication.
      * Absent or not an array (a desktop before 29a5d0a) is none; non-string elements are skipped.
@@ -239,6 +258,11 @@ object Operations {
     const val KEEP = "sessions.keep"
     const val ATTACH = "attachments.put"
     const val ANSWER = "conversation.answer"
+    const val OPENSPEC_CHANGES = "openspec.changes"
+    const val OPENSPEC_CHANGE = "openspec.change"
+    const val OPENSPEC_SPECS = "openspec.specs"
+    const val OPENSPEC_SPEC = "openspec.spec"
+    const val OPENSPEC_WATCH = "openspec.watch"
 }
 
 @Serializable
