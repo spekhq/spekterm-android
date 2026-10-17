@@ -159,6 +159,7 @@ fun StateLabel(state: RowState, modifier: Modifier = Modifier) {
         )
         RowState.READY -> DotText("Waiting for you", spek.attention, spek.attention, FontWeight.SemiBold, modifier)
         RowState.BUSY -> DotText("Working", spek.working, colors.onSurfaceVariant, FontWeight.Normal, modifier)
+        RowState.IDLE -> DotText("Idle", spek.working, colors.onSurfaceVariant, FontWeight.Normal, modifier, hollow = true)
         RowState.DORMANT -> Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             StatusDot(spek.dormant, hollow = true)
             Text("Dormant", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
@@ -168,9 +169,9 @@ fun StateLabel(state: RowState, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun DotText(text: String, dot: Color, color: Color, weight: FontWeight, modifier: Modifier) {
+private fun DotText(text: String, dot: Color, color: Color, weight: FontWeight, modifier: Modifier, hollow: Boolean = false) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        StatusDot(dot)
+        StatusDot(dot, hollow)
         Text(text, style = MaterialTheme.typography.labelMedium, fontWeight = weight, color = color)
     }
 }

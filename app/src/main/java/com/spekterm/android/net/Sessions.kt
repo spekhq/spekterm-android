@@ -64,6 +64,12 @@ data class Session(
     val running: Boolean = false,
     /** Agent sessions only: `ready`, `busy`, `awaiting-choice`, `unknown`. */
     val wait: String? = null,
+    /**
+     * Present exactly while [wait] is `ready`: whether someone looked at it since its turn ended; `null` from a desktop
+     * older than the field (`session-relations` D7).
+     */
+    @Serializable(with = OnlyBoolean::class)
+    val seen: Boolean? = null,
     /** Handoff-created sessions only. */
     val lifecycle: String? = null,
     @Serializable(with = LenientLineage::class)
@@ -93,6 +99,23 @@ object OnlyTrue : KSerializer<Boolean> {
     }
 
     override fun serialize(encoder: Encoder, value: Boolean) = encoder.encodeBoolean(value)
+}
+
+/**
+ * A flag that is `true` or `false` only for the JSON booleans; any other value is `null`, so it never drops the
+ * session that carries it (obligation 7; `session-relations` D7).
+ */
+object OnlyBoolean : KSerializer<Boolean?> {
+    override val descriptor = JsonElement.serializer().descriptor
+
+    override fun deserialize(decoder: Decoder): Boolean? {
+        val e = (decoder as? JsonDecoder)?.decodeJsonElement() ?: return decoder.decodeBoolean()
+        return if (e is JsonPrimitive && !e.isString) e.booleanOrNull else null
+    }
+
+    override fun serialize(encoder: Encoder, value: Boolean?) {
+        (encoder as JsonEncoder).encodeJsonElement(value?.let { JsonPrimitive(it) } ?: JsonNull)
+    }
 }
 
 /** The answer to `sessions.list` and the data of `sessions.changed`. */

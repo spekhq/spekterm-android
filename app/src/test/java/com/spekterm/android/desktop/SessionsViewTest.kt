@@ -143,6 +143,33 @@ class SessionsViewTest {
     }
 
     @Test
+    fun aReadyAgentSomeoneLookedAtIsIdle() {
+        fun state(wait: String, seen: Boolean?, running: Boolean = true) = SessionsView.state(Session("s", null, "claude", running = running, wait = wait, seen = seen))
+        assertEquals(SessionsView.RowState.IDLE, state("ready", true))
+        assertEquals(SessionsView.RowState.READY, state("ready", false))
+        // An older desktop sends no `seen`: ready stays waiting.
+        assertEquals(SessionsView.RowState.READY, state("ready", null))
+        assertEquals(SessionsView.RowState.BUSY, state("busy", true))
+        assertEquals(SessionsView.RowState.DORMANT, state("ready", true, running = false))
+    }
+
+    @Test
+    fun anIdleRowCountsNowhereButAnOfferedOneStillCountsAsAnOffer() {
+        val seen = SessionList(
+            true,
+            listOf(Folder("f1", "alpha")),
+            listOf(
+                Session("u", "f1", "claude", running = true, wait = "ready", seen = false),
+                Session("s", "f1", "claude", running = true, wait = "ready", seen = true),
+                Session("o", "f1", "claude", running = true, wait = "ready", seen = true, closeOffered = true),
+            ),
+        )
+        val group = SessionsView.groups(seen).single()
+        assertEquals(SessionsView.Summary(choice = 0, ready = 1, offers = 1), group.summary)
+        assertEquals(listOf(SessionsView.RowState.READY, SessionsView.RowState.IDLE, SessionsView.RowState.IDLE), group.rows.map { it.state })
+    }
+
+    @Test
     fun aSummaryCountsEachSessionOnceChoiceThenOfferThenReady() {
         val offers = SessionList(
             true,

@@ -153,6 +153,17 @@ class FramesTest {
     }
 
     @Test
+    fun seenIsOnlyTheJsonBooleansAndNoValueDropsTheSession() {
+        val values = listOf("true", "false", null, "null", "\"true\"", "1", "{}")
+        val sessions = values.mapIndexed { i, v ->
+            """{"id":"s$i","target":"claude","running":true,"wait":"ready"${v?.let { ",\"seen\":$it" }.orEmpty()}}"""
+        }
+        val list = SessionList.decode(Json.parseToJsonElement("""{"window":true,"folders":[],"sessions":[${sessions.joinToString(",")}]}"""))!!
+        assertEquals(values.indices.map { "s$it" }, list.sessions.map { it.id })
+        assertEquals(listOf(true, false, null, null, null, null, null), list.sessions.map { it.seen })
+    }
+
+    @Test
     fun aMalformedLineageIsNoneAndNeverDropsTheSession() {
         val values = listOf("""{"parentId":"p1","title":"t"}""", """{"title":"x"}""", """{"parentId":7}""", "\"p1\"", "null", """{"parentId":"p1","title":7}""")
         val sessions = values.mapIndexed { i, v -> """{"id":"s$i","target":"claude","lineage":$v}""" }

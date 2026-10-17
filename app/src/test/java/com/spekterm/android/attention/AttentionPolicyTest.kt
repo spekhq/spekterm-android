@@ -121,4 +121,14 @@ class AttentionPolicyTest {
             AttentionPolicy.onAnswer(WatchAnswer(listOf(a, b), complete = false), visible = "s1"),
         )
     }
+
+    @Test
+    fun onlyAWaitingOrChoiceNotificationGoesWhenTheSessionIsSeen() {
+        assertEquals(true, AttentionPolicy.removedWhenSeen(Attention.WAITING))
+        assertEquals(true, AttentionPolicy.removedWhenSeen(Attention.CHOICE))
+        assertEquals(false, AttentionPolicy.removedWhenSeen(Attention.HANDOFF_DONE))
+        assertEquals(false, AttentionPolicy.removedWhenSeen(Attention.INTAKE))
+        // Nothing remembered (raised before this process, or never): left alone.
+        assertEquals(false, AttentionPolicy.removedWhenSeen(null))
+    }
 }

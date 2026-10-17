@@ -79,6 +79,8 @@ class ConnectionLog(
         // `session-relations`: the handoff list and a handoff's note (error code, counts, whether a note or a report
         // came; never a label, a note or a report).
         HANDOFFS, BRIEF,
+        // A waiting or choice notification removed because the desktop lists its session looked at (its kind only).
+        SEEN,
     }
 
     companion object {

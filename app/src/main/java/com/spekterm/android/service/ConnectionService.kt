@@ -278,6 +278,7 @@ class ConnectionService : Service() {
             }
             refreshOngoing()
             attached = true
+            Desktop.onSeen = notifier::seen
             Desktop.attach(connection, Frames.operations(hello.result))
             for (event in connection.events) {
                 when (EventRoute.of(event.kind)) {

@@ -442,7 +442,7 @@ private fun SessionRow(
                     }
                 }
                 // An offer takes the place of "Waiting for you" only; working or a choice still shows (close-offer D5).
-                if (!(row.offered && row.state == RowState.READY)) StateLabel(row.state)
+                if (!(row.offered && (row.state == RowState.READY || row.state == RowState.IDLE))) StateLabel(row.state)
             }
             if (row.offered) CloseOffer(answers, actionsEnabled, onAnswer, Modifier.fillMaxWidth().padding(start = 34.dp, top = 4.dp))
         }

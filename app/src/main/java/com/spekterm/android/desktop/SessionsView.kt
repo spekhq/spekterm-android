@@ -47,7 +47,8 @@ class ListClock {
 
 /** How the session list shows a desktop session (design D8). */
 object SessionsView {
-    enum class RowState { DORMANT, READY, BUSY, CHOICE, NONE }
+    /** [IDLE]: ready and already looked at (`session-relations` D7). */
+    enum class RowState { DORMANT, READY, IDLE, BUSY, CHOICE, NONE }
 
     /**
      * [offered]: its agent asked to close it (`close-offer`). [depth] and [nested]: its place in the group's handoff
@@ -104,7 +105,7 @@ object SessionsView {
         !session.running -> RowState.DORMANT
         !session.isAgent -> RowState.NONE
         else -> when (WaitState.of(session.wait)) {
-            WaitState.READY -> RowState.READY
+            WaitState.READY -> if (session.seen == true) RowState.IDLE else RowState.READY
             WaitState.BUSY -> RowState.BUSY
             WaitState.AWAITING_CHOICE -> RowState.CHOICE
             else -> RowState.NONE

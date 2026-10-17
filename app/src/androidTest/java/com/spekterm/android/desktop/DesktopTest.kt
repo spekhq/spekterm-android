@@ -890,6 +890,38 @@ class DesktopTest {
     }
 
     @Test
+    fun everyAcceptedListThatTurnsASessionSeenCallsTheHookAndAReconnectCountsAgain() = runBlocking<Unit> {
+        val calls = CopyOnWriteArrayList<List<String>>()
+        Desktop.onSeen = { calls += it }
+        try {
+            fun seenList(wait: String, seen: Boolean?) =
+                """{"window":true,"folders":[],"sessions":[{"id":"s1","folderId":null,"target":"claude","label":"A","running":true,"wait":"$wait"${seen?.let { ",\"seen\":$it" }.orEmpty()}}]}"""
+            val desktop = Scripted().apply {
+                handle = { req, ws -> ws.send(ok(req.id, if (req.method == "sessions.list") seenList("ready", false) else "{}")) }
+            }
+            val first = connect(desktop)
+            withTimeout(5_000) { Desktop.sessions.first { it.current } }
+            // Sent in a row: the StateFlow may skip the middle one, the hook must not.
+            desktop.socket!!.send(evt("sessions.changed", seenList("ready", true)))
+            desktop.socket!!.send(evt("sessions.changed", seenList("busy", null)))
+            desktop.socket!!.send(evt("sessions.changed", seenList("ready", true)))
+            withTimeout(5_000) { while (calls.size < 2) delay(20) }
+            delay(300)
+            assertEquals(listOf(listOf("s1"), listOf("s1")), calls)
+            first.close()
+            withTimeout(5_000) { Desktop.connected.first { !it } }
+
+            desktop.handle = { req, ws -> ws.send(ok(req.id, if (req.method == "sessions.list") seenList("ready", true) else "{}")) }
+            connect(desktop)
+            withTimeout(5_000) { while (calls.size < 3) delay(20) }
+            delay(300)
+            assertEquals(3, calls.size)
+        } finally {
+            Desktop.onSeen = null
+        }
+    }
+
+    @Test
     fun aBriefIsReadWithItsSessionIdAndLoggedWithoutItsText() = runBlocking<Unit> {
         val logged = CopyOnWriteArrayList<String>()
         val previous = Desktop.log

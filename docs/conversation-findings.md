@@ -374,3 +374,42 @@ to the installed desktop. Driven over adb, with screenshots, a screen recording 
 | Back to the session list: `stop=true` 7 s after the key press; Home with the folder open: `stop=true` 7.5 s after; reopening watched again | pass |
 | In an artifact, `[the design](design.md)` tapped: nothing happened; `[the site](https://example.com)` tapped: Chrome opened | pass |
 | The connection log (8015 lines, the file the export shares): no slug, folder name, topic or text from the run | pass |
+
+## Session relations
+
+Change `session-relations`, 2026-10-17, against spekterm master at `01cb50a` (`session-wait-indicator`, which adds
+`seen`) run from source (`npm run dev`, profile `~/.config/spekterm-dev`, remote port 47616). The dev profile
+already held handoffs from earlier tests (a chain spek → Log → Downloads, a same-folder child in spek, a parent in
+ha-claude-assistant with a same-folder and a cross-folder child); new ones were made with `tools/drop-handoff.mjs`.
+
+| Check | Where | Outcome |
+|---|---|---|
+| `./gradlew test assembleDebug`: 276 JVM tests, including `SessionTreeTest` (the rail's forest, ported), `RelationsTest`, `HandoffScreenTest`, `SeenTransitionsTest`, and the new cases of `FramesTest` (lenient `lineage` and `seen`, handoff list, brief), `SessionsViewTest` (idle rows, summary), `SessionActionsTest`, `AttentionPolicyTest` (which notifications go when seen) | host | pass |
+| `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`, the Pixel detached from adb (only the emulator listed): 77 instrumented tests, including `DesktopTest`'s handoff list (asked only when offered, follows its events), brief (asked with its session id, logged without its text) and seen hook (ready+seen, busy, ready+seen in a row call it twice; the first list after a reconnect once) | emulator (AVD `Pixel_9`, Android 16) | pass |
+
+On the emulator, paired with the dev desktop by pasted link, driven over adb, with screenshots (kept outside the
+repository) in light and dark mode, and the app's connection log:
+
+| Scenario (spec) | Outcome |
+|---|---|
+| The existing handoffs: a same-folder child indented under its source with "Handoff"; a cross-folder one at the top of its folder with "From spek › ✳ spek-f152 · Done"; the source "Handed off 1 session · all done"; three levels (spek-dfa5 → "Phone test: same folder" → "Phone test: grandchild here") each one step further in (session-relations) | pass |
+| `drop-handoff.mjs` handoffs to the same folder and to another folder: each became a new session at once (the dev desktop accepted them on its own, no inbox step); the source "Handed off 3 sessions · 1 of 3 done" | pass |
+| `drop-handoff.mjs --report` from a handed-off session while its handoff screen was open: the report and its time showed by themselves within 5 s; the row "Handoff · Done", the source's count "1 of 3 done" | pass |
+| The source renamed from the phone: the cross-folder grandchild's row "From spek › Phone test: renamed" | pass |
+| The source closed from the phone: its same-folder child moved to the top level and both children said "From Phone test: same folder (closed)" (the title at the handoff); no row disappeared | pass |
+| The phone list next to the desktop's rail (read over CDP): the same rows in the same order in Log and spek; the rail's "→ 2" where the phone says "Handed off 2 sessions · 1 of 2 done" | pass |
+| "Handoff" from a long press: From naming the source and opening it; a long note in full with its line breaks; the latest report with its time; "Handed off from here" with folder, state and summary, each opening its session | pass |
+| A note with Markdown, a link and a bare URL: shown as plain text, nothing a link (D4) | pass |
+| Older handoffs (ha-claude-assistant-4dc6, pg11-f947): "The desktop kept no note for this handoff.", "No report yet." | pass |
+| Opening "Handoff" of a session already on the back stack (Log → child's conversation → its Handoff → From → Log's conversation → Handoff): returned to the first Handoff screen; back then went to the list | pass |
+| Paused: the relations shown with the paused notice, the note "Reading the note needs the connection to the desktop."; "Resume" loaded the note by itself | pass |
+| The desktop's window reloaded (CDP `location.reload()`) while a handoff screen was open: the screen kept its relations and never said "no longer on the desktop"; but no "no open window" notice appeared either — the reload sent no window-less list that the phone saw. The window-less case is carried by `HandoffScreenTest` | partly: not reproduced |
+| A dormant handed-off session woken from the phone: "Idle" (seen after a wake), row "Handoff"; no waiting notification | pass |
+| A reply sent from the phone, then back to the list before the turn ended: "Waiting for you", row "Handoff · Not done yet", a "Waiting for your input" notification; an "Idle" row (the woken parent) next to it, light and dark | pass |
+| Opening that conversation on the phone and going back: "Idle", the notification removed (log `seen kind=waiting` 0.13 s after the watch) | pass |
+| The next turn ending unseen: "Waiting for you" again, a new notification that was still there 20 s later; its folder collapsed said "1 waiting for you" | pass |
+| The session selected on the desktop (over CDP, the window focused): the collapsed folder stopped counting it and the notification went (log `seen kind=waiting`) | pass |
+| The connection log: `handoffs count=5`, `brief hasBody=… hasReport=…`, `seen kind=waiting`; no label, note or report text | pass |
+
+Noticed: a new same-folder session ended its first turn already seen while spek was the folder selected on the
+desktop — presumably shown in the desktop's focused window when it opened (not confirmed on the desktop side).

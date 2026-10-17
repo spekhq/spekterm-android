@@ -11,6 +11,7 @@ import com.spekterm.android.service.Status
 import com.spekterm.android.service.StatusBoard
 import com.spekterm.android.store.PositionStore
 import com.spekterm.android.ui.MainActivity
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Carries out [AttentionPolicy] actions (design D7). One notification per key, posted with `tag = key` so keys
@@ -40,7 +41,10 @@ class AttentionNotifier(
                     post(action.key, action.event, action.alert)
                     outcome[action.event] = "notified"
                 }
-                is Action.Cancel -> Notifications.cancel(context, action.key, ID)
+                is Action.Cancel -> {
+                    shown.remove(action.key)
+                    Notifications.cancel(context, action.key, ID)
+                }
                 is Action.Summarize -> summarize(action.count)
                 is Action.Store -> positions.save(deviceId, action.position)
             }
@@ -64,6 +68,21 @@ class AttentionNotifier(
                 "outcome" to result,
             )
             StatusBoard.recordEvent(Status.RecentEvent(event.kind, event.title, receivedAt, result))
+        }
+    }
+
+    /**
+     * Removes the notifications of [sessionIds], which the desktop now lists ready and looked at, that were raised
+     * for waiting or a choice (`session-relations` D8).
+     */
+    fun seen(sessionIds: List<String>) {
+        for (id in sessionIds) {
+            if (!alive()) return
+            val key = AttentionPolicy.sessionKey(id)
+            val kind = shown[key]
+            if (!AttentionPolicy.removedWhenSeen(kind) || !shown.remove(key, kind)) continue
+            Notifications.cancel(context, key, ID)
+            log.write(ConnectionLog.Kind.SEEN, "kind" to kind)
         }
     }
 
@@ -91,6 +110,7 @@ class AttentionNotifier(
             .setOnlyAlertOnce(!alert)
             .setSilent(!alert)
         Notifications.post(context, key, ID, builder.build())
+        shown[key] = event.kind
     }
 
     private fun summarize(count: Int) {
@@ -111,6 +131,12 @@ class AttentionNotifier(
 
     companion object {
         const val ID = 1
+
+        /**
+         * The kind of the notification last posted under each key, while this process lives (`session-relations`
+         * D8): shared by every connection's notifier, forgotten when cancelled; after a restart nothing is removed.
+         */
+        private val shown = ConcurrentHashMap<String, String>()
         const val SUMMARY_TAG = "summary"
     }
 }

@@ -126,6 +126,7 @@ object Desktop {
     private var attached: Attached? = null
     private var focus: Focus? = null
     private val clock = ListClock()
+    private val seen = SeenTransitions()
     private var nextReplyId = 0L
     private var pendingCreate: CreateTracker.Pending? = null
     private var createTimer: Job? = null
@@ -145,11 +146,18 @@ object Desktop {
 
     // ---- Hooks for the service ----
 
+    /**
+     * Called with the sessions an accepted list shows newly ready and looked at (`session-relations` D8), once per
+     * list, never with none; set by the service to remove their waiting notifications.
+     */
+    @Volatile var onSeen: ((List<String>) -> Unit)? = null
+
     suspend fun attach(connection: RemoteConnection, operations: Set<String> = emptySet()) = withContext(dispatcher) {
         attached?.scope?.cancel()
         val a = Attached(connection, CoroutineScope(SupervisorJob(scope.coroutineContext[Job]) + dispatcher))
         attached = a
         clock.reset()
+        seen.reset()
         mutableHandoffs.value = mutableHandoffs.value.attached()
         mutableOperations.value = operations
         mutableConnected.value = true
@@ -528,6 +536,7 @@ object Desktop {
             focus = null
             visibleSession = null
             clock.reset()
+            seen.reset()
             mutableConnected.value = false
             mutableOperations.value = emptySet()
             mutableSessions.value = SessionsState()
@@ -545,6 +554,7 @@ object Desktop {
         focus = null
         visibleSession = null
         clock.reset()
+        seen.reset()
         nextReplyId = 0
         mutableConnected.value = false
         mutableOperations.value = emptySet()
@@ -699,6 +709,7 @@ object Desktop {
     private fun applyList(a: Attached, seq: Long, list: SessionList) {
         if (attached !== a || !clock.accept(seq)) return
         mutableSessions.value = SessionsState(list, current = true, receivedAt = now())
+        seen.next(list).takeIf { it.isNotEmpty() }?.let { ids -> onSeen?.invoke(ids) }
         track(CreateTracker.listed(trackerState(), list, a, listOnScreen))
         mutableConversation.value?.let { held ->
             var next = ConversationReducer.listed(held, list)

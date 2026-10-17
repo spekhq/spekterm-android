@@ -26,6 +26,13 @@ object AttentionPolicy {
     /** The notification key of a session's events. */
     fun sessionKey(sessionId: String) = "session:$sessionId"
 
+    /**
+     * Whether a session's notification raised for [kind] goes once the desktop lists the session ready and looked at
+     * (`session-relations` D8): only a waiting or a choice one; a finished handoff, an inbox item or one this process
+     * did not raise (`null`) stays.
+     */
+    fun removedWhenSeen(kind: String?): Boolean = kind == Attention.WAITING || kind == Attention.CHOICE
+
     /** A session's events replace each other; inbox items are keyed by item; anything else by position. */
     fun key(event: Attention): String = when {
         event.sessionId != null -> sessionKey(event.sessionId)

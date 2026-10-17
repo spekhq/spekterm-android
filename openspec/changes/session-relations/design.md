@@ -49,14 +49,14 @@ Facts about the desktop (spekterm `docs/remote-protocol.md` §5–§6, `src/main
 - The desktop's words (`src/shared/i18n/en.json`): "From <repo> › <title>", "From <repo> › <title> (closed)", "From a
   session that has closed", "Handed off N sessions"; states "Working", "Waiting for you", "Done".
 
-Facts about `seen` (spekterm change `session-wait-indicator`, **not committed** when this was written; from that
-session's message of 2026-10-17 and this side's reply):
+Facts about `seen` (spekterm change `session-wait-indicator`, committed on spekterm master as `01cb50a`, not yet
+archived; `docs/remote-protocol.md` section 5 at that commit matches what follows and D7):
 
 - `Session.seen?: boolean`, present only while `wait` is `"ready"`. `true` = the user looked at the session since
   its turn ended: shown on the desktop while its window is focused, or its conversation watched by a paired device.
   The desktop's main process decides it; changes arrive in `sessions.changed`.
 - A desktop that never sends `seen` is older: every ready session stays "Waiting for you".
-- In that change's spec (confirmed by its session, protocol text not committed): `seen` is always present
+- In that change's spec and protocol text: `seen` is always present
   (`true` or `false`) exactly while `wait` is `"ready"`, absent otherwise, so its absence on a ready session means
   an older desktop; `false` again at every turn end nobody saw; a turn that ends while the session is watched (or
   shown in the focused desktop window) is `seen: true` the first time it is ready; a session that becomes ready

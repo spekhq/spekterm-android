@@ -15,7 +15,9 @@ you forward — with no relay and no push service in between.
 - **Notifications** when an agent waits for you, asks for a choice, finishes a handoff, or an inbox item
   arrives — over the app's own held connection. Tapping one about a session opens its conversation.
 - **Sessions**: the desktop's sessions by folder, with each agent's state (waiting for you, working, asks for a
-  choice) or dormant, kept live. Folders can be collapsed; a collapsed folder still shows what waits for you.
+  choice, idle) or dormant, kept live. An agent whose finished turn you already looked at — on the desktop, or by
+  opening its conversation on the phone — says "Idle" instead of "Waiting for you", and its waiting notification
+  goes away. Folders can be collapsed; a collapsed folder still shows what waits for you.
   Long-pressing a session (or the menu on its screen) renames, hibernates, wakes or closes it. Closing asks first,
   and so does stopping a session the desktop says is busy. When an agent asks to close its own session, its row
   and its screen say so with "Close" and "Keep"; that Close is the answer, so it does not ask again.
@@ -39,7 +41,8 @@ you forward — with no relay and no push service in between.
   otherwise a refresh reads them again. Repository text loads nothing and opens a link only when tapped.
 
 These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
-following OpenSpec files live: 0fcdc1f, 0.2.8); against an older desktop the app shows none of them.
+following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a); against an older desktop the app shows none of
+them, and a ready agent stays "Waiting for you".
 
 Not yet: the terminal view (shell sessions) and the inbox.
 
