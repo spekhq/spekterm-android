@@ -309,8 +309,9 @@ screenshots kept outside the repository):
 | `./gradlew test assembleDebug` and `connectedDebugAndroidTest`, emulator only: 242 JVM and 74 instrumented tests in the shared tree (with another change's work in progress); this change alone, applied to a clean worktree of master: 204 JVM tests pass and everything compiles | pass |
 
 On the Pixel 7: this change's final debug build installed with `adb install -r` at 2026-10-17 05:16 Z, pairing kept
-(`no_backup/pairing.bin` present after the install), no theme choice stored yet (`SYSTEM`). The maintainer's use of
-the live switch in Settings → Appearance is pending and will be recorded here.
+(`no_backup/pairing.bin` present after the install), no theme choice stored yet (`SYSTEM`). The maintainer then used the
+switch in Settings → Appearance: "no problems" (pass, maintainer). Afterwards the phone was in light mode while the
+app's stored choice was `{"choice":"DARK"}`, i.e. the choice is kept apart from the phone's setting.
 
 ## OpenSpec
 
