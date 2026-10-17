@@ -114,7 +114,7 @@
   - the not-connected notice with refresh disabled while paused;
   - the older-desktop notice (from 5.5).
   Verify: screenshot names and outcomes in "OpenSpec"
-- [ ] 5.4 On the Pixel: `adb install -r`, keeping the pairing if it is with the dev desktop, otherwise pairing anew. The desktop is a dev spekterm (`npm run dev` in ~/git/spekterm at or after `0fcdc1f`, profile `~/.config/spekterm-dev`). Record each outcome in "OpenSpec":
+- [x] 5.4 On the Pixel: `adb install -r`, keeping the pairing if it is with the dev desktop, otherwise pairing anew. The desktop is a dev spekterm (`npm run dev` in ~/git/spekterm at or after `0fcdc1f`, profile `~/.config/spekterm-dev`). Record each outcome in "OpenSpec":
   - this repository's and spekterm's folders open; spekterm's largest change (by artifact size) opens, with the time to first content noted;
   - a task ticked in a `tasks.md` on the desktop shows as done on the phone within a few seconds, with no tap, and the log shows `OPENSPEC op=change cause=event`;
   - a new change in a second working tree of a test repository appears in the list with its branch chip;

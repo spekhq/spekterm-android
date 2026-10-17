@@ -355,3 +355,21 @@ redundant "no longer in the folder" error above the archive notice.
 
 Seen on the desktop, not the phone: a change's artifacts came in a different order active (Proposal, Specs, Design,
 Tasks) and archived (Proposal, Design, Specs, Tasks); the phone shows the desktop's order either way.
+
+On the Pixel 7 (Android 16), 2026-10-17 15:05–15:20 (+08:00), the build of `1bdca5a` put on with `adb install -r`,
+paired for the run with the same dev desktop, reached over Tailscale and then the LAN; its earlier pairing (with the
+installed spekterm) was saved from the app's storage beforehand and put back afterwards, and the app reconnected
+to the installed desktop. Driven over adb, with screenshots, a screen recording and the app's connection log:
+
+| Check (task 5.4) | Outcome |
+|---|---|
+| Against the installed spekterm first: the folders and a change read, with "This desktop doesn't update OpenSpec by itself" (its running process predates `0fcdc1f`, though the copy on disk is 0.2.8) | as designed |
+| This repository's and spekterm's folders open (8 and 86 changes) | pass |
+| spekterm's largest changes, never read before: `macos-dmg-packaging` answered 0.26 s after the tap (log), its proposal on screen about 0.3 s after the tap (screen recording, 10 frames a second); `global-session` opened as fast | pass |
+| A task ticked in a test `tasks.md` on the desktop while on the phone's Tasks tab: "1 of 2 done" with no tap, log `openspec op=change cause=event` about 5 s after the write | pass |
+| A new change made in the test repository's second working tree: in the list 4.5 s later with its `feat` chip, log `op=changes cause=event` | pass |
+| The open change archived on disk: "This change was archived." 2 s later (log `cause=event error=NOT_FOUND`, then `op=changes cause=archived`); "Open archived change" showed it, "Archived 2026-10-17" | pass |
+| The connection lost while a folder was open, a change made meanwhile, then back: "Not connected. Showing what was read at 15:17.", Refresh dimmed; once reconnected, `op=watch stop=false` then `op=changes cause=attach` and the new change listed, no tap. Airplane mode was not used: it would end the Wi-Fi debugging the run depends on, so the desktop turned remote access off for 27 s instead, which the phone saw as the desktop going away | pass, with that substitute |
+| Back to the session list: `stop=true` 7 s after the key press; Home with the folder open: `stop=true` 7.5 s after; reopening watched again | pass |
+| In an artifact, `[the design](design.md)` tapped: nothing happened; `[the site](https://example.com)` tapped: Chrome opened | pass |
+| The connection log (8015 lines, the file the export shares): no slug, folder name, topic or text from the run | pass |
