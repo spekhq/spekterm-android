@@ -113,6 +113,18 @@ object SessionsView {
     }
 
     /**
+     * The state under a session screen's title, while its conversation is watched: the conversation's own wait state,
+     * with a ready agent that the desktop marks as seen shown as idle, as its row is, so the two never disagree.
+     */
+    fun screenState(c: Conversation, session: Session?): RowState? = when {
+        c.watch != Watch.Watching -> null
+        c.wait == WaitState.READY -> if (session?.seen == true) RowState.IDLE else RowState.READY
+        c.wait == WaitState.BUSY -> RowState.BUSY
+        c.wait == WaitState.AWAITING_CHOICE -> RowState.CHOICE
+        else -> null
+    }
+
+    /**
      * The global item first (pinned on the desktop's rail), then folders in the desktop's order, each with its
      * sessions in the desktop's order arranged as a handoff tree (`session-relations` D1); folders without sessions
      * are left out, and sessions of a folder the list does not name come last, with no tree.

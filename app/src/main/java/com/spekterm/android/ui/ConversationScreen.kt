@@ -91,7 +91,7 @@ import com.spekterm.android.desktop.Replies
 import com.spekterm.android.desktop.Reply
 import com.spekterm.android.desktop.Screen
 import com.spekterm.android.desktop.SessionAction
-import com.spekterm.android.desktop.SessionsView.RowState
+import com.spekterm.android.desktop.SessionsView
 import com.spekterm.android.desktop.Watch
 import com.spekterm.android.net.Entry
 import com.spekterm.android.net.Operations
@@ -160,7 +160,7 @@ fun ConversationScreen(
                 title = session?.label?.ifEmpty { null } ?: "Session",
                 scroll = scroll,
                 onBack = onBack,
-                subtitle = c?.let { waitState(it) }?.let { state -> { StateLabel(state) } },
+                subtitle = c?.let { SessionsView.screenState(it, session) }?.let { state -> { StateLabel(state) } },
             ) {
                 // The session's folder's OpenSpec, as its group heading offers it (`session-detail-openspec` D1, D2).
                 OpenSpecGates.of(operations).folder(session, sessions.list?.folders.orEmpty())?.let { folder ->
@@ -218,14 +218,6 @@ fun ConversationScreen(
 }
 
 /** The agent's wait state while watched, for the top bar (D4). */
-private fun waitState(c: Conversation): RowState? = when {
-    c.watch != Watch.Watching -> null
-    c.wait == WaitState.READY -> RowState.READY
-    c.wait == WaitState.BUSY -> RowState.BUSY
-    c.wait == WaitState.AWAITING_CHOICE -> RowState.CHOICE
-    else -> null
-}
-
 @Composable
 private fun ContentNotices(c: Conversation) {
     if (c.phase == Phase.CATCHING_UP) Notice("Catching up with the conversation…", Tone.Info)

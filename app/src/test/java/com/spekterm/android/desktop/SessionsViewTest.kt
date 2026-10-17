@@ -228,4 +228,18 @@ class SessionsViewTest {
         val unknown = ConversationReducer.ended(watched("g1"), "something-new")
         assertEquals(Screen.Dormant, screen(conversation = unknown))
     }
+
+    @Test
+    fun aSessionsScreenShowsTheStateItsRowShows() {
+        fun on(wait: String) = watched("g1").copy(wait = wait)
+        val ready = Session("g1", null, "claude", running = true, wait = "ready")
+        assertEquals(SessionsView.RowState.IDLE, SessionsView.screenState(on("ready"), ready.copy(seen = true)))
+        assertEquals(SessionsView.RowState.READY, SessionsView.screenState(on("ready"), ready.copy(seen = false)))
+        assertEquals(SessionsView.RowState.READY, SessionsView.screenState(on("ready"), ready))
+        assertEquals(SessionsView.RowState.READY, SessionsView.screenState(on("ready"), null))
+        assertEquals(SessionsView.RowState.BUSY, SessionsView.screenState(on("busy"), ready.copy(seen = true)))
+        assertEquals(SessionsView.RowState.CHOICE, SessionsView.screenState(on("awaiting-choice"), ready.copy(seen = true)))
+        assertEquals(null, SessionsView.screenState(on("unknown"), ready))
+        assertEquals(null, SessionsView.screenState(Conversation("g1", wait = "ready"), ready.copy(seen = true)))
+    }
 }
