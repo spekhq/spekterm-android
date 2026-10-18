@@ -28,6 +28,9 @@ you forward — with no relay and no push service in between.
   Long-pressing a session (or the menu on its screen) renames, hibernates, wakes or closes it. Closing asks first,
   and so does stopping a session the desktop says is busy. When an agent asks to close its own session, its row
   and its screen say so with "Close" and "Keep"; that Close is the answer, so it does not ask again.
+  An agent that still runs work in the background — subagents, shells (the Monitor tool's waits among them),
+  monitors — says so on its row ("Background: 1 subagent, 2 shells"), and its screen lists each task as its agent
+  last reported it.
 - **Handoffs**: a session handed off from another sits under it, as on the desktop's rail, or says where it came
   from when its source is in another folder or gone; a session that handed off others says how many and how many
   are done. "Handoff" in a session's menu shows where it came from, the handoff's note, its latest report and the
@@ -49,7 +52,8 @@ you forward — with no relay and no push service in between.
   Repository text loads nothing and opens a link only when tapped.
 
 These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
-following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a); against an older desktop the app shows none of
+following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a;
+background work: spekterm with remote-background-tasks); against an older desktop the app shows none of
 them, and a ready agent stays "Waiting for you".
 
 Not yet: the terminal view (shell sessions) and the inbox.

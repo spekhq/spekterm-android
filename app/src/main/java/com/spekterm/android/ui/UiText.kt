@@ -24,11 +24,15 @@ sealed interface UiText {
     /** Parts shown in one line, each in the language, joined by [separator] (which holds no words). */
     data class Joined(val parts: List<UiText>, val separator: String = " · ") : UiText
 
+    /** Parts joined by a separator that is a string of the language, such as a list's comma (`background-tasks` D3). */
+    data class JoinedRes(val parts: List<UiText>, @StringRes val separator: Int) : UiText
+
     fun resolve(context: Context): String = when (this) {
         is Res -> context.getString(id, *args.map { it.resolved(context) }.toTypedArray())
         is Plural -> context.resources.getQuantityString(id, count, *args.map { it.resolved(context) }.toTypedArray())
         is Raw -> text
         is Joined -> parts.joinToString(separator) { it.resolve(context) }
+        is JoinedRes -> parts.joinToString(context.getString(separator)) { it.resolve(context) }
     }
 }
 

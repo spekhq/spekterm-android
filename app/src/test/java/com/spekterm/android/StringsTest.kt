@@ -14,7 +14,8 @@ class StringsTest {
     private val res = listOf(File("src/main/res"), File("app/src/main/res")).first { it.isDirectory }
 
     /** Names whose zh-TW text may equal the English one: names of things, not sentences. */
-    private val sameInBoth = setOf("app_name", "conversation_title_fallback", "sessions_agent", "sessions_shell", "openspec_tab_spec", "openspec_tab_specs")
+    private val sameInBoth = setOf("app_name", "conversation_title_fallback", "sessions_agent", "sessions_shell", "openspec_tab_spec", "openspec_tab_specs",
+        "background_kind_agent", "background_kind_shell", "background_kind_monitor")
 
     private data class Entry(val text: String, val translatable: Boolean, val plural: Map<String, String> = emptyMap())
 

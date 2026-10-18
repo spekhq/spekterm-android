@@ -1,12 +1,16 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.R
+import com.spekterm.android.net.BackgroundTask
 import com.spekterm.android.net.ConversationEnded
 import com.spekterm.android.net.Folder
 import com.spekterm.android.net.HandoffEntry
 import com.spekterm.android.net.Session
 import com.spekterm.android.net.SessionList
+import com.spekterm.android.ui.UiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -241,5 +245,37 @@ class SessionsViewTest {
         assertEquals(SessionsView.RowState.CHOICE, SessionsView.screenState(on("awaiting-choice"), ready.copy(seen = true)))
         assertEquals(null, SessionsView.screenState(on("unknown"), ready))
         assertEquals(null, SessionsView.screenState(Conversation("g1", wait = "ready"), ready.copy(seen = true)))
+    }
+
+    @Test
+    fun backgroundWorkIsShownOnlyForARunningAgent() {
+        val tasks = listOf(BackgroundTask("t1", BackgroundTask.Kind.SHELL, "npm run dev"))
+        assertEquals(tasks, SessionsView.background(Session("a", null, "claude", running = true, wait = "ready", background = tasks)))
+        assertEquals(emptyList<BackgroundTask>(), SessionsView.background(Session("d", null, "claude", running = false, background = tasks)))
+        assertEquals(emptyList<BackgroundTask>(), SessionsView.background(Session("s", null, "shell", running = true, background = tasks)))
+    }
+
+    @Test
+    fun backgroundCountsInAFixedOrderAndTheirLine() {
+
+        val tasks = listOf(BackgroundTask.Kind.SHELL, BackgroundTask.Kind.AGENT, BackgroundTask.Kind.SHELL, BackgroundTask.Kind.OTHER).mapIndexed { i, kind -> BackgroundTask("t$i", kind) }
+        val counts = SessionsView.backgroundCounts(tasks)
+        assertEquals(listOf(BackgroundTask.Kind.AGENT to 1, BackgroundTask.Kind.SHELL to 2, BackgroundTask.Kind.OTHER to 1), counts)
+        assertEquals(emptyList<Pair<BackgroundTask.Kind, Int>>(), SessionsView.backgroundCounts(emptyList()))
+        assertEquals(
+            UiText.Res(
+                R.string.sessions_background,
+                UiText.JoinedRes(
+                    listOf(
+                        UiText.Plural(R.plurals.sessions_background_agent, 1),
+                        UiText.Plural(R.plurals.sessions_background_shell, 2),
+                        UiText.Plural(R.plurals.sessions_background_other, 1),
+                    ),
+                    R.string.sessions_background_separator,
+                ),
+            ),
+            SessionsView.backgroundLine(counts),
+        )
+        assertNull(SessionsView.backgroundLine(emptyList()))
     }
 }

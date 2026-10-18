@@ -164,6 +164,49 @@ class FramesTest {
     }
 
     @Test
+    fun malformedBackgroundIsNoneAndNeverDropsTheSession() {
+        val values = listOf(null, "null", "\"x\"", "1", "true", "{}", "[]", """[{"id":"t1","kind":"shell","label":"npm run dev"}]""")
+        val sessions = values.mapIndexed { i, v -> """{"id":"s$i","target":"claude","running":true${v?.let { ",\"background\":$it" }.orEmpty()}}""" }
+        val list = SessionList.decode(Json.parseToJsonElement("""{"window":true,"folders":[],"sessions":[${sessions.joinToString(",")}]}"""))!!
+        assertEquals(values.indices.map { "s$it" }, list.sessions.map { it.id })
+        assertEquals(List(values.size - 1) { emptyList<BackgroundTask>() } + listOf(listOf(BackgroundTask("t1", BackgroundTask.Kind.SHELL, "npm run dev"))), list.sessions.map { it.background })
+    }
+
+    @Test
+    fun backgroundTasksAreReadOneByOne() {
+        val tasks = listOf(
+            """{"kind":"shell","label":"no id"}""",
+            """{"id":"","kind":"shell"}""",
+            """{"id":7,"kind":"shell"}""",
+            "\"t0\"",
+            "null",
+            """{"id":"a","kind":"agent","label":"Probe agent"}""",
+            """{"id":"s","kind":"shell","label":null}""",
+            """{"id":"m","kind":"monitor"}""",
+            """{"id":"w","kind":"workflow","label":5}""",
+            """{"id":"n","label":{}}""",
+            """{"id":"k","kind":1,"label":""}""",
+            """{"id":"b","kind":"shell","label":"  "}""",
+            """{"id":"u","kind":"monitor","label":"live updates for https://claude.ai/artifact/abc"}""",
+        )
+        val session = Frames.decodeOrNull<Session>(Json.parseToJsonElement("""{"id":"s1","target":"claude","running":true,"background":[${tasks.joinToString(",")}]}"""))!!
+
+        val expected = listOf(
+            BackgroundTask("a", BackgroundTask.Kind.AGENT, "Probe agent"),
+            BackgroundTask("s", BackgroundTask.Kind.SHELL, null),
+            BackgroundTask("m", BackgroundTask.Kind.MONITOR, null),
+            BackgroundTask("w", BackgroundTask.Kind.OTHER, null),
+            BackgroundTask("n", BackgroundTask.Kind.OTHER, null),
+            BackgroundTask("k", BackgroundTask.Kind.OTHER, null),
+            BackgroundTask("b", BackgroundTask.Kind.SHELL, null),
+            BackgroundTask("u", BackgroundTask.Kind.MONITOR, "live updates for https://claude.ai/artifact/abc"),
+        )
+        assertEquals(expected, session.background)
+        val again = Frames.decodeOrNull<Session>(Frames.json.encodeToJsonElement(Session.serializer(), session))!!
+        assertEquals(session, again)
+    }
+
+    @Test
     fun aMalformedLineageIsNoneAndNeverDropsTheSession() {
         val values = listOf("""{"parentId":"p1","title":"t"}""", """{"title":"x"}""", """{"parentId":7}""", "\"p1\"", "null", """{"parentId":"p1","title":7}""")
         val sessions = values.mapIndexed { i, v -> """{"id":"s$i","target":"claude","lineage":$v}""" }

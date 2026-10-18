@@ -1,9 +1,12 @@
 package com.spekterm.android.desktop
 
+import com.spekterm.android.R
+import com.spekterm.android.net.BackgroundTask
 import com.spekterm.android.net.HandoffEntry
 import com.spekterm.android.net.Session
 import com.spekterm.android.net.SessionList
 import com.spekterm.android.net.WaitState
+import com.spekterm.android.ui.UiText
 
 /** The last session list, and whether it came from the connection attached now (design D1). */
 data class SessionsState(
@@ -100,6 +103,36 @@ object SessionsView {
      */
     fun canCreate(connected: Boolean, paused: Boolean, sessions: SessionsState, creation: Creation?): Boolean =
         connected && !paused && sessions.current && sessions.list?.window == true && creation !is Creation.Starting
+
+    /** The background work a session shows: only a running agent's (`background-tasks` D2). */
+    fun background(session: Session): List<BackgroundTask> =
+        if (session.running && session.isAgent) session.background else emptyList()
+
+    /** How many tasks of each kind, in a fixed order and never a zero count (D2). */
+    fun backgroundCounts(tasks: List<BackgroundTask>): List<Pair<BackgroundTask.Kind, Int>> =
+        BackgroundTask.Kind.entries.mapNotNull { kind -> tasks.count { it.kind == kind }.takeIf { it > 0 }?.let { kind to it } }
+
+    /** The row's line, "Background: 1 subagent, 2 shells"; `null` when there is none (D3). */
+    fun backgroundLine(counts: List<Pair<BackgroundTask.Kind, Int>>): UiText? {
+        if (counts.isEmpty()) return null
+        val parts = counts.map { (kind, n) -> UiText.Plural(backgroundPlural(kind), n) }
+        return UiText.Res(R.string.sessions_background, UiText.JoinedRes(parts, R.string.sessions_background_separator))
+    }
+
+    fun backgroundPlural(kind: BackgroundTask.Kind): Int = when (kind) {
+        BackgroundTask.Kind.AGENT -> R.plurals.sessions_background_agent
+        BackgroundTask.Kind.SHELL -> R.plurals.sessions_background_shell
+        BackgroundTask.Kind.MONITOR -> R.plurals.sessions_background_monitor
+        BackgroundTask.Kind.OTHER -> R.plurals.sessions_background_other
+    }
+
+    /** A task's kind as a word, for the conversation screen's list (D4). */
+    fun backgroundKind(kind: BackgroundTask.Kind): Int = when (kind) {
+        BackgroundTask.Kind.AGENT -> R.string.background_kind_agent
+        BackgroundTask.Kind.SHELL -> R.string.background_kind_shell
+        BackgroundTask.Kind.MONITOR -> R.string.background_kind_monitor
+        BackgroundTask.Kind.OTHER -> R.string.background_kind_other
+    }
 
     fun state(session: Session): RowState = when {
         !session.running -> RowState.DORMANT

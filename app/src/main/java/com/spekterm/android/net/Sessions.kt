@@ -77,12 +77,45 @@ data class Session(
     /** The agent asked to close its own session and the user has not answered (`close-offer`, design D1). */
     @Serializable(with = OnlyTrue::class)
     val closeOffered: Boolean = false,
+    /** The work its agent runs in the background, as the agent last reported it (`background-tasks`, design D1). */
+    @Serializable(with = LenientBackground::class)
+    val background: List<BackgroundTask> = emptyList(),
 ) {
     val isAgent: Boolean get() = target == CLAUDE
 
     companion object {
         const val CLAUDE = "claude"
         const val SHELL = "shell"
+    }
+}
+
+/** One task of [Session.background]: [label] is the agent's own text, shown as plain text (obligation 15). */
+data class BackgroundTask(val id: String, val kind: Kind, val label: String? = null) {
+    enum class Kind(val wire: String) { AGENT("agent"), SHELL("shell"), MONITOR("monitor"), OTHER("other") }
+}
+
+/**
+ * The background work as an array of tasks; anything else reads as none, so it never drops the session that carries it
+ * (obligation 7; `background-tasks` D1). A task needs a non-empty string `id`; a `kind` the app does not know, or none,
+ * is [BackgroundTask.Kind.OTHER]; a `label` that is not a string with something other than whitespace is none.
+ */
+object LenientBackground : KSerializer<List<BackgroundTask>> {
+    override val descriptor = JsonElement.serializer().descriptor
+
+    override fun deserialize(decoder: Decoder): List<BackgroundTask> {
+        val array = (decoder as? JsonDecoder)?.decodeJsonElement() as? JsonArray ?: return emptyList()
+        return each(array) { e ->
+            val o = e as? JsonObject ?: return@each null
+            val id = o.string("id")?.takeIf { it.isNotEmpty() } ?: return@each null
+            val kind = o.string("kind").let { k -> BackgroundTask.Kind.entries.firstOrNull { it.wire == k } } ?: BackgroundTask.Kind.OTHER
+            BackgroundTask(id, kind, o.string("label")?.takeIf { it.isNotBlank() })
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: List<BackgroundTask>) {
+        (encoder as JsonEncoder).encodeJsonElement(
+            JsonArray(value.map { JsonObject(mapOf("id" to JsonPrimitive(it.id), "kind" to JsonPrimitive(it.kind.wire), "label" to (it.label?.let(::JsonPrimitive) ?: JsonNull))) }),
+        )
     }
 }
 

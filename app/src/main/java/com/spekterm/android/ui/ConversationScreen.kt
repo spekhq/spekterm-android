@@ -52,6 +52,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -135,6 +136,8 @@ fun ConversationScreen(
     // Closing the session from its own screen returns to the list (design D9).
     val dialogs = rememberSessionDialogs { if (it.kind == SessionAction.Kind.CLOSE) onBack() }
     var menu by remember { mutableStateOf(false) }
+    // Held here, not in the item, so it survives the work ending and coming back (`background-tasks` D4).
+    var backgroundOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
 
     // Watch only while visible (design D3); opening it clears its notification (design D8).
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -181,38 +184,45 @@ fun ConversationScreen(
             }
         },
     ) {
-        Column(Modifier.fillMaxSize()) {
-            when (screen) {
-                Screen.Paused -> Notice(stringResource(R.string.conversation_paused), Tone.Warning, stringResource(R.string.common_resume), onResume)
-                Screen.NotConnected -> Notice(stringResource(R.string.conversation_out_of_date, notConnectedReason(status, announcements).text()), Tone.Warning, stringResource(R.string.common_details), onStatus)
-                Screen.NoWindow -> Notice(stringResource(R.string.conversation_no_window), Tone.Warning)
-                else -> Unit
-            }
-            when (screen) {
-                Screen.Closed -> CenteredMessage(SpekIcons.Info, stringResource(R.string.conversation_closed))
-                Screen.Shell -> CenteredMessage(SpekIcons.Shell, stringResource(R.string.conversation_shell))
-                Screen.Dormant -> Dormant(sessionId)
-                else -> {
-                    if (screen == Screen.Content && c != null) ContentNotices(c)
-                    Entries(c, Modifier.weight(1f))
-                    c?.let { answerNote(it) }?.let { Notice(it.text(), answerTone(c), stringResource(R.string.common_dismiss), { Desktop.dismissAnswer(sessionId) }) }
-                    val offer = c?.prompt?.let { Answers.offer(it, operations, connected, announcements.paused, c.watch, c.answer) }
-                    if (offer != null) PromptCard(sessionId, c.prompt!!, offer)
-                    // The agent's offer to close the session, from the last list held (close-offer D5).
-                    if (session != null && SessionActions.offered(session)) {
-                        CloseOffer(
-                            SessionActions.offerActions(session, operations),
-                            actionsEnabled,
-                            { dialogs.answerOffer(it, session) },
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.large)
-                                .border(1.dp, spekColors.offer, MaterialTheme.shapes.large)
-                                .padding(start = 14.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
-                        )
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            // A quarter of the content's actual height, which shrinks with the keyboard (`background-tasks` D4).
+            val backgroundMax = maxHeight / 4
+            Column(Modifier.fillMaxSize()) {
+                when (screen) {
+                    Screen.Paused -> Notice(stringResource(R.string.conversation_paused), Tone.Warning, stringResource(R.string.common_resume), onResume)
+                    Screen.NotConnected -> Notice(stringResource(R.string.conversation_out_of_date, notConnectedReason(status, announcements).text()), Tone.Warning, stringResource(R.string.common_details), onStatus)
+                    Screen.NoWindow -> Notice(stringResource(R.string.conversation_no_window), Tone.Warning)
+                    else -> Unit
+                }
+                when (screen) {
+                    Screen.Closed -> CenteredMessage(SpekIcons.Info, stringResource(R.string.conversation_closed))
+                    Screen.Shell -> CenteredMessage(SpekIcons.Shell, stringResource(R.string.conversation_shell))
+                    Screen.Dormant -> Dormant(sessionId)
+                    else -> {
+                        if (screen == Screen.Content && c != null) ContentNotices(c)
+                        // From the last list held, as the close offer is (`background-tasks` D4).
+                        val background = session?.let { SessionsView.background(it) }.orEmpty()
+                        if (background.isNotEmpty()) BackgroundTasks(background, backgroundOpen, { backgroundOpen = !backgroundOpen }, backgroundMax)
+                        Entries(c, Modifier.weight(1f))
+                        c?.let { answerNote(it) }?.let { Notice(it.text(), answerTone(c), stringResource(R.string.common_dismiss), { Desktop.dismissAnswer(sessionId) }) }
+                        val offer = c?.prompt?.let { Answers.offer(it, operations, connected, announcements.paused, c.watch, c.answer) }
+                        if (offer != null) PromptCard(sessionId, c.prompt!!, offer)
+                        // The agent's offer to close the session, from the last list held (close-offer D5).
+                        if (session != null && SessionActions.offered(session)) {
+                            CloseOffer(
+                                SessionActions.offerActions(session, operations),
+                                actionsEnabled,
+                                { dialogs.answerOffer(it, session) },
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.large)
+                                    .border(1.dp, spekColors.offer, MaterialTheme.shapes.large)
+                                    .padding(start = 14.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
+                            )
+                        }
+                        Composer(sessionId, c, connected, announcements.paused, offer is Offer.Answerable, Operations.ATTACH in operations && session?.isAgent != false)
                     }
-                    Composer(sessionId, c, connected, announcements.paused, offer is Offer.Answerable, Operations.ATTACH in operations && session?.isAgent != false)
                 }
             }
         }
@@ -346,7 +356,7 @@ private val rowPad = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertica
 
 /** A line that expands and collapses by a tap anywhere on it, saying which it is. */
 @Composable
-private fun Modifier.toggles(open: Boolean, onToggle: () -> Unit): Modifier {
+internal fun Modifier.toggles(open: Boolean, onToggle: () -> Unit): Modifier {
     val state = stringResource(if (open) R.string.common_expanded else R.string.common_collapsed)
     return clickable(onClick = onToggle).semantics { stateDescription = state }
 }

@@ -444,7 +444,8 @@ private fun SessionRow(
                 )
                 Column(Modifier.weight(1f)) {
                     Text(session.label.ifEmpty { session.id }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    for (line in listOfNotNull(relation, children)) {
+                    val background = SessionsView.backgroundLine(SessionsView.backgroundCounts(SessionsView.background(session)))?.text()
+                    for (line in listOfNotNull(relation, children, background)) {
                         Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }

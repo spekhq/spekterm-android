@@ -445,4 +445,26 @@
         <item quantity="other">%1$d 個 change</item>
     </plurals>
     <string name="openspec_tasks_done">%2$d 個中 %1$d 個已完成</string>
+    <string name="sessions_background">背景：%1$s</string>
+    <string name="sessions_background_separator">、</string>
+    <plurals name="sessions_background_agent">
+        <item quantity="other">%1$d 個 subagent</item>
+    </plurals>
+    <plurals name="sessions_background_shell">
+        <item quantity="other">%1$d 個 shell</item>
+    </plurals>
+    <plurals name="sessions_background_monitor">
+        <item quantity="other">%1$d 個 monitor</item>
+    </plurals>
+    <plurals name="sessions_background_other">
+        <item quantity="other">%1$d 個其他</item>
+    </plurals>
+    <plurals name="background_running">
+        <item quantity="other">背景執行中：%1$d 個</item>
+    </plurals>
+    <string name="background_kind_agent">Subagent</string>
+    <string name="background_kind_shell">Shell</string>
+    <string name="background_kind_monitor">Monitor</string>
+    <string name="background_kind_other">其他</string>
+    <string name="background_note">這是 agent 最後一次回報的狀態。</string>
 </resources>

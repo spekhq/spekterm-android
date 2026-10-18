@@ -584,3 +584,36 @@ The code is dense because the link carries every address, global and temporary I
 320 bytes, version 13; seven: 432 bytes, 85 modules), drawn at 192 CSS px with a two-module border. A larger code,
 a four-module border, and leaving global and temporary IPv6 addresses out of the link would each make it easier to
 scan. That is a spekterm change, not this app's.
+
+## Background tasks
+
+Change `background-tasks`, 2026-10-18, against the dev desktop run from the spekterm working tree with
+`remote-background-tasks` implemented and not yet committed (profile `~/.config/spekterm-dev/Spekterm`, port 47616).
+
+### Build and suites (task 3.3)
+
+| Check | Where | Outcome |
+|---|---|---|
+| `./gradlew test assembleDebug`, `StringsTest` and `HardcodedTextTest` included | host | pass |
+| `connectedDebugAndroidTest`: 85 tests, the new `BackgroundTasksTest` among them (collapsed at first, then each task in order; a task without a label shows its kind alone; a URL label carries no link annotation and a click changes nothing; twenty tasks in a 500 dp column scroll within their bound and leave a 160 dp card and the composer their full height and the entries a non-zero height) | emulator (AVD `Pixel_9`, Android 16), only the emulator listed by `adb devices` | pass, 84 run and `DesktopRaceTest` skipped by its own assumption (no desktop arguments given) |
+
+### On the emulator (task 3.2)
+
+Paired anew by a pasted link whose address list starts with 10.0.2.2 (the instrumented run had removed the earlier
+pairing). The states were produced by hand-made `Stop` files for an idle agent session (`hook_event_name: "Stop"`,
+the CLI's `background_tasks`), written into its event directory under a nanosecond name and renamed into place.
+Screenshots kept outside the repository.
+
+| What | Outcome |
+|---|---|
+| One running shell: the row says "Background: 1 shell" under its label, with "Waiting for you" (the hand-made `Stop` ended a turn, as expected) | pass |
+| A subagent, two shells and a completed shell: the screen says "3 running in the background" (the completed one left out by the desktop), collapsed; expanded, Subagent, Shell, Shell in the desktop's order, the second shell's label its command with absolute paths over two lines, then "As the agent last reported." | pass |
+| A monitor with no description: listed as "Monitor" alone | pass |
+| A monitor whose description holds an artifact URL: shown as written; tapping it opened nothing and the app stayed in the foreground | pass |
+| A `workflow` (pending): listed as "Other" with its label | pass |
+| Ten tasks expanded, the keyboard open: the list holds a quarter of the shrunken content area and scrolls; the conversation and the composer stay visible | pass. With a prompt card as well: not produced on the emulator (a hand-made `Stop` cannot raise a permission prompt); carried by `BackgroundTasksTest` |
+| 中文（台灣）: the row says 「背景：1 個 subagent、2 個 shell、1 個其他」 with 閒置; the screen 「背景執行中：4 個」, 其他, 「這是 agent 最後一次回報的狀態。」; the expanded state survived the language change | pass |
+| An empty list: the row's line goes at once, without the user doing anything | pass |
+
+Seen in passing: the subagent's running `Stop` left the session's row "Idle" (the desktop holds the turn open for a
+running non-shell task but its wait state stays ready); the phone shows the wait state as the desktop sends it.
