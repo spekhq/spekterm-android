@@ -6,13 +6,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextOverflow
 import com.mikepenz.markdown.compose.LazyMarkdownSuccess
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
 import com.mikepenz.markdown.compose.components.MarkdownComponents
 import com.mikepenz.markdown.compose.components.markdownComponents
+import com.mikepenz.markdown.compose.elements.MarkdownTable
+import com.mikepenz.markdown.compose.elements.MarkdownTableHeader
+import com.mikepenz.markdown.compose.elements.MarkdownTableRow
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.MarkdownAnnotator
@@ -64,9 +69,35 @@ private fun webLink(link: ASTNode, content: String): Boolean {
     return scheme == "http" || scheme == "https"
 }
 
-/** Unknown block types are dropped by the renderer; only HTML blocks are shown, as text. */
+/**
+ * Unknown block types are dropped by the renderer; only HTML blocks are shown, as text. A table shows every cell
+ * whole.
+ */
 @Composable
-fun safeComponents(): MarkdownComponents = markdownComponents(custom = { type, model -> HtmlBlock(type, model) })
+fun safeComponents(): MarkdownComponents = markdownComponents(
+    table = { WholeTable(it) },
+    custom = { type, model -> HtmlBlock(type, model) },
+)
+
+/**
+ * The renderer cuts every table cell to one line with an ellipsis; here a cell wraps onto as many lines as its text
+ * needs, and a row's cells line up at the top. Columns keep the renderer's width, scrolling sideways when they do not
+ * fit.
+ */
+@Composable
+private fun WholeTable(model: MarkdownComponentModel) {
+    MarkdownTable(
+        content = model.content,
+        node = model.node,
+        style = model.typography.table,
+        headerBlock = { content, header, width, style ->
+            MarkdownTableHeader(content, header, width, style, verticalAlignment = Alignment.Top, maxLines = Int.MAX_VALUE, overflow = TextOverflow.Clip)
+        },
+        rowBlock = { content, row, width, style ->
+            MarkdownTableRow(content, row, width, style, verticalAlignment = Alignment.Top, maxLines = Int.MAX_VALUE, overflow = TextOverflow.Clip)
+        },
+    )
+}
 
 @Composable
 private fun HtmlBlock(type: IElementType, model: MarkdownComponentModel) {

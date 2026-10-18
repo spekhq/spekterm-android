@@ -3,8 +3,11 @@ package com.spekterm.android.ui
 import android.content.ContextWrapper
 import android.content.Intent
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -121,5 +124,28 @@ class AgentMarkdownTest {
         assertEquals("nothing may be fetched", 0, server.requestCount)
         compose.onNodeWithText("<b>bold</b>", substring = true).assertExists()
         compose.onNodeWithText("<script>", substring = true).assertExists()
+    }
+
+    @Test
+    fun aTableCellShowsAllItsText() {
+        val long = "a long cell that cannot fit on one line of a narrow column, so it wraps instead of being cut off"
+        val table = "| Item | What it says |\n| --- | --- |\n| one | $long |"
+        compose.setContent {
+            Column {
+                AgentMarkdown(table)
+                RepositoryMarkdown(table, lazy = false)
+            }
+        }
+        compose.waitForIdle()
+        val cells = compose.onAllNodesWithText(long, substring = true).fetchSemanticsNodes()
+        assertEquals("agent and repository text each show the cell", 2, cells.size)
+        cells.forEach { node ->
+            val results = mutableListOf<TextLayoutResult>()
+            node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+            val layout = results.single()
+            assertFalse("the cell is not cut off", layout.hasVisualOverflow)
+            assertTrue("the cell wraps", layout.lineCount > 1)
+            assertFalse("no ellipsis", (0 until layout.lineCount).any { layout.isLineEllipsized(it) })
+        }
     }
 }
