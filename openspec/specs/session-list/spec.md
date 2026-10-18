@@ -44,7 +44,8 @@ input. A session whose agent offered to
 close it (`close-offer`) SHALL show the offer in place of waiting for input or idle, and keep showing working or
 asking for a choice with the offer. A session created by a handoff SHALL also show its handoff state and, when it is not shown
 under its source, where it came from; a session that handed off others SHALL say how many and how many are done
-(`session-relations`).
+(`session-relations`). A running agent session with background work SHALL
+also say how much it has, by kind (`background-tasks`).
 
 #### Scenario: The list follows the desktop
 
@@ -101,6 +102,11 @@ under its source, where it came from; a session that handed off others SHALL say
 
 - **WHEN** no session in the desktop's list was created by a handoff
 - **THEN** every session is shown at the top level of its group, in the desktop's order, as before
+
+#### Scenario: Work left running after a turn
+
+- **WHEN** an agent finishes its turn and leaves a background shell running
+- **THEN** its row shows its wait state and also says one shell runs in the background
 
 ### Requirement: Say when the list is not current
 

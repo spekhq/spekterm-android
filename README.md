@@ -53,7 +53,7 @@ you forward — with no relay and no push service in between.
 
 These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
 following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a;
-background work: spekterm with remote-background-tasks); against an older desktop the app shows none of
+background work: c79785f, 0.2.11); against an older desktop the app shows none of
 them, and a ready agent stays "Waiting for you".
 
 Not yet: the terminal view (shell sessions) and the inbox.
