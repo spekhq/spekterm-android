@@ -17,7 +17,7 @@
 
 ## 4. On the phone
 
-- [ ] 4.1 On the Pixel, with kewang's OK before driving it: `adb install -r`; save the app's pairing with the installed spekterm from its storage (as in the "OpenSpec" findings run), pair with the dev desktop (port 47616, over Tailscale if the LAN does not reach) by pasted link, and afterwards put the saved pairing back and check the app reconnects to the installed desktop. Against real agent work on the dev desktop, record each outcome in the new findings section:
+- [x] 4.1 On the Pixel, with kewang's OK before driving it: `adb install -r`; save the app's pairing with the installed spekterm from its storage (as in the "OpenSpec" findings run), pair with the dev desktop (port 47616, over Tailscale if the LAN does not reach) by pasted link, and afterwards put the saved pairing back and check the app reconnects to the installed desktop. Against real agent work on the dev desktop, record each outcome in the new findings section:
   - an agent starts a background shell (`run_in_background`) and ends its turn: the row shows "Background: 1 shell" with "Waiting for you", then with "Idle" once looked at;
   - the agent uses the `Monitor` tool: it shows as a shell, its label the Monitor's description;
   - a background subagent: the row counts a subagent; the conversation screen lists it with its description;

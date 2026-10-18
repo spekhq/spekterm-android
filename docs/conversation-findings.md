@@ -617,3 +617,30 @@ Screenshots kept outside the repository.
 
 Seen in passing: the subagent's running `Stop` left the session's row "Idle" (the desktop holds the turn open for a
 running non-shell task but its wait state stays ready); the phone shows the wait state as the desktop sends it.
+
+### On the Pixel (task 4.1)
+
+On the Pixel 7 (Android 16), 2026-10-18 17:17–19:07 (+08:00): the build of `d0d924c` put on with `adb install -r`
+(an update, data kept), paired with the same dev desktop by its link opened in the app (kewang tapped 配對), reached
+over the LAN. Real agent turns in one dev session (`spekterm-91cb`), run by the spekterm session; the phone driven
+over adb with kewang's OK and not otherwise used. Times are the desktop's list change and the phone's screenshot.
+
+| What | Outcome |
+|---|---|
+| A background subagent and a background shell (17:21:35): the screen says 「背景執行中：2 個」; expanded, Shell "Hold a background shell for the phone test", Subagent "Phone test subagent, 2 min", then 「這是 agent 最後一次回報的狀態。」 | pass |
+| The subagent finishes (desktop 17:23:37): the phone shows 「1 個」, the shell alone, at 17:23:38 | pass |
+| A subagent that ended after 8 s (17:21:01): the row dropped it at once, 「背景：1 個 shell」 | pass |
+| A background shell, turn ended (19:02:22): the row 「背景：1 個 shell」 with 等你回應; after its screen was opened, 閒置 with the line kept | pass |
+| The `Monitor` tool, description "Pixel monitor b" (19:03:17): the row 「背景：2 個 shell」; expanded, Shell "Pixel shell a", Shell "Pixel monitor b" | pass |
+| The connection paused with both listed (19:04): the row and the screen keep 「背景：2 個 shell」 / 「背景執行中：2 個」 | pass |
+| Both stopped and the turn ended (desktop 19:05:22): the screen's region gone in the 19:05:22 screenshot, 閒置, no tap | pass |
+| The shell's own end (17:30:54) | not seen live: the screen had locked at 17:26 (the lock needs the owner); still connected then (an attention event at 17:30:54), and at 19:01 the row read 閒置 with no line |
+| Hibernated with a shell listed (19:06:39): 「背景：1 個 shell」 at 19:06:36, 休眠中 with no line at 19:06:40 | pass |
+| The connection log (`files/log/connection.log*`) holds none of the labels | pass, 0 matches |
+
+The installed desktop's pairing was not saved before the dev pairing replaced it, so it was not put back; kewang
+re-pairs with the installed spekterm. While a background subagent runs after the turn's `Stop`, the desktop reports
+the session busy (處理中 on the phone); the emulator's hand-made `Stop` above showed ready instead.
+
+Seen in passing: the pairing dialog for the dev desktop read 「這個連結指向的桌機不是 kewang-7420（它自稱
+kewang-7420）」, both desktops running on one computer with the same name. A copy issue for another change.
