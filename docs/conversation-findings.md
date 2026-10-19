@@ -644,3 +644,76 @@ the session busy (處理中 on the phone); the emulator's hand-made `Stop` above
 
 Seen in passing: the pairing dialog for the dev desktop read 「這個連結指向的桌機不是 kewang-7420（它自稱
 kewang-7420）」, both desktops running on one computer with the same name. A copy issue for another change.
+
+## Inbox
+
+Change `inbox`, 2026-10-19, against the dev desktop run from the spekterm working tree with `scheduled-handoff`
+(445dc24) and `remote-prefill-send` implemented and not yet committed (profile `~/.config/spekterm-dev/Spekterm`,
+port 47616). The dev profile's inbox held 119 real Slack mentions; none of them was accepted or dismissed. Test items
+came from `tools/drop-intake.mjs --title --body-file` and `tools/drop-handoff.mjs --at` (task 3.1), handed off from the
+global session to the `Downloads` folder.
+
+### Build and suites (task 3.4)
+
+| Check | Where | Outcome |
+|---|---|---|
+| `./gradlew test assembleDebug`: 347 tests, the new `InboxItemTest`, `InboxTest`, `IntakeTapTest` and the inbox cases of `RepliesTest` and `EventRouteTest` among them; `StringsTest` and `HardcodedTextTest` | host | pass |
+| `connectedDebugAndroidTest`: 97 tests, the new `InboxUiTest` (the entry's count and label, 0 and hidden; the opened card with a prompt, edited, filling, an older desktop, a dormant session; the conversation note in its four forms; Review and send returning to the one Inbox on the back stack with the item) and `DesktopTest`'s inbox cases (asked only when offered, follows `inbox.changed`, kept across a detach, emptied by `clear()`; an accepted item opens only once the list holds its session) | emulator (AVD `Pixel_9`, Android 16), only the emulator listed by `adb devices` | pass, 96 run and `DesktopRaceTest` skipped by its own assumption. A first run failed 11 UI tests because the app's language had been left on 中文 by the screenshot run; set back to the system's, all passed |
+
+### On the emulator (task 3.3)
+
+Paired by a pasted link whose address list starts with 10.0.2.2; driven over adb, the desktop over CDP (port 9411).
+Screenshots kept outside the repository.
+
+| What | Outcome |
+|---|---|
+| The entry: 119 waiting showed "11" — the round button clipped the badge | fixed: the badge sits outside the button and says "99+" past 99; label "Inbox, 119 waiting" |
+| Three scheduled handoffs (in 5 minutes, tomorrow, a 14 995-character body two days ahead): listed under Scheduled earliest first with "Opens …", "from Global · in Downloads", the title, the whole body and its length; the entry's count unchanged | pass |
+| Items arriving while the screen is open, above where it is scrolled: the list keeps its place (anchored by key) | as designed; noted |
+| Cancel on "tomorrow": "Cancel this scheduled handoff? It will never open." with Keep / Cancel; confirmed, it left the phone and the desktop | pass |
+| The 5-minute handoff came due (13:49:38): it left Scheduled by itself, and only then raised its `intake` notification; the other two raised none | pass |
+| Its notification's intent once its agent had started (`am start` of `ACTION_OPEN_INTAKE` with its key; a tap on the system's auto-group summary opens the app's launcher entry instead): the session list | pass |
+| A pending mention's intent: the Inbox scrolled to it | pass |
+| A mention whose title is its body's first line: one copy, no title line | pass |
+| A mention with a URL, `![x](…)`, `**bold**` and `<b>`: all literal; tapped, nothing opened; long-pressed, the menu offered Copy, Select all, Read aloud — no Open | pass |
+| A 3 995-character mention: whole, with its length | pass |
+| The folder picker: the desktop's folders in its order; picking Downloads replaced the routing's "spekterm" | pass |
+| Dismiss backed out (Keep): the item stayed; confirmed: gone on the phone and the desktop | pass |
+| Accept into Downloads: the conversation opened once the desktop listed the new session (≈ 1 s), with the Inbox behind it | pass |
+| The note right after (first run): "finish it at the desktop" — the desktop listed `prefill.edited: true` for a session nobody typed into | desktop bug: Claude Code's DECRQM replies counted as keystrokes; reported to the spekterm session, fixed there |
+| After the fix (new item, new session): "The desktop is filling in…" then "…filled in on the desktop and not sent yet." with Review and send; the reply's send disabled | pass |
+| Review and send: back to the Inbox already behind the conversation, scrolled to the card showing the body and the prompt as plain monospace text, with Send the first prompt | pass |
+| Send the first prompt: `confirmed`; the item left; the note went; the agent answered "ok" | pass |
+| Run now on the long handoff: the item moved to Already opened at once ("The desktop is filling in the first prompt"), then its conversation opened with the agent working (a handoff's prompt the desktop sends itself) | pass |
+| An auto-opened conversation left an "Opened. Open / Dismiss" notice on the Inbox afterwards | fixed: an accept whose conversation opened by itself is forgotten |
+| Cards hard to tell apart on the light background | fixed: outlined cards |
+| 中文（台灣）: 收件匣, 待處理, 「收件匣，121 個待處理」, dates in the language, the note 「收件匣的第一則 prompt 還沒送出，請到桌機完成。」 / 在收件匣開啟 | pass |
+| Paused: 「連線已暫停。」 with 繼續; every 接受 and 忽略 disabled; items readable | pass |
+| The connection log: `inbox op=… outcome=… error=…` and counts only; no title, body, prompt or folder | pass, 0 matches for the test texts |
+| A chosen folder removed, a scheduled handoff whose folder is gone, an expired item, `NO_MATCH` | not produced (adding a folder needs the desktop's file dialog; the dev routing has a default folder); carried by `InboxTest` |
+
+### On the Pixel (task 4.1)
+
+On the Pixel 7, 2026-10-19 14:27–14:42 (+08:00): the debug build of the change put on with `adb install -r` (data
+kept); the installed desktop's pairing saved first (`no_backup/pairing.bin`, 617 bytes); paired with the same dev
+desktop (after its `edited` fix) by its link opened in the app, reached over the LAN. Driven over adb with kewang's OK,
+only while the app was in front; notifications were tapped by kewang (the shade holds other apps' notifications, so
+it was not read or captured). Dark theme, 中文（台灣）.
+
+| What | Outcome |
+|---|---|
+| A mention dropped with the screen off (dozing): its notification posted at once, titled with the item, 「收件匣有新項目」 | pass |
+| Accept into Downloads (the routing suggested spekterm): the conversation opened once listed; the note 「收件匣的第一則 prompt 已填在桌機上，還沒送出。」 with 檢視並送出; the reply's send disabled | pass |
+| 檢視並送出: the Inbox's card 已開在 Downloads with the body and 「第一則 prompt，尚未送出：」 and its text; 送出第一則 prompt → `confirmed`; the agent answered "ok" | pass |
+| A second accepted mention, a key typed into its terminal (by a probe device's `terminal.input`, the desktop's keystroke path): `edited` went true; within 2 s the note read 「收件匣的第一則 prompt 還沒送出，請到桌機完成。」 / 在收件匣開啟, and the card 「那裡還打了別的內容，請到桌機完成。」 with no send | pass |
+| The same prompt then sent at the terminal (Backspace, Enter): the agent started; the item left the Inbox and the note went; the agent answered "ok" | pass |
+| Three scheduled handoffs: listed under 已排程 with 「2026年10月19日 14:37 開啟」, 「來自 Global · 開在 Downloads」; 待處理's count unchanged | pass |
+| 取消 on one: 「要取消這則已排程的交接嗎？」「它永遠不會開啟。」 保留 / 取消; confirmed, gone | pass |
+| 立即執行 on another: its conversation opened, the agent working (處理中) | pass |
+| The third came due (14:37:29): opened by the desktop; its 「收件匣有新項目」 notification posted only then | pass |
+| kewang tapped the pending mention's notification (14:41:14, `OPEN_INTAKE` with the item): the Inbox at that card; back: the session list | pass (kewang) |
+| kewang tapped the due handoff's notification (14:42:01), its agent done: the session list | pass (kewang) |
+| 忽略 on a mention, backed out with 保留: it stayed; confirmed: gone | pass |
+| Paused: 「連線已暫停。」; every 接受 and 忽略 disabled | pass |
+| The connection log: eight `inbox op=…` entries (list, accept, submit, ignore), 0 matches for any test title, body or prompt | pass |
+| The saved pairing written back (byte-identical), 繼續: authenticated with the installed desktop at 14:45:56 over Tailscale; its inbox (9 waiting) shown in place of the dev desktop's | pass |
