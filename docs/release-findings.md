@@ -36,7 +36,7 @@ shows them after upload.
 
 ## Lint (1.5)
 
-`./gradlew lintDebug` passes after `Replies.kt:152`'s literal U+FEFF became `'﻿'` (it was the one error,
+`./gradlew lintDebug` passes after `Replies.kt:152`'s literal U+FEFF became `'\uFEFF'` (it was the one error,
 `ByteOrderMark`). Warnings left as they are: `PluralsCandidate` ×5, `UseKtx` ×3, `ExifInterface` ×2,
 `ConfigurationScreenWidthHeight`, `ModifierParameter`, `OldTargetApi` (API 37 exists; Play requires 36).
 
