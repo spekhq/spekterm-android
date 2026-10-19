@@ -8,6 +8,13 @@ you forward — with no relay and no push service in between.
 [`docs/spike-findings.md`](docs/spike-findings.md) (connection) and
 [`docs/conversation-findings.md`](docs/conversation-findings.md) (sessions and conversations).
 
+## Install
+
+Coming to Google Play; until it is live, build it as below. Publishing it is described in
+[`docs/play-release.md`](docs/play-release.md). It pairs with a computer running spekterm
+[0.2.14](https://github.com/spekhq/spekterm/releases) or later — Linux or an Apple silicon Mac — with Settings → Remote
+access turned on.
+
 ## What it does
 
 - **Pairing** by scanning the desktop's pairing QR code — tap to focus, pinch to zoom; another QR code in view is
@@ -102,10 +109,18 @@ device, and scan the code with the app. The phone must reach the desktop's port 
 Tailscale, or a forwarded port. `tools/drop-intake.mjs` drops inbox items into the dev profile (by default) to produce attention
 events on a schedule (see [`tools/README.md`](tools/README.md)).
 
+## Privacy
+
+The app sends nothing to its developer or anyone else: it connects only to the desktop you pair it with. The privacy
+policy: [spekterm.com/android/privacy](https://spekterm.com/android/privacy/).
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
 
 ## Third-party
 
-- [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) (Apache-2.0) decodes the pairing QR code on the phone.
+Every library the app ships, with its license, is listed in the app under Settings → About → Open-source licenses (from
+[`app/src/main/res/raw/third_party_licenses.txt`](app/src/main/res/raw/third_party_licenses.txt), which the build checks
+against what it ships). Among them, [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp) (Apache-2.0) decodes the pairing QR
+code on the phone.
