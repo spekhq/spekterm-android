@@ -367,7 +367,7 @@ object Desktop {
             val answer = request(a, "conversation.send", Frames.conversationSend(sessionId, text, ids), SEND_TIMEOUT_MS)
             val result = answer?.result?.let { Frames.decodeOrNull<SendResult>(it) }
             val outcome = SendOutcome.of(result?.outcome, answer?.error?.code)
-            log(Kind.SEND, "outcome" to outcome.javaClass.simpleName, "error" to answer?.error?.code, "length" to text.length, "attachments" to ids.size)
+            log(Kind.SEND, "outcome" to outcome.logName, "error" to answer?.error?.code, "length" to text.length, "attachments" to ids.size)
             change(sessionId, requireWatch = false) { Replies.answered(it, id, outcome, now(), result?.text) }
             // Files of attachments that were spent, or that did not come back to the composer, are not needed.
             dropFilesNotHeld(carried)
@@ -395,7 +395,7 @@ object Desktop {
         a.scope.launch {
             val answer = request(a, "conversation.answer", Frames.conversationAnswer(sessionId, promptId, decision, selections), ANSWER_TIMEOUT_MS)
             val outcome = AnswerOutcome.of(answer?.result?.let { Frames.decodeOrNull<AnswerResult>(it) }?.outcome, answer?.error?.code)
-            log(Kind.ANSWER, "kind" to kind, "decision" to decision, "outcome" to outcome.javaClass.simpleName, "error" to answer?.error?.code, "open" to prompt.open)
+            log(Kind.ANSWER, "kind" to kind, "decision" to decision, "outcome" to outcome.logName, "error" to answer?.error?.code, "open" to prompt.open)
             // Written back also when the screen was left meanwhile (design D4); a newer answer is not overwritten.
             change(sessionId, requireWatch = false) { held ->
                 val mine = held.answer?.takeIf { it.promptId == promptId && it.inFlight } ?: return@change held

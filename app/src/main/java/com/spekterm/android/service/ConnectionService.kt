@@ -20,6 +20,7 @@ import com.spekterm.android.attention.AttentionNotifier
 import com.spekterm.android.attention.AttentionPolicy
 import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.log.ConnectionLog.Kind
+import com.spekterm.android.log.logName
 import com.spekterm.android.net.Attention
 import com.spekterm.android.net.CloseInfo
 import com.spekterm.android.net.ConnectionClosedException
@@ -99,7 +100,7 @@ class ConnectionService : Service() {
         } catch (e: Exception) {
             // A sticky restart after the process was killed has no background-start exemption (design D10).
             if (Build.VERSION.SDK_INT >= 31 && e is ForegroundServiceStartNotAllowedException) {
-                log.write(Kind.RESTART_REFUSED, "error" to e.javaClass.simpleName)
+                log.write(Kind.RESTART_REFUSED, "error" to e.logName())
                 app.announcements.update { it.copy(connectionStopped = true) }
                 Notifications.status(
                     this,
@@ -178,7 +179,7 @@ class ConnectionService : Service() {
                 throw e
             } catch (e: Exception) {
                 // Whatever went wrong, the service keeps trying rather than going quiet.
-                log.write(Kind.ERROR, "error" to e.javaClass.simpleName)
+                log.write(Kind.ERROR, "error" to e.logName())
                 waitToRetry(throttled = false)
             }
         }
@@ -358,7 +359,7 @@ class ConnectionService : Service() {
             log.write(Kind.STORE_UNAVAILABLE, "error" to e.cause?.javaClass?.simpleName, "op" to "addresses")
             return
         } catch (e: Exception) {
-            log.write(Kind.ERROR, "error" to e.javaClass.simpleName, "op" to "addresses")
+            log.write(Kind.ERROR, "error" to e.logName(), "op" to "addresses")
             return
         }
         log.write(Kind.ADDRESSES, "source" to source, "count" to listed?.size, "changed" to changed)

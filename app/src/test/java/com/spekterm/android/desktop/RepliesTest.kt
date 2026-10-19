@@ -337,4 +337,13 @@ class RepliesTest {
         assertEquals(Blocked.NotConnected, Replies.blocked(false, false, Watch.Watching, WaitState.READY, null, false, "hi", inboxPrompt = true))
         assertNull(Replies.blocked(true, false, Watch.Watching, WaitState.READY, null, false, "hi", inboxPrompt = false))
     }
+
+    /** The log names each outcome by a fixed name, the same in a shrunk build (`play-release` D3). */
+    @Test
+    fun sendOutcomesHaveTheirLogNames() {
+        assertEquals("Submitted", SendOutcome.Submitted.logName)
+        assertEquals("NotSubmitted", SendOutcome.NotSubmitted.logName)
+        assertEquals("Refused", SendOutcome.Refused(RemoteError.WAIT_STATE).logName)
+        assertEquals("Unknown", SendOutcome.Unknown.logName)
+    }
 }

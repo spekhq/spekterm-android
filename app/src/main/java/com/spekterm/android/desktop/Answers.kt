@@ -28,6 +28,17 @@ sealed interface AnswerOutcome {
     /** It is unknown whether the answer was written. */
     data object Unknown : AnswerOutcome
 
+    /** The connection log's name for it, fixed in code so a shrunk build logs the same (`play-release` D3). */
+    val logName: String
+        get() = when (this) {
+            Done -> "Done"
+            Partial -> "Partial"
+            Mismatch -> "Mismatch"
+            Gone -> "Gone"
+            is Refused -> "Refused"
+            Unknown -> "Unknown"
+        }
+
     /** Kept until dismissed; the others go when the prompt changes. */
     val warning: Boolean get() = this == Partial || this == Mismatch || this == Unknown
 

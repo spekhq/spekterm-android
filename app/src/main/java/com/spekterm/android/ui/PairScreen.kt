@@ -4,6 +4,7 @@ package com.spekterm.android.ui
 
 import com.spekterm.android.service.Networks
 import com.spekterm.android.log.ConnectionLog
+import com.spekterm.android.log.logName
 import com.spekterm.android.app
 import kotlinx.coroutines.delay
 import com.spekterm.android.R
@@ -121,7 +122,7 @@ fun PairScreen(
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        Pairer.Result.Failed(Pairer.Failure.OTHER, link.addresses, e.javaClass.simpleName)
+                        Pairer.Result.Failed(Pairer.Failure.OTHER, link.addresses, e.logName())
                     }
                     busy = null
                     when (result) {

@@ -80,4 +80,15 @@ class AnswersTest {
         assertEquals(AnswerOutcome.Unknown, AnswerOutcome.of(null, null))
         assertEquals(AnswerOutcome.Unknown, AnswerOutcome.of("later", null))
     }
+
+    /** The log names each outcome by a fixed name, the same in a shrunk build (`play-release` D3). */
+    @Test
+    fun outcomesHaveTheirLogNames() {
+        assertEquals("Done", AnswerOutcome.Done.logName)
+        assertEquals("Partial", AnswerOutcome.Partial.logName)
+        assertEquals("Mismatch", AnswerOutcome.Mismatch.logName)
+        assertEquals("Gone", AnswerOutcome.Gone.logName)
+        assertEquals("Refused", AnswerOutcome.Refused(RemoteError.WAIT_STATE).logName)
+        assertEquals("Unknown", AnswerOutcome.Unknown.logName)
+    }
 }

@@ -87,6 +87,15 @@ sealed interface SendOutcome {
     /** It is unknown whether the text was written. */
     data object Unknown : SendOutcome
 
+    /** The connection log's name for it, fixed in code so a shrunk build logs the same (`play-release` D3). */
+    val logName: String
+        get() = when (this) {
+            Submitted -> "Submitted"
+            NotSubmitted -> "NotSubmitted"
+            is Refused -> "Refused"
+            Unknown -> "Unknown"
+        }
+
     companion object {
         private val REFUSED_BEFORE_WRITING = setOf(
             RemoteError.WAIT_STATE,
@@ -149,7 +158,7 @@ object Replies {
     fun clean(text: String): String = text.replace(CONTROL, "")
 
     /** JavaScript's `trim()`: white space and line terminators, U+FEFF included. */
-    fun jsTrim(text: String): String = text.trim { it.isWhitespace() || it == '﻿' }
+    fun jsTrim(text: String): String = text.trim { it.isWhitespace() || it == '\uFEFF' }
 
     /** The reply gate (design D6). `null` when the text can be sent now. */
     fun blocked(

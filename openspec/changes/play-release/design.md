@@ -115,8 +115,11 @@ libraries' consumer rules cover zxing-cpp's JNI, OkHttp and the markdown rendere
 the generated serializers and the routes' `serializer()` lookups. A rule is added only for a failure seen on a device, with a
 comment naming it.
 
-The app's own code must not depend on class names. The two log lines that write `javaClass.simpleName` change to an explicit
-name per outcome — `SendOutcome.logName` / `AnswerOutcome.logName`, an exhaustive `when` returning today's strings
+The app's own code must not depend on class names. *(Found in apply: besides the two outcome lines below, four log lines name
+an exception by class — `ConnectionService.kt` ×3, `PairScreen.kt` — and R8 renames library exceptions. They go through one
+`Throwable.logName()` in `log/ConnectionLog.kt`, and `proguard-rules.pro` gets its one rule,
+`-keepnames class * extends java.lang.Throwable`, so those names stay; `NoClassNamesTest` allows that file only.)* The two log
+lines that write `outcome.javaClass.simpleName` change to an explicit name per outcome — `SendOutcome.logName` / `AnswerOutcome.logName`, an exhaustive `when` returning today's strings
 (`Submitted`, `NotSubmitted`, `Refused`, `Unknown`; `Done`, `Partial`, `Mismatch`, `Gone`, `Refused`, `Unknown`) — so logs from every build
 read as the findings quote them. A JVM test scans `app/src/main` with
 `(javaClass|::class(\.java)?)\.(simpleName|name|qualifiedName|canonicalName)` and fails naming each hit.
@@ -134,8 +137,8 @@ build is used through every screen (task 4.1, emulator; 4.2, Pixel). A non-debug
 read as always; only lines before the reinstall's time are the shrunk build's (the debug build starts the service again on
 `MY_PACKAGE_REPLACED` and appends). Nothing is added to the app for this.
 
-*Alternative:* ship without R8 — no keep-rule risk, but the APK is about three times larger (36.2 MB against 12.2 MB in the
-probe; download sizes per device are measured in task 1.3) and unobfuscated; rejected because the walk keeps the risk small.
+*Alternative:* ship without R8 — no keep-rule risk, but the APK is about three and a half times larger (43.4 MB unshrunk at
+3591c8b against 12.2 MB, `docs/release-findings.md`) and unobfuscated; rejected because the walk keeps the risk small.
 
 ### D4. The About and Licenses screens
 

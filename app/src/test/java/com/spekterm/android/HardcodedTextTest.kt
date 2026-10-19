@@ -34,6 +34,8 @@ class HardcodedTextTest {
         "Connection refused", // matched in exception messages (Unreachability)
         "close", "closed", // a close code beside it, as diagnostics ("Last disconnect: close 4005")
         "0000global", // a list key, "\u0000global"
+        // The connection log's outcome names (`SendOutcome.logName`, `AnswerOutcome.logName`, `play-release` D3).
+        "Submitted", "NotSubmitted", "Refused", "Unknown", "Done", "Partial", "Mismatch", "Gone",
     )
 
     private val sentence = Regex("[A-Za-z]{2,}[ \\u00a0]+[A-Za-z]{2,}")
@@ -55,97 +57,10 @@ class HardcodedTextTest {
         root.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
             val path = file.relativeTo(root).path.substringAfter("com/spekterm/android/")
             if (path in allowedFiles) return@forEach
-            for ((line, text) in literals(file.readText())) {
+            for ((line, text) in KotlinSource.literals(file.readText())) {
                 if (readsAsText(text)) found += "$path:$line: \"$text\""
             }
         }
         assertTrue("${found.size} literals read as text:\n" + found.joinToString("\n"), found.isEmpty())
-    }
-
-    /**
-     * The string literals of [source] with their line numbers; a template's `${…}` and `$name` are dropped, so
-     * the text around them is what is checked. Skips comments and character literals.
-     */
-    private fun literals(source: String): List<Pair<Int, String>> {
-        val out = mutableListOf<Pair<Int, String>>()
-        var i = 0
-        var line = 1
-        fun advance(n: Int = 1) {
-            repeat(n) {
-                if (i < source.length && source[i] == '\n') line++
-                i++
-            }
-        }
-        fun string(raw: Boolean) {
-            val start = line
-            val text = StringBuilder()
-            while (i < source.length) {
-                if (raw && source.startsWith("\"\"\"", i)) {
-                    advance(3)
-                    break
-                }
-                val c = source[i]
-                if (!raw && c == '"') {
-                    advance()
-                    break
-                }
-                if (!raw && c == '\\') {
-                    text.append(' ')
-                    advance(2)
-                    continue
-                }
-                if (c == '$' && i + 1 < source.length && source[i + 1] == '{') {
-                    advance(2)
-                    var depth = 1
-                    while (i < source.length && depth > 0) {
-                        when (source[i]) {
-                            '{' -> depth++
-                            '}' -> depth--
-                            '"' -> {
-                                advance()
-                                string(raw = false)
-                                continue
-                            }
-                        }
-                        advance()
-                    }
-                    continue
-                }
-                if (c == '$' && i + 1 < source.length && (source[i + 1].isLetter() || source[i + 1] == '_')) {
-                    advance()
-                    while (i < source.length && (source[i].isLetterOrDigit() || source[i] == '_')) advance()
-                    continue
-                }
-                text.append(c)
-                advance()
-            }
-            out += start to text.toString()
-        }
-        while (i < source.length) {
-            when {
-                source.startsWith("//", i) -> while (i < source.length && source[i] != '\n') advance()
-                source.startsWith("/*", i) -> {
-                    advance(2)
-                    while (i < source.length && !source.startsWith("*/", i)) advance()
-                    advance(2)
-                }
-                source.startsWith("\"\"\"", i) -> {
-                    advance(3)
-                    string(raw = true)
-                }
-                source[i] == '"' -> {
-                    advance()
-                    string(raw = false)
-                }
-                source[i] == '\'' -> {
-                    // A character literal: '"' must not open a string.
-                    advance()
-                    if (i < source.length && source[i] == '\\') advance()
-                    advance(2)
-                }
-                else -> advance()
-            }
-        }
-        return out
     }
 }

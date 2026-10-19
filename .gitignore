@@ -14,6 +14,7 @@ captures/
 local.properties
 *.keystore
 *.jks
+*.p12
 keystore.properties
 
 # OS

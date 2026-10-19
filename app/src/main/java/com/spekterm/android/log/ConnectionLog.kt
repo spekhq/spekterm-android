@@ -109,3 +109,9 @@ class ConnectionLog(
         }
     }
 }
+
+/**
+ * An exception's class name for the log. The one place the app takes a class name at run time: `proguard-rules.pro` keeps
+ * the names of every `Throwable`, so a shrunk build logs `SSLHandshakeException` as the debug build does (`play-release` D3).
+ */
+fun Throwable.logName(): String = javaClass.simpleName
