@@ -131,6 +131,25 @@ object Frames {
 
     fun handoffsBrief(sessionId: String): JsonObject = buildJsonObject { put("sessionId", sessionId) }
 
+    /** Accepts an inbox item into the folder the user chose (`inbox` design D6); a scheduled one opens now. */
+    fun inboxAccept(adapter: String, id: String, folderId: String): JsonObject = buildJsonObject {
+        put("adapter", adapter)
+        put("id", id)
+        put("folderId", folderId)
+    }
+
+    /** Sends a session's filled-in first prompt, naming the fill shown to the user (`inbox` design D8). */
+    fun sessionsSubmitPrefill(sessionId: String, prefillId: String): JsonObject = buildJsonObject {
+        put("sessionId", sessionId)
+        put("prefillId", prefillId)
+    }
+
+    /** Dismisses an inbox item; a scheduled one is cancelled. */
+    fun inboxIgnore(adapter: String, id: String): JsonObject = buildJsonObject {
+        put("adapter", adapter)
+        put("id", id)
+    }
+
     private fun sessionAction(sessionId: String, force: Boolean): JsonObject = buildJsonObject {
         put("sessionId", sessionId)
         if (force) put("force", true)
@@ -248,6 +267,10 @@ data class RemoteError(val code: String, val message: String = "", val detail: J
         const val TOO_MANY = "TOO_MANY"
         const val UNSUPPORTED_TYPE = "UNSUPPORTED_TYPE"
         const val SESSION_BUSY = "SESSION_BUSY"
+        const val FOLDER_REQUIRED = "FOLDER_REQUIRED"
+        const val PREFILL_GONE = "PREFILL_GONE"
+        const val PREFILL_EDITED = "PREFILL_EDITED"
+        const val PREFILL_PENDING = "PREFILL_PENDING"
     }
 }
 
@@ -267,6 +290,10 @@ object Operations {
     const val OPENSPEC_WATCH = "openspec.watch"
     const val HANDOFFS_LIST = "handoffs.list"
     const val HANDOFFS_BRIEF = "handoffs.brief"
+    const val INBOX_LIST = "inbox.list"
+    const val INBOX_ACCEPT = "inbox.accept"
+    const val INBOX_IGNORE = "inbox.ignore"
+    const val SUBMIT_PREFILL = "sessions.submitPrefill"
 }
 
 @Serializable

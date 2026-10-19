@@ -318,4 +318,23 @@ class RepliesTest {
         assertEquals(emptyList<Attachment>(), c.attachments)
         assertEquals("hi", c.draft)
     }
+
+    @Test
+    fun aFilledInPromptRefusesBeforeWritingAndSaysSoUntilTheNextSend() {
+        val refused = send(watching(), "hi", outcome = SendOutcome.of(null, RemoteError.PREFILL_PENDING))
+        assertEquals(SendOutcome.Refused(RemoteError.PREFILL_PENDING), SendOutcome.of(null, RemoteError.PREFILL_PENDING))
+        assertEquals("hi", refused.draft)
+        assertTrue(refused.prefillRefused)
+        assertFalse(Replies.sent(refused, 2, "again").prefillRefused)
+        assertFalse(send(watching(), "hi", outcome = SendOutcome.Refused(RemoteError.WAIT_STATE)).prefillRefused)
+    }
+
+    @Test
+    fun anInboxPromptHoldsRepliesAfterAChoice() {
+        assertEquals(Blocked.InboxPrompt, Replies.blocked(true, false, Watch.Watching, WaitState.READY, null, false, "hi", inboxPrompt = true))
+        assertEquals(Blocked.InboxPrompt, Replies.blocked(true, false, Watch.Watching, WaitState.BUSY, null, false, "", inboxPrompt = true))
+        assertEquals(Blocked.AwaitingChoice(null), Replies.blocked(true, false, Watch.Watching, WaitState.AWAITING_CHOICE, null, false, "hi", inboxPrompt = true))
+        assertEquals(Blocked.NotConnected, Replies.blocked(false, false, Watch.Watching, WaitState.READY, null, false, "hi", inboxPrompt = true))
+        assertNull(Replies.blocked(true, false, Watch.Watching, WaitState.READY, null, false, "hi", inboxPrompt = false))
+    }
 }

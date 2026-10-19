@@ -252,8 +252,10 @@ written for both languages; counts use plurals.
 
 ## Risks / Trade-offs
 
-- [spekterm's `remote-prefill-send` may change in its review] → D3, D7, D8 follow the draft. Before task 2.4 is started, this
-  change's artifacts are checked against spekterm's committed `docs/remote-protocol.md` and amended where it differs.
+- [spekterm's `remote-prefill-send` may change in its review] → D3, D7, D8 follow the draft. Checked on 2026-10-19 against
+  spekterm's implemented `docs/remote-protocol.md` (working tree, before its commit): field, operation, checks, codes, `PREFILL_PENDING`
+  and obligation 16 match; the document adds that `prefill` also goes when the session's process ends, which D4's running-only
+  `linked` already reads. Checked again at spekterm's commit (b45c359, its protocol document in c30461c, 0.2.13): unchanged.
 - [Older desktop: a first-party handoff's prompt is being submitted] → for the seconds until the desktop settles it, the note and
   card say "send it there" though the desktop already sent it. Accepted.
 - [A long body makes a long card] → whole by obligations 2 and 16; the list scrolls, and the actions sit under the body.

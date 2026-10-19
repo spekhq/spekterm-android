@@ -2,11 +2,11 @@
 // Drops an inbox item into a spekterm desktop's intake drop point every N minutes, so the phone has attention
 // events to deliver during a measurement (design D9). Desktop-side only; it never talks to the phone.
 //
-//   node tools/drop-intake.mjs [--every <minutes>] [--count <n>] [--dir <intake-inbox>]
+//   node tools/drop-intake.mjs [--every <minutes>] [--count <n>] [--dir <intake-inbox>] [--title <t>] [--body-file <path>]
 //
 // Defaults: every 30 minutes, until stopped, into the dev profile that `npm run dev` in ~/git/spekterm uses.
 // Delivery format: spekterm's `src/main/intake-schema.ts` `parseIntake` (id, origin.kind, origin.id, body).
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { join } from 'node:path'
 
@@ -19,6 +19,9 @@ const everyMinutes = Number(option('every', '30'))
 const count = Number(option('count', 'Infinity'))
 const dir = option('dir', join(homedir(), '.config', 'spekterm-dev', 'Spekterm', 'intake-inbox'))
 const run = new Date().toISOString().replace(/[:.]/g, '-')
+// The inbox's screens (`inbox`, task 3.1): a chosen title, and a body read from a file (third-party: at most 4 000 characters).
+const title = option('title')
+const bodyFile = option('body-file')
 
 mkdirSync(dir, { recursive: true })
 
@@ -31,8 +34,10 @@ function drop() {
   const item = {
     id,
     origin: { kind: 'spike-probe', id: hostname(), label: 'connection spike' },
-    title: `Spike probe ${n}`,
-    body: `Dropped at ${now.toISOString()} (epoch ms ${now.getTime()}) by tools/drop-intake.mjs, item ${n}.`,
+    title: title ?? `Spike probe ${n}`,
+    body: bodyFile !== undefined
+      ? readFileSync(bodyFile, 'utf8')
+      : `Dropped at ${now.toISOString()} (epoch ms ${now.getTime()}) by tools/drop-intake.mjs, item ${n}.`,
     occurredAt: now.toISOString(),
   }
   // A name starting with a dot is skipped by the desktop until renamed: never read half-written.

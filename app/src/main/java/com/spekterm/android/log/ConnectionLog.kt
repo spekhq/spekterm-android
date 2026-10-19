@@ -83,6 +83,8 @@ class ConnectionLog(
         HANDOFFS, BRIEF,
         // A waiting or choice notification removed because the desktop lists its session looked at (its kind only).
         SEEN,
+        // `inbox`: inbox reads and actions (operation, outcome, error code, count; never a title, body, prompt or folder).
+        INBOX,
     }
 
     companion object {

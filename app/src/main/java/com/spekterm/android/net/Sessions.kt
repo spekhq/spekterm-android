@@ -54,6 +54,41 @@ object LenientLineage : KSerializer<Lineage?> {
     }
 }
 
+/** The inbox item a filled-in prompt came from (`inbox` design D3). */
+@Serializable
+data class ItemRef(val adapter: String, val id: String)
+
+/**
+ * A filled-in first prompt nobody has sent (`Session.prefill`, spekterm `remote-prefill-send`): [text] exactly as written
+ * into the agent's input box, [intake] the item it came from, [edited] whether the box may hold more than [text].
+ */
+@Serializable
+data class Prefill(val id: String, val text: String, val intake: ItemRef, val edited: Boolean)
+
+/**
+ * `prefill` read leniently (`inbox` design D3): anything but an object with a non-empty `id`, a string `text` and an
+ * `intake` with string `adapter` and `id` is none; an `edited` that is not a boolean reads `true`, so no send is offered.
+ */
+object LenientPrefill : KSerializer<Prefill?> {
+    override val descriptor = JsonElement.serializer().descriptor
+
+    override fun deserialize(decoder: Decoder): Prefill? {
+        val o = (decoder as? JsonDecoder)?.decodeJsonElement() as? JsonObject ?: return null
+        val intake = o["intake"] as? JsonObject ?: return null
+        return Prefill(
+            id = o.string("id")?.takeIf { it.isNotEmpty() } ?: return null,
+            text = o.string("text") ?: return null,
+            intake = ItemRef(intake.string("adapter") ?: return null, intake.string("id") ?: return null),
+            edited = (o["edited"] as? JsonPrimitive)?.takeUnless { it.isString }?.booleanOrNull ?: true,
+        )
+    }
+
+    override fun serialize(encoder: Encoder, value: Prefill?) {
+        val json = encoder as JsonEncoder
+        json.encodeJsonElement(value?.let { json.json.encodeToJsonElement(Prefill.serializer(), it) } ?: JsonNull)
+    }
+}
+
 @Serializable
 data class Session(
     val id: String,
@@ -80,6 +115,9 @@ data class Session(
     /** The work its agent runs in the background, as the agent last reported it (`background-tasks`, design D1). */
     @Serializable(with = LenientBackground::class)
     val background: List<BackgroundTask> = emptyList(),
+    /** A filled-in first prompt from the inbox that nobody has sent (`inbox` design D3). */
+    @Serializable(with = LenientPrefill::class)
+    val prefill: Prefill? = null,
 ) {
     val isAgent: Boolean get() = target == CLAUDE
 

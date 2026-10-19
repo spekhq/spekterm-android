@@ -41,12 +41,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import com.spekterm.android.desktop.IntakeTap
 import kotlinx.serialization.Serializable
 
 /** Where an intent asks the paired app to go (`session-conversation` design D8). */
 private sealed interface Nav {
     data class Conversation(val sessionId: String) : Nav
+
+    /** An inbox item's notification: where it opens is decided against the held inbox (`inbox` design D9). */
+    data class Intake(val key: String) : Nav
 
     data object Sessions : Nav
 
@@ -60,6 +66,9 @@ private sealed interface Nav {
 @Serializable private data object StatusRoute
 
 @Serializable private data class HandoffRoute(val sessionId: String)
+
+/** The inbox, scrolled to [focus] (an item key) when given (`inbox` design D10). */
+@Serializable internal data class InboxRoute(val focus: String? = null)
 
 @Serializable private data object OpenSpecFoldersRoute
 
@@ -164,6 +173,15 @@ class MainActivity : ComponentActivity() {
                 null -> return@LaunchedEffect
                 // Over the session list, replacing any conversation already open.
                 is Nav.Conversation -> nav.navigate(ConversationRoute(target.sessionId)) { popUpTo<SessionsRoute>() }
+                is Nav.Intake -> {
+                    // A fresh process holds no inbox yet: wait a little for the desktop's (design D9).
+                    withTimeoutOrNull(INTAKE_WAIT_MS) { Desktop.inbox.first { it.current } }
+                    when (val route = IntakeTap.route(target.key, Desktop.inbox.value, Desktop.sessions.value)) {
+                        is IntakeTap.Route.Inbox -> nav.navigate(InboxRoute(route.focus)) { popUpTo<SessionsRoute>() }
+                        is IntakeTap.Route.Conversation -> nav.navigate(ConversationRoute(route.sessionId)) { popUpTo<SessionsRoute>() }
+                        IntakeTap.Route.Sessions -> nav.popBackStack<SessionsRoute>(inclusive = false)
+                    }
+                }
                 Nav.Sessions -> nav.popBackStack<SessionsRoute>(inclusive = false)
                 Nav.Status -> nav.navigate(StatusRoute) {
                     popUpTo<SessionsRoute>()
@@ -185,6 +203,19 @@ class MainActivity : ComponentActivity() {
                     onOpenSpecFolders = { nav.navigate(OpenSpecFoldersRoute) { launchSingleTop = true } },
                     onOpenSpecFolder = { nav.navigate(OpenSpecFolderRoute(it)) },
                     onHandoff = { openHandoff(nav, it) },
+                    onInbox = { nav.openInbox(null) },
+                )
+            }
+            composable<InboxRoute> { entry ->
+                val focus by entry.savedStateHandle.getStateFlow("focus", entry.toRoute<InboxRoute>().focus).collectAsStateWithLifecycle()
+                InboxScreen(
+                    focus = focus,
+                    onFocused = { entry.savedStateHandle["focus"] = null },
+                    announcements = announcements,
+                    onBack = { nav.popBackStack() },
+                    onStatus = { nav.navigate(StatusRoute) { launchSingleTop = true } },
+                    onResume = { resume() },
+                    onOpen = { nav.navigate(ConversationRoute(it)) },
                 )
             }
             // A folder's OpenSpec, pushed over the session list (`openspec-browse` design D6).
@@ -241,6 +272,7 @@ class MainActivity : ComponentActivity() {
                     onResume = { resume() },
                     onHandoff = { openHandoff(nav, it) },
                     onOpenSpecFolder = { nav.navigate(OpenSpecFolderRoute(it)) },
+                    onOpenInbox = { nav.openInbox(it) },
                 )
             }
             // A session's handoff, pushed over where it was opened from (`session-relations` design D4).
@@ -304,6 +336,7 @@ class MainActivity : ComponentActivity() {
                 pendingNav = Nav.Sessions
             }
             ACTION_OPEN_SESSION -> intent.data?.takeIf { it.scheme == SESSION_SCHEME }?.schemeSpecificPart?.let { pendingNav = Nav.Conversation(it) }
+            ACTION_OPEN_INTAKE -> intent.data?.takeIf { it.scheme == INTAKE_SCHEME }?.schemeSpecificPart?.let { pendingNav = Nav.Intake(it) }
             ACTION_OPEN_SESSIONS -> pendingNav = Nav.Sessions
             ACTION_OPEN_STATUS -> pendingNav = Nav.Status
             else -> return
@@ -378,10 +411,26 @@ class MainActivity : ComponentActivity() {
         const val ACTION_OPEN_SESSIONS = "com.spekterm.android.OPEN_SESSIONS"
         const val ACTION_OPEN_STATUS = "com.spekterm.android.OPEN_STATUS"
         const val SESSION_SCHEME = "spekterm-session"
+        const val ACTION_OPEN_INTAKE = "com.spekterm.android.OPEN_INTAKE"
+        const val INTAKE_SCHEME = "spekterm-intake"
+        /** How long a notification's tap waits for the desktop's inbox (`inbox` design D9). */
+        private const val INTAKE_WAIT_MS = 5_000L
         private const val PAIR_SCHEME = "spekterm"
         private const val PAIR_HOST = "pair"
         private const val STATE_REPAIRING = "repairing"
         private const val STATE_OFFERED = "offeredLink"
         private const val STATE_START = "startLink"
+    }
+}
+
+/**
+ * The inbox at [focus]; one already on the back stack is returned to and handed the item through its saved state, since a
+ * typed route's single-top would not deliver a new argument (`inbox` design D10).
+ */
+internal fun NavHostController.openInbox(focus: String?) {
+    if (popBackStack<InboxRoute>(inclusive = false)) {
+        if (focus != null) currentBackStackEntry?.savedStateHandle?.set("focus", focus)
+    } else {
+        navigate(InboxRoute(focus))
     }
 }

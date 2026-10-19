@@ -17,6 +17,11 @@ private fun icon(name: String, path: String, mirrored: Boolean = false): ImageVe
         .build()
 
 object SpekIcons {
+    val Inbox = icon(
+        "Inbox",
+        "M19,3H4.99c-1.11,0 -1.98,0.89 -1.98,2L3,19c0,1.1 0.88,2 1.99,2H19c1.1,0 2,-0.9 2,-2V5c0,-1.11 -0.9,-2 -2,-2zM19,15h-4c0,1.66 " +
+            "-1.35,3 -3,3s-3,-1.34 -3,-3H4.99V5H19v10z",
+    )
     val Back = icon("Back", "M20,11H7.83l5.59,-5.59L12,4l-8,8 8,8 1.41,-1.41L7.83,13H20v-2z", mirrored = true)
     val More = icon(
         "More",

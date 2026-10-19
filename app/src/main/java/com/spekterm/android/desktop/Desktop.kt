@@ -9,7 +9,10 @@ import com.spekterm.android.net.ConversationUpdate
 import com.spekterm.android.net.ConversationWait
 import com.spekterm.android.net.Frames
 import com.spekterm.android.net.HandoffBrief
+import com.spekterm.android.net.AcceptResult
 import com.spekterm.android.net.HandoffEntry
+import com.spekterm.android.net.InboxItem
+import com.spekterm.android.net.SubmitResult
 import com.spekterm.android.net.OpenSpec
 import com.spekterm.android.net.Operations
 import com.spekterm.android.net.OsChange
@@ -70,6 +73,25 @@ object Desktop {
 
     /** The desktop's handoff list (`session-relations` D3): kept across a detach, emptied by [clear]. */
     val handoffs: StateFlow<HandoffsState> = mutableHandoffs
+
+    private val mutableInbox = MutableStateFlow(InboxState())
+
+    /** The desktop's inbox (`inbox` design D2): kept across a detach, emptied by [clear]. In memory only. */
+    val inbox: StateFlow<InboxState> = mutableInbox
+
+    private val mutableInboxActions = MutableStateFlow<Map<String, ItemAction>>(emptyMap())
+
+    /** The last action on each inbox item, by item key, until the next one (`inbox` design D6). */
+    val inboxActions: StateFlow<Map<String, ItemAction>> = mutableInboxActions
+
+    /** Whether the Inbox is at the front: an accepted item's conversation opens by itself only then (design D6). */
+    @Volatile var inboxOnScreen: Boolean = false
+        private set
+
+    /** How long an accepted item's session may take to be listed (design D6); shortened by tests. */
+    @Volatile var openWaitMs: Long = 10_000L
+
+    private var nextAcceptId = 0L
 
     private val mutableConversation = MutableStateFlow<Conversation?>(null)
 
@@ -159,6 +181,7 @@ object Desktop {
         clock.reset()
         seen.reset()
         mutableHandoffs.value = mutableHandoffs.value.attached()
+        mutableInbox.value = mutableInbox.value.attached()
         mutableOperations.value = operations
         mutableConnected.value = true
         attachments.value++
@@ -179,6 +202,14 @@ object Desktop {
                 log(Kind.HANDOFFS, "error" to answer.error?.code, "count" to list?.size)
             }
         }
+        if (Operations.INBOX_LIST in operations) {
+            a.scope.launch {
+                val answer = request(a, Operations.INBOX_LIST) ?: return@launch
+                val items = if (answer.ok) InboxItem.decodeList(answer.result) else null
+                items?.let { applyInbox(a, answer.seq, it) }
+                log(Kind.INBOX, "op" to "list", "error" to answer.error?.code, "count" to items?.size)
+            }
+        }
     }
 
     suspend fun onEvent(connection: RemoteConnection, event: ServerFrame.Event) = withContext(dispatcher) {
@@ -186,6 +217,7 @@ object Desktop {
         when (event.kind) {
             "sessions.changed" -> SessionList.decode(event.data)?.let { applyList(a, event.seq, it) }
             "handoffs.changed" -> HandoffEntry.decodeList(event.data)?.let { applyHandoffs(a, event.seq, it) }
+            "inbox.changed" -> InboxItem.decodeList(event.data)?.let { applyInbox(a, event.seq, it) }
             "conversation.update" -> ConversationUpdate.decode(event.data)?.let { update ->
                 change(update.sessionId) { ConversationReducer.apply(it, update, now()) }
             }
@@ -213,6 +245,8 @@ object Desktop {
         mutableConnected.value = false
         mutableSessions.value = mutableSessions.value.copy(current = false)
         mutableHandoffs.value = mutableHandoffs.value.detached()
+        mutableInbox.value = mutableInbox.value.detached()
+        mutableInboxActions.value = OpeningTracker.detached(mutableInboxActions.value, a)
         track(CreateTracker.detached(trackerState(), a))
         mutableConversation.value?.let { mutableConversation.value = ConversationReducer.disconnected(it) }
         openspecStep(tracker.detached())
@@ -374,6 +408,105 @@ object Desktop {
     /** The user dismissed the note about the last answer. */
     fun dismissAnswer(sessionId: String) {
         scope.launch { change(sessionId, requireWatch = false) { c -> if (c.answer?.inFlight == true) c else c.copy(answer = null) } }
+    }
+
+    // ---- Inbox (`inbox` design D6, D8) ----
+
+    /**
+     * Accepts [item] into [folderId] (a scheduled one runs now). Runs in [Desktop]'s own scope, so leaving the screen
+     * does not abandon it; ignored while another action on the item is in flight. Never retried.
+     */
+    fun inboxAccept(item: InboxItem, folderId: String) {
+        scope.launch {
+            val a = attached ?: return@launch
+            if (!beginInbox(item.key, InboxOp.ACCEPT)) return@launch
+            val id = ++nextAcceptId
+            val answer = request(a, Operations.INBOX_ACCEPT, Frames.inboxAccept(item.adapter, item.id, folderId), ACCEPT_TIMEOUT_MS)
+            val sessionId = answer?.takeIf { it.ok }?.result?.let { Frames.decodeOrNull<AcceptResult>(it) }?.sessionId?.takeIf { it.isNotEmpty() }
+            if (sessionId == null) {
+                val error = answer?.error ?: answer?.let { RemoteError(RemoteError.INTERNAL, "malformed answer") }
+                failInbox(item.key, InboxOp.ACCEPT, error)
+                return@launch
+            }
+            log(Kind.INBOX, *InboxLog.fields(InboxOp.ACCEPT, "accepted", null))
+            val list = mutableSessions.value.takeIf { it.current && attached === a }?.list
+            mutableInboxActions.value = OpeningTracker.answered(mutableInboxActions.value, item.key, id, sessionId, a, attached, list, inboxOnScreen)
+            if (mutableInboxActions.value[item.key] is ItemAction.Opening) {
+                a.scope.launch {
+                    delay(openWaitMs)
+                    mutableInboxActions.value = OpeningTracker.timedOut(mutableInboxActions.value, item.key, id)
+                }
+            }
+        }
+    }
+
+    /** Dismisses [item] (a scheduled one is cancelled), after the user confirmed. */
+    fun inboxIgnore(item: InboxItem) {
+        scope.launch {
+            val a = attached ?: return@launch
+            if (!beginInbox(item.key, InboxOp.IGNORE)) return@launch
+            val answer = request(a, Operations.INBOX_IGNORE, Frames.inboxIgnore(item.adapter, item.id))
+            if (answer?.ok == true) {
+                log(Kind.INBOX, *InboxLog.fields(InboxOp.IGNORE, "ignored", null))
+                // The item leaves with the next list.
+                mutableInboxActions.value = mutableInboxActions.value - item.key
+            } else {
+                failInbox(item.key, InboxOp.IGNORE, answer?.error)
+            }
+        }
+    }
+
+    /** Sends the filled-in prompt [prefillId] of [sessionId], on the user's tap on [itemKey]'s card (obligation 16). */
+    fun submitPrefill(itemKey: String, sessionId: String, prefillId: String) {
+        scope.launch {
+            val a = attached ?: return@launch
+            if (!beginInbox(itemKey, InboxOp.SUBMIT)) return@launch
+            val answer = request(a, Operations.SUBMIT_PREFILL, Frames.sessionsSubmitPrefill(sessionId, prefillId), SUBMIT_TIMEOUT_MS)
+            val outcome = answer?.takeIf { it.ok }?.result?.let { Frames.decodeOrNull<SubmitResult>(it) }?.outcome
+            if (outcome == null) {
+                failInbox(itemKey, InboxOp.SUBMIT, answer?.error ?: answer?.let { RemoteError(RemoteError.INTERNAL, "malformed answer") })
+                return@launch
+            }
+            log(Kind.INBOX, *InboxLog.fields(InboxOp.SUBMIT, outcome, null))
+            mutableInboxActions.value = mutableInboxActions.value + (itemKey to ItemAction.Submitted(outcome == SubmitResult.CONFIRMED))
+        }
+    }
+
+    /** The Inbox is at the front ([shown]) or not; leaving it keeps an accepted item's conversation from opening by itself. */
+    fun setInboxOnScreen(shown: Boolean) {
+        inboxOnScreen = shown
+        if (!shown) scope.launch { mutableInboxActions.value = OpeningTracker.leftInbox(mutableInboxActions.value) }
+    }
+
+    /** The conversation of [key]'s accepted item opened by itself: the accept is done, nothing more to say about it. */
+    fun consumeOpened(key: String) {
+        scope.launch {
+            val action = mutableInboxActions.value[key] as? ItemAction.Opened ?: return@launch
+            if (action.autoOpen) mutableInboxActions.value = mutableInboxActions.value - key
+        }
+    }
+
+    /** The user dismissed what the Inbox said about [key]'s last action. Ignored while one is under way. */
+    fun dismissInboxAction(key: String) {
+        scope.launch {
+            val held = mutableInboxActions.value[key]
+            if (held is ItemAction.InFlight || held is ItemAction.Opening) return@launch
+            mutableInboxActions.value = mutableInboxActions.value - key
+        }
+    }
+
+    /** Marks [key] in flight unless an action on it already is. */
+    private fun beginInbox(key: String, op: InboxOp): Boolean {
+        val held = mutableInboxActions.value[key]
+        if (held is ItemAction.InFlight || held is ItemAction.Opening) return false
+        mutableInboxActions.value = mutableInboxActions.value + (key to ItemAction.InFlight(op))
+        return true
+    }
+
+    private fun failInbox(key: String, op: InboxOp, error: RemoteError?) {
+        val failure = InboxFailure.of(op, error, mutableInbox.value.items.any { it.key == key })
+        log(Kind.INBOX, *InboxLog.fields(op, "failed", error?.code ?: NOT_CONNECTED))
+        mutableInboxActions.value = mutableInboxActions.value + (key to ItemAction.Failed(op, failure))
     }
 
     // ---- Attachments (design D5, D6) ----
@@ -541,6 +674,8 @@ object Desktop {
             mutableOperations.value = emptySet()
             mutableSessions.value = SessionsState()
             mutableHandoffs.value = HandoffsState()
+            mutableInbox.value = InboxState()
+            mutableInboxActions.value = emptyMap()
             setHeld(null)
             dropCreation()
             dropOpenspec()
@@ -560,6 +695,10 @@ object Desktop {
         mutableOperations.value = emptySet()
         mutableSessions.value = SessionsState()
         mutableHandoffs.value = HandoffsState()
+        mutableInbox.value = InboxState()
+        mutableInboxActions.value = emptyMap()
+        inboxOnScreen = false
+        openWaitMs = 10_000L
         setHeld(null)
         dropCreation()
         dropOpenspec()
@@ -706,9 +845,19 @@ object Desktop {
         mutableHandoffs.value.applied(seq, list)?.let { mutableHandoffs.value = it }
     }
 
+    private fun applyInbox(a: Attached, seq: Long, items: List<InboxItem>) {
+        if (attached !== a) return
+        val next = mutableInbox.value.applied(seq, items, now()) ?: return
+        mutableInbox.value = next
+        // A failure stays with its item until the next action on it; an item gone takes it along.
+        val keys = items.map { it.key }.toSet()
+        mutableInboxActions.value = mutableInboxActions.value.filter { (key, action) -> action !is ItemAction.Failed || key in keys }
+    }
+
     private fun applyList(a: Attached, seq: Long, list: SessionList) {
         if (attached !== a || !clock.accept(seq)) return
         mutableSessions.value = SessionsState(list, current = true, receivedAt = now())
+        mutableInboxActions.value = OpeningTracker.listed(mutableInboxActions.value, list, a, inboxOnScreen)
         seen.next(list).takeIf { it.isNotEmpty() }?.let { ids -> onSeen?.invoke(ids) }
         track(CreateTracker.listed(trackerState(), list, a, listOnScreen))
         mutableConversation.value?.let { held ->
@@ -905,6 +1054,12 @@ object Desktop {
 
     /** The OpenSpec targets kept in memory (design D4). */
     const val OPENSPEC_CACHE = 8
+
+    /** An inbox accept: above the desktop's own 15 s limit for its interface (`inbox` design D6). */
+    const val ACCEPT_TIMEOUT_MS = 20_000L
+
+    /** A prompt's submit: the desktop waits up to 3 s for the agent to start, behind the session's queued replies. */
+    const val SUBMIT_TIMEOUT_MS = 30_000L
 
     /** One 64 KiB chunk on a slow link (design D6). */
     const val PUT_TIMEOUT_MS = 30_000L

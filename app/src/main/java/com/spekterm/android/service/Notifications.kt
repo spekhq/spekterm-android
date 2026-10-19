@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import com.spekterm.android.net.InboxItem
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -64,6 +65,20 @@ object Notifications {
         Intent(context, MainActivity::class.java)
             .setAction(MainActivity.ACTION_OPEN_SESSION)
             .setData(Uri.fromParts(MainActivity.SESSION_SCHEME, sessionId, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    /**
+     * Opens what an inbox item's notification is about (`inbox` design D9). The item's key is the intent's data, so each
+     * item's `PendingIntent` is distinct.
+     */
+    fun openIntake(context: Context, adapter: String, id: String): PendingIntent = PendingIntent.getActivity(
+        context,
+        0,
+        Intent(context, MainActivity::class.java)
+            .setAction(MainActivity.ACTION_OPEN_INTAKE)
+            .setData(Uri.fromParts(MainActivity.INTAKE_SCHEME, InboxItem.keyOf(adapter, id), null))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )

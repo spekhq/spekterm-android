@@ -94,6 +94,8 @@ sealed interface SendOutcome {
             RemoteError.BAD_PARAMS,
             RemoteError.NOT_FOUND,
             RemoteError.UNKNOWN_OPERATION,
+            // A filled-in prompt from the inbox waits unsent: nothing was written (`inbox` design D7).
+            RemoteError.PREFILL_PENDING,
         )
 
         /** [outcome] from an ok answer, or [errorCode] from an error answer; both null when the connection ended. */
@@ -115,6 +117,9 @@ sealed interface Blocked {
     data object NotWatching : Blocked
 
     data class AwaitingChoice(val pending: Pending?) : Blocked
+
+    /** A first prompt from the inbox waits unsent in the session (`inbox` design D7); the note above says so. */
+    data object InboxPrompt : Blocked
 
     data object Unknown : Blocked
 
@@ -156,11 +161,14 @@ object Replies {
         inFlight: Boolean,
         text: String,
         attachments: List<Attachment> = emptyList(),
+        /** `InboxView.linked` holds replies back now (`inbox` design D7). */
+        inboxPrompt: Boolean = false,
     ): Blocked? = when {
         paused -> Blocked.Paused
         !connected -> Blocked.NotConnected
         watch != Watch.Watching -> Blocked.NotWatching
         wait == WaitState.AWAITING_CHOICE -> Blocked.AwaitingChoice(pending)
+        inboxPrompt -> Blocked.InboxPrompt
         wait != WaitState.READY && wait != WaitState.BUSY -> Blocked.Unknown
         inFlight -> Blocked.InFlight
         attachments.any { it.state is AttachmentState.Failed } -> Blocked.AttachmentFailed
@@ -192,7 +200,7 @@ object Replies {
             attachments = attachments,
         )
         val sentIds = attachments.map { it.localId }.toSet()
-        return c.copy(replies = c.replies + reply, draft = "", attachments = c.attachments.filter { it.localId !in sentIds }, attachNote = null)
+        return c.copy(replies = c.replies + reply, draft = "", attachments = c.attachments.filter { it.localId !in sentIds }, attachNote = null, prefillRefused = false)
     }
 
     /**
@@ -215,6 +223,7 @@ object Replies {
                     draftReturns = c.draftReturns + 1,
                     attachments = back + c.attachments,
                     attachNote = if (notFound && back.isNotEmpty()) AttachNote.SEND_NOT_FOUND else c.attachNote,
+                    prefillRefused = outcome.code == RemoteError.PREFILL_PENDING,
                 )
             }
         }.let { next -> next.copy(replies = next.replies.sortedBy(Reply::id)) }

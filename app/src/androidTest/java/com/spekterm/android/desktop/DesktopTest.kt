@@ -890,6 +890,59 @@ class DesktopTest {
     }
 
     @Test
+    fun theInboxIsAskedOnlyWhenOfferedFollowsItsEventsAndIsForgottenOnClear() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            handle = { req, ws ->
+                when (req.method) {
+                    "sessions.list" -> ws.send(ok(req.id, list()))
+                    "inbox.list" -> ws.send(ok(req.id, """{"items":[{"id":"m1","adapter":"slack","state":"pending","body":"b"}]}"""))
+                    else -> ws.send(ok(req.id, "{}"))
+                }
+            }
+        }
+        val first = connect(desktop)
+        delay(500)
+        assertEquals(0, desktop.count("inbox.list"))
+        first.close()
+        withTimeout(5_000) { Desktop.connected.first { !it } }
+
+        connect(desktop, setOf(Operations.INBOX_LIST))
+        withTimeout(5_000) { Desktop.inbox.first { it.current && it.items.map { i -> i.key } == listOf("slack/m1") } }
+        desktop.socket!!.send(evt("inbox.changed", """{"items":[{"id":"m2","adapter":"slack","state":"pending"},{"id":"m1","adapter":"slack","state":"accepted","sessionId":"s1"}]}"""))
+        withTimeout(5_000) { Desktop.inbox.first { it.items.size == 2 } }
+
+        desktop.socket!!.close(1000, null)
+        val detached = withTimeout(5_000) { Desktop.inbox.first { !it.current } }
+        assertEquals(2, detached.items.size)
+        Desktop.clear()
+        withTimeout(5_000) { Desktop.inbox.first { it.items.isEmpty() } }
+    }
+
+    @Test
+    fun anAcceptedItemOpensOnlyOnceTheListHoldsItsSession() = runBlocking<Unit> {
+        val empty = """{"window":true,"folders":[{"id":"f1","name":"one"}],"sessions":[]}"""
+        val desktop = Scripted().apply {
+            handle = { req, ws ->
+                when (req.method) {
+                    "sessions.list" -> ws.send(ok(req.id, empty))
+                    "inbox.accept" -> ws.send(ok(req.id, """{"sessionId":"s9"}"""))
+                    else -> ws.send(ok(req.id, "{}"))
+                }
+            }
+        }
+        connect(desktop, setOf(Operations.INBOX_ACCEPT))
+        withTimeout(5_000) { Desktop.sessions.first { it.current } }
+        Desktop.setInboxOnScreen(true)
+        val item = com.spekterm.android.net.InboxItem("m1", "slack", com.spekterm.android.net.InboxItem.State.PENDING)
+        Desktop.inboxAccept(item, "f1")
+        withTimeout(5_000) { Desktop.inboxActions.first { it["slack/m1"] is ItemAction.Opening } }
+        val accept = desktop.requests.first { it.method == "inbox.accept" }
+        assertEquals("""{"adapter":"slack","id":"m1","folderId":"f1"}""", accept.params.toString())
+        desktop.socket!!.send(evt("sessions.changed", """{"window":true,"folders":[{"id":"f1","name":"one"}],"sessions":[{"id":"s9","folderId":"f1","target":"claude","running":false}]}"""))
+        withTimeout(5_000) { Desktop.inboxActions.first { it["slack/m1"] == ItemAction.Opened("s9", true) } }
+    }
+
+    @Test
     fun everyAcceptedListThatTurnsASessionSeenCallsTheHookAndAReconnectCountsAgain() = runBlocking<Unit> {
         val calls = CopyOnWriteArrayList<List<String>>()
         Desktop.onSeen = { calls += it }

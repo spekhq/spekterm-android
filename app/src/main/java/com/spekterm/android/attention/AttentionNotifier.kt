@@ -100,8 +100,13 @@ class AttentionNotifier(
             .setShowWhen(true)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            // A session's notification opens its conversation; others open the session list (design D8).
-            .setContentIntent(event.sessionId?.let { Notifications.openSession(context, it) } ?: Notifications.openApp(context, MainActivity.ACTION_OPEN_SESSIONS))
+            // A session's notification opens its conversation, an inbox item's what it is about (`inbox` design D9);
+            // others open the session list (design D8).
+            .setContentIntent(
+                event.sessionId?.let { Notifications.openSession(context, it) }
+                    ?: event.intake?.let { Notifications.openIntake(context, it.adapter, it.id) }
+                    ?: Notifications.openApp(context, MainActivity.ACTION_OPEN_SESSIONS),
+            )
             .setOnlyAlertOnce(!alert)
             .setSilent(!alert)
         Notifications.post(context, key, ID, builder.build())

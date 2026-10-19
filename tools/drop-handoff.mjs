@@ -4,7 +4,8 @@
 // only; it never talks to the phone.
 //
 //   node tools/drop-handoff.mjs                                          # list the profile's sessions
-//   node tools/drop-handoff.mjs --from <sessionId> --target <repo or path> [--title <t>] [--body <text>]
+//   node tools/drop-handoff.mjs --from <sessionId> --target <repo or path> [--title <t>] [--body <text> | --body-file <path>]
+//                               [--at <ISO 8601 with an offset>]   # a scheduled handoff (`inbox`, task 3.1)
 //   node tools/drop-handoff.mjs --from <sessionId> --report <summary>    # from a handed-off session: done
 //
 // Defaults to the dev profile that `npm run dev` in ~/git/spekterm uses (`--profile` to change it).
@@ -58,8 +59,13 @@ if (report !== undefined) {
   payload = {
     target,
     title: option('title', `Phone test handoff ${now.toISOString()}`),
-    body: option('body', `A handoff written by tools/drop-handoff.mjs at ${now.toISOString()} for the phone's relations test.`),
+    body: option('body-file') !== undefined
+      ? readFileSync(option('body-file'), 'utf8')
+      : option('body', `A handoff written by tools/drop-handoff.mjs at ${now.toISOString()} for the phone's relations test.`),
   }
+  // spekterm `scheduled-handoff`: opens at that time (at most 30 days ahead), not on arrival.
+  const at = option('at')
+  if (at !== undefined) payload.at = at
 }
 
 const dir = join(outbox, from)

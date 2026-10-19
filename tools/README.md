@@ -10,6 +10,7 @@ event; the phone's connection log records when it arrived, against the item's dr
 ```sh
 node tools/drop-intake.mjs --count 1          # one item now
 node tools/drop-intake.mjs --every 30         # every 30 minutes until Ctrl-C (overnight run)
+node tools/drop-intake.mjs --count 1 --title "Deploy is red" --body-file body.txt   # one item with that title and body
 ```
 
 - Each item has a unique id; the desktop silently drops a repeated id.
@@ -41,6 +42,7 @@ or a completion report, into a session's handoff outbox of spekterm run from sou
 node tools/drop-handoff.mjs                                              # list the sessions, their folders and sources
 node tools/drop-handoff.mjs --from <sessionId> --target spekterm-android # hand off to a folder (name or absolute path)
 node tools/drop-handoff.mjs --from <childId> --report "Done: …"          # a handed-off session reports done
+node tools/drop-handoff.mjs --from <sessionId> --target spekterm-android --at 2026-10-20T09:00:00+08:00   # scheduled
 ```
 
 - The desktop opens the new session in the target folder, or holds the handoff in its inbox when its routing does

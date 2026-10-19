@@ -65,6 +65,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.spekterm.android.app
 import com.spekterm.android.desktop.Creation
 import com.spekterm.android.desktop.Desktop
+import com.spekterm.android.net.Operations
+import com.spekterm.android.desktop.InboxView
 import com.spekterm.android.desktop.OpenSpecGates
 import com.spekterm.android.desktop.Relations
 import com.spekterm.android.desktop.SessionAction
@@ -99,6 +101,7 @@ fun SessionsScreen(
     onOpenSpecFolders: () -> Unit,
     onOpenSpecFolder: (String) -> Unit,
     onHandoff: (String) -> Unit,
+    onInbox: () -> Unit,
 ) {
     val sessions by Desktop.sessions.collectAsStateWithLifecycle()
     val connected by Desktop.connected.collectAsStateWithLifecycle()
@@ -119,6 +122,7 @@ fun SessionsScreen(
     val groups = list?.let { SessionsView.groups(it) }.orEmpty()
     val existing = remember(list) { list?.let { Relations.existing(it) }.orEmpty() }
     val operations by Desktop.operations.collectAsStateWithLifecycle()
+    val inbox by Desktop.inbox.collectAsStateWithLifecycle()
     val actionsEnabled = SessionActions.enabled(connected, announcements.paused, sessions)
     val dialogs = rememberSessionDialogs()
     val openspec = OpenSpecGates.of(operations)
@@ -154,6 +158,7 @@ fun SessionsScreen(
     SpekScaffold(
         topBar = { scroll ->
             TopBar(desktopName, scroll) {
+                InboxButton(InboxView.waiting(inbox.items).size, Operations.INBOX_LIST in operations || inbox.items.isNotEmpty(), onInbox)
                 Box {
                     MoreButton({ menu = true })
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

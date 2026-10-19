@@ -89,6 +89,7 @@ import com.spekterm.android.desktop.Uploads
 import com.spekterm.android.desktop.Conversation
 import com.spekterm.android.desktop.ConversationReducer
 import com.spekterm.android.desktop.Desktop
+import com.spekterm.android.desktop.InboxView
 import com.spekterm.android.desktop.OpenSpecGates
 import com.spekterm.android.desktop.Phase
 import com.spekterm.android.desktop.Replies
@@ -122,6 +123,7 @@ fun ConversationScreen(
     onResume: () -> Unit,
     onHandoff: (String) -> Unit,
     onOpenSpecFolder: (String) -> Unit,
+    onOpenInbox: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val sessions by Desktop.sessions.collectAsStateWithLifecycle()
@@ -138,6 +140,11 @@ fun ConversationScreen(
     var menu by remember { mutableStateOf(false) }
     // Held here, not in the item, so it survives the work ending and coming back (`background-tasks` D4).
     var backgroundOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
+    // A first prompt from the inbox waiting in this session (`inbox` design D7).
+    val inbox by Desktop.inbox.collectAsStateWithLifecycle()
+    val linked = InboxView.linked(session, inbox.items, sessions, operations)
+    // An older desktop's hold on replies, lifted by the user until the note changes (design D7).
+    var replyAnyway by remember(sessionId, linked?.javaClass, (linked as? InboxView.Linked.Waiting)?.item?.key) { mutableStateOf(false) }
 
     // Watch only while visible (design D3); opening it clears its notification (design D8).
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -221,7 +228,11 @@ fun ConversationScreen(
                                     .padding(start = 14.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
                             )
                         }
-                        Composer(sessionId, c, connected, announcements.paused, offer is Offer.Answerable, Operations.ATTACH in operations && session?.isAgent != false)
+                        linked?.let { InboxNote(it, replyAnyway, onOpenInbox) { replyAnyway = true } }
+                        Composer(
+                            sessionId, c, connected, announcements.paused, offer is Offer.Answerable, Operations.ATTACH in operations && session?.isAgent != false,
+                            inboxPrompt = InboxView.holdsReplies(linked, replyAnyway),
+                        )
                     }
                 }
             }
@@ -606,7 +617,7 @@ private fun ReplyRow(reply: Reply, now: Long) {
 }
 
 @Composable
-private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, paused: Boolean, answerable: Boolean, canAttach: Boolean) {
+private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, paused: Boolean, answerable: Boolean, canAttach: Boolean, inboxPrompt: Boolean = false) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
@@ -615,7 +626,7 @@ private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, pa
     LaunchedEffect(c?.draftReturns) { if (c != null && c.draftReturns > 0) text = c.draft }
     val inFlight = c?.replies?.any { it.state == Reply.State.SENDING } == true
     val attachments = c?.attachments.orEmpty()
-    val blocked = Replies.blocked(connected, paused, c?.watch ?: Watch.Idle, c?.wait ?: WaitState.UNKNOWN, c?.pending, inFlight, text, attachments)
+    val blocked = Replies.blocked(connected, paused, c?.watch ?: Watch.Idle, c?.wait ?: WaitState.UNKNOWN, c?.pending, inFlight, text, attachments, inboxPrompt)
     // The photo picker refuses a maximum below 2, so it is always built for 10; extra picks are dropped (design D5).
     val photos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(Uploads.MAX_ATTACHMENTS)) { uris ->
         Attach.add(context, sessionId, uris, "photo")
@@ -626,6 +637,10 @@ private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, pa
     var picking by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         c?.attachNote?.let { Notice(attachNoteText(it).text(), attachNoteTone(it), stringResource(R.string.common_dismiss), { Desktop.dismissAttachNote(sessionId) }) }
+        // A reply the desktop refused because a first prompt from the inbox waits there (`inbox` design D7).
+        if (c?.prefillRefused == true && blocked != Blocked.InboxPrompt) {
+            Text(stringResource(R.string.conversation_prefill_refused), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.error)
+        }
         blockedText(blocked, answerable)?.let {
             Text(it.text(), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
@@ -765,4 +780,6 @@ private fun blockedText(blocked: Blocked?, answerable: Boolean): UiText? = when 
     Blocked.Attaching -> UiText.Res(R.string.conversation_blocked_attaching)
     Blocked.AttachmentFailed -> UiText.Res(R.string.conversation_blocked_attachment_failed)
     Blocked.TooLong -> UiText.Res(R.string.conversation_blocked_too_long)
+    // The inbox note above the composer says why (`inbox` design D7).
+    Blocked.InboxPrompt -> null
 }

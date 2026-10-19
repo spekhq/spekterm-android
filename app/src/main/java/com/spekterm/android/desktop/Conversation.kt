@@ -69,6 +69,11 @@ data class Conversation(
     val attachNote: AttachNote? = null,
     /** The session is no longer on the desktop: closed, or its process ended (design D10). */
     val closed: Boolean = false,
+    /**
+     * The last reply came back because the desktop holds an unsent first prompt from the inbox in this session
+     * (`PREFILL_PENDING`, `inbox` design D7), until the next send.
+     */
+    val prefillRefused: Boolean = false,
 ) {
     /** The uuid to resume from: the last held entry's, or none when nothing is held. */
     val afterUuid: String? get() = entries.lastOrNull()?.uuid?.takeIf { it.isNotEmpty() }
