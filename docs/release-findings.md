@@ -69,3 +69,23 @@ code shown; Licenses scrolls to the MPL text and the Notices heading; on the unp
 About and back; no About button while pairing (a link to 192.0.2.1, which never answers) or when pairing again; Report starts
 exactly one `ACTION_VIEW` for `https://github.com/spekhq/spekterm-android/issues/new`, caught so nothing opens. (An
 `ActivityMonitor` built with a filter never calls `onStartActivity`; the no-argument one does.)
+
+## The whole suites (4.3)
+
+`./gradlew test check assembleDebug assembleProfile`: `BUILD SUCCESSFUL` (JVM tests, lint, `checkLicenses`). With the Pixel
+disconnected from adb and only `emulator-5554` listed, `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`:
+`BUILD SUCCESSFUL`, 103 tests, 102 passed and `DesktopRaceTest.droppedAttemptsAreNotCountedAsFailures` skipped by its
+assumption (it needs a desktop's addresses as runner arguments). The Pixel was reconnected afterwards.
+
+## In progress (2026-10-19 evening)
+
+- 4.2: the profile build was installed on the Pixel at 18:24:36 +08:00 over the debug build (`adb install -r`, pairing kept;
+  the pairing saved first). The service came up in the foreground and reconnected to the installed desktop over Tailscale.
+  Waiting for a day of real use; then the debug build goes back over it and the log's lines before 18:24:36 and up to the
+  reinstall are read.
+- 3.4 and 4.1: started on the emulator against a demo desktop (dev spekterm, its own profile, port 47617, three throwaway
+  repositories). Paired by a link cut to `10.0.2.2` with `n=demo`: the session list's top bar says "demo". The per-UID socket
+  sample saw only `192.168.50.22:47617` — the desktop's own address, which it announces after pairing. Agents in the demo
+  repositories answer in Traditional Chinese unless asked otherwise (the maintainer's global Claude Code settings apply to
+  them), so the English screenshots need English turns. Not finished: the demo desktop, its profile and the emulator were
+  stopped; the profile lived in the session's scratchpad.
