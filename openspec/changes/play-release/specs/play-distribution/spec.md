@@ -58,7 +58,7 @@ at run time, so that a log from the shrunk build reads the same as one from the 
 The app SHALL open network connections only to the addresses of the desktop it is paired with or of the pairing link the user
 is pairing with. It SHALL include no analytics, advertising or crash-reporting library, and send nothing to its developer or
 any third party. Camera frames SHALL be decoded on the phone and neither stored nor sent. A link in shown text SHALL open in
-another app only when the user taps it. `PRIVACY.md` SHALL state each of these.
+another app only when the user taps it. The privacy policy the app links to SHALL state each of these.
 
 #### Scenario: The app's own sockets while in use
 
@@ -69,8 +69,8 @@ another app only when the user taps it. `PRIVACY.md` SHALL state each of these.
 #### Scenario: No other host in the code
 
 - **WHEN** `./gradlew check` runs
-- **THEN** it fails if a Kotlin string literal or a string resource under `app/src/main` holds a URL other than the privacy policy's and the source repository's (and its
-  issue page), or if the release runtime classpath holds a library of a listed analytics, advertising or crash-reporting
+- **THEN** it fails if a Kotlin string literal or a string resource under `app/src/main` holds a URL other than the privacy policy's (in each language) and the source
+  repository's (and its issue page), or if the release runtime classpath holds a library of a listed analytics, advertising or crash-reporting
   vendor (Firebase, Google Mobile Ads and Analytics, Crashlytics, Sentry, Bugsnag, AppsFlyer, Adjust, Mixpanel, Amplitude)
 
 ### Requirement: Show the app's version, privacy policy, source and licenses
@@ -96,7 +96,7 @@ library has no entry.
 #### Scenario: The privacy policy
 
 - **WHEN** the user taps Privacy policy on the About screen
-- **THEN** the browser opens the policy's public URL
+- **THEN** the browser opens the policy's page on spekterm.com in the app's language (English, or Traditional Chinese)
 
 #### Scenario: A shipped library without a license entry
 

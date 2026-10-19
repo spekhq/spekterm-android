@@ -28,10 +28,11 @@ A user who installs the app from Play can pair with a released desktop.
   kept complete by a build check that also refuses analytics, advertising and crash-reporting libraries.
 - **Report a problem** in a conversation's menu, opening the repository's issue page — for Play's AI-generated content
   policy, which a reviewer may apply to an app whose central screen is a conversation with an AI agent.
-- **A privacy policy**, `PRIVACY.md` in this repository, in English and Traditional Chinese: the app sends nothing to its
+- **A privacy policy**, a page on spekterm.com in English and Traditional Chinese (drafted here, published by the spekterm
+  repository's session through a handoff): the app sends nothing to its
   developer or any third party; it connects only to the user's own desktop, over TLS pinned to that desktop's certificate;
   the camera only reads the pairing code, on the phone; replies and attachments go only to that desktop, where the user's own
-  agent tools decide what happens to them. Its public URL is the file on GitHub.
+  agent tools decide what happens to them.
 - **The Play listing, in the repository** (`play/`, in Gradle Play Publisher's layout): title, short and full description in
   en-US and zh-TW; the 512 × 512 icon and 1024 × 500 feature graphics rendered from the desktop's icon; phone screenshots and
   the foreground service video taken on the `Pixel_9` emulator against a demo desktop with throwaway repositories; and the
@@ -67,11 +68,11 @@ languages) without changing it; the Licenses screen's notices are third-party te
   Licenses), routes in `MainActivity`, an About section in `StatusScreen`, an About button in `PairScreen`; Report a problem
   in the conversation menu; `res/raw/third_party_licenses.txt`; strings in `values` and `values-zh-rTW`; the manifest's
   `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` text.
-- New files: `PRIVACY.md`, `play/` (listings, graphics, screenshots, `forms.md`, sources), `docs/play-release.md`,
+- New files: `play/` (listings, graphics, screenshots, `forms.md`, sources, the privacy policy's draft), `docs/play-release.md`,
   `docs/release-findings.md`, `tools/render-play-graphics.sh` (headless Chrome).
 - Tests: new `NoClassNamesTest`, `NetworkHostsTest`, `PlayListingTest`, outcome-name cases in `RepliesTest` / `AnswersTest`;
   instrumented Compose tests for About, the pairing screen's About and Report a problem; `StringsTest` / `HardcodedTextTest`;
   the whole JVM and instrumented suites (emulator); the shrunk build used on the emulator and the Pixel.
 - Outside the repository, none done by this change: the upload key file (on kewang's machine, backed up by kewang); every Play
-  Console action and the video's upload (kewang); pushing so the privacy URL resolves (kewang's push).
+  Console action and the video's upload (kewang); the privacy page on spekterm.com (spekterm's session, by handoff; its push deploys the site).
 - No new library dependency.

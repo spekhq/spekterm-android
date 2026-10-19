@@ -81,7 +81,7 @@ succeeds. Debug and `profile` builds never need the properties (`profile` keeps 
 `.gitignore` gains `*.p12`.
 
 The key: RSA 4096, validity 30 years (Play wants a signing certificate valid past 2033-10-22), alias `upload`, in a PKCS12 file at
-`~/.android/spekterm-upload.p12` — the default proposed here; another path changes only kewang's property. It is generated once
+`~/.android/spekterm-upload.p12` (kewang, 2026-10-19). It is generated once
 with `keytool -genkeypair` by kewang (the password is kewang's, typed into keytool, never into a chat or a file Claude writes).
 Backup: kewang's password manager holds the password and a copy of the file.
 
@@ -165,20 +165,25 @@ through a provider, which the configuration cache allows; the file is its declar
 style; rejected for a list of about thirty group entries that a check keeps complete. A JVM test parsing `build.gradle.kts` —
 sees only direct dependencies; rejected.
 
-### D5. Privacy policy: `PRIVACY.md` in this repository, linked by its GitHub URL
+### D5. Privacy policy: a page on spekterm.com, in both languages (kewang, 2026-10-19)
 
-`PRIVACY.md` at the repository root, English first and Traditional Chinese below it, dated, stating what Context lists: no
-data to the developer or any third party; connections only to the desktop the user paired, or is pairing with, TLS-pinned to
-its certificate; camera frames decoded on the phone and never stored or sent; replies, answers and attachments go only to that
-desktop — and what happens to them there is up to the user's spekterm and agent tools (an agent may send them to its AI
-provider, under that provider's terms); the pairing credential and the log stay on the phone (excluded from backup), shared
-only when the user chooses; each Android permission and what it is for; contact (the repository's issues, and the developer
-email shown on the Play listing). The URL given to Play and opened by About is
-`https://github.com/spekhq/spekterm-android/blob/master/PRIVACY.md`, which resolves once kewang pushes.
+The policy is a page of spekterm.com — `site/` in the spekterm repository (Astro and Starlight, every page in English and
+Traditional Chinese, deployed by Cloudflare Pages on every push to spekterm's master). Proposed paths: `/android/privacy/` and
+`/zh-tw/android/privacy/`; the spekterm session settles them within its site's rules (`content-plan.json`, its checks), and
+this repository takes the URLs it reports. The app opens the page in the phone's language (one string resource per locale).
 
-*Alternative:* a page on spekterm.com (`site/` in the spekterm repository, deployed by Cloudflare Pages on every push to
-spekterm's master). Nicer, but another repository's production deploy, done by handoff; it can replace the GitHub URL later —
-the URL is one string resource and one listing field.
+The text is drafted here, as `play/privacy-policy.md` (English, then Traditional Chinese), reviewed with this change, and
+handed to the spekterm repository by spekterm handoff; the site's page is then the published one, and the draft is removed
+once the page is live so there is one copy. It states what Context lists: no data to the developer or any third party;
+connections only to the desktop the user paired, or is pairing with, TLS-pinned to its certificate; camera frames decoded on
+the phone and never stored or sent; replies, answers and attachments go only to that desktop — and what happens to them there
+is up to the user's spekterm and agent tools (an agent may send them to its AI provider, under that provider's terms); the
+pairing credential and the log stay on the phone (excluded from backup), shared only when the user chooses; each Android
+permission and what it is for; contact (the repository's issues, and the developer email shown on the Play listing); its date.
+A later change of what the app sends is a change of that page, by the same handoff.
+
+*Alternative:* `PRIVACY.md` in this repository, linked by its GitHub URL — no other repository involved, live on the next
+push; kewang chose spekterm.com.
 
 ### D6. The listing and form answers live in `play/`, in Gradle Play Publisher's layout
 
@@ -219,7 +224,7 @@ Every transfer leaves the phone only to the user's own desktop, inside TLS pinne
 from "collected". Handing the log to another app through the share sheet is the user giving a file to another app on the
 phone, not this app sending it. So "Does your app collect or share any of the required user data types?" → **No**. `forms.md`
 records the reasoning with the help page's sentences, and the fallback should Play question it: declare Messages, Photos and
-Files and docs as collected, encrypted in transit, not shared, not optional for the feature, and add that to `PRIVACY.md`.
+Files and docs as collected, encrypted in transit, not shared, not optional for the feature, and add that to the privacy policy.
 The `play-distribution` requirement on connections is what keeps the answer true; a change that adds another host revisits it.
 
 ### D8. Foreground service: keep `specialUse`, tighten the subtype text, script the video
@@ -246,7 +251,7 @@ its own change.
 
 ### D10. README and the desktop the listing names
 
-README gains "Install" (Google Play link once live) and "Privacy" (pointing to `PRIVACY.md`); "Status" stops saying nothing is
+README gains "Install" (Google Play link once live) and "Privacy" (linking the spekterm.com page); "Status" stops saying nothing is
 published once the internal test is live. The listing, README and the App access answer name **spekterm 0.2.14 or later, on
 Linux or an Apple silicon Mac** (its only builds; no Windows, no Intel Mac) as the desktop to pair with — the first public release with remote access, and newer than every feature's minimum (0.2.13) —
 linking to its GitHub releases.
@@ -279,8 +284,9 @@ in the browser. Nothing from the conversation is attached or sent. kewang may dr
   on the shrunk code; Play's pre-launch report (it crawls the app on real devices) is read after the internal upload.
 - [The Data safety "No" is questioned] → D7's fallback declaration.
 - [Upload key lost] → upload key reset through Play Console (days, not the app); backup in the password manager.
-- [The GitHub privacy URL moves if the repository is renamed] → GitHub redirects renamed repositories; the URL is in one string
-  and one listing field.
+- [The privacy page is not live when Play asks for its URL] → the internal test can be set up and uploaded first; the URL is
+  needed before the app's content is submitted, and the handoff is sent early in apply (task 3.1).
+- [Push to spekterm's master deploys the site] → that is the spekterm session's step, done under its own rules and kewang's OK.
 - [Screenshots go stale as screens change] → retaken when a change alters a pictured screen; `docs/play-release.md` lists it in
   the per-release steps.
 - [On the Pixel, `profile` blocks `run-as`] → between runs, debug is installed over it to read the log (D3), and
