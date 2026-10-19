@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- The Play feature graphic, 1024 × 500, rendered by tools/render-play-graphics.sh; ?lang=en-US or ?lang=zh-TW.
+     Its look follows spekterm.com's share images (site/scripts/make-brand-images.mjs). -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 1024px; height: 500px; overflow: hidden; }
+  body {
+    background: linear-gradient(135deg, #1a1d23, #0b0d10);
+    font-family: 'Noto Sans', 'Noto Sans CJK TC', sans-serif;
+    color: #fff; position: relative;
+  }
+  body:lang(zh-TW) { font-family: 'Noto Sans CJK TC', 'Noto Sans', sans-serif; }
+  .bar { position: absolute; top: 0; left: 0; right: 0; height: 6px; background: #f59e0b; }
+  .brand { position: absolute; left: 84px; top: 84px; display: flex; align-items: center; gap: 24px; }
+  .brand img { width: 96px; height: 96px; border-radius: 20px; }
+  .brand span { font-size: 46px; font-weight: 700; color: #f59e0b; }
+  h1 { position: absolute; left: 84px; top: 222px; margin: 0; font-size: 64px; font-weight: 700; line-height: 1.15; }
+  p { position: absolute; left: 84px; top: 318px; width: 880px; margin: 0; font-size: 30px; line-height: 1.4; color: #c0c6d0; }
+</style>
+</head>
+<body>
+<div class="bar"></div>
+<div class="brand"><img src="icon.svg" alt=""><span>spekterm</span></div>
+<h1 id="title"></h1>
+<p id="line"></p>
+<script>
+  const texts = {
+    'en-US': ['Your agents, on your phone', 'Follow and answer the coding agents on your own computer\u00a0— directly, with no server in between.'],
+    'zh-TW': ['你的 agent，就在手機上', '直接連到你自己的電腦，掌握並回應 coding agent，不經伺服器。'],
+  }
+  const lang = new URLSearchParams(location.search).get('lang') || 'en-US'
+  document.documentElement.lang = lang
+  document.body.lang = lang
+  const [title, line] = texts[lang]
+  document.getElementById('title').textContent = title
+  document.getElementById('line').textContent = line
+</script>
+</body>
+</html>
