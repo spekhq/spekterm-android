@@ -124,9 +124,23 @@ Found on the way, not changed here: the inbox shows an item's time in the Englis
 ("Oct 19, 2026 9:46 PM"); the pairing screen's first step says "Pair device" where the desktop's button reads "Pair a
 device".
 
-## In progress (2026-10-19 evening)
+## The shrunk build on the Pixel (4.2)
 
-- 4.2: the profile build was installed on the Pixel at 18:24:36 +08:00 over the debug build (`adb install -r`, pairing kept;
-  the pairing saved first). The service came up in the foreground and reconnected to the installed desktop over Tailscale.
-  Waiting for a day of real use; then the debug build goes back over it and the log's lines from 18:24:36 up to the
-  reinstall are read.
+The profile build ran on the Pixel 7 from 2026-10-19 18:24:36 to 2026-10-20 07:47:40 (+08:00), when the debug build was
+installed over it (`adb install -r`, pairing kept) to read the log with `run-as`. The maintainer used it for the evening:
+pass (maintainer, "感覺還行").
+
+- The log holds 4264 lines from the profile build. In use: 21 replies (`send outcome=Submitted`), a question answered
+  (`outcome=Done`), a session woken, one created from the phone (`outcome=created`), an inbox item dismissed, 56 waiting
+  and 12 handoff notifications posted. Every failure and outcome reads as in a debug build (`SocketTimeoutException`,
+  `ConnectException`, `SocketException`, `TIMED_OUT`, `NO_ROUTE`, `Submitted`, `Done`, `created`, `ignored`, `notified`,
+  `visible`, `suppressed`); no exception name or value looks renamed; no decoding failure.
+- No crash or ANR: the process's exit records (`dumpsys activity exit-info`) hold none after the 18:24:37 update.
+- The desktop could not be reached on any of its addresses 18:31–21:32: the app backed off to about a minute between rounds (213 rounds of eight addresses) and
+  reconnected by itself at 21:32 over Tailscale.
+- The log stops at 04:42 with the battery at 4 %; the phone was started again, charging, at 07:00, then restarted by the
+  maintainer at 07:42. Both times the boot receiver started the connection on its own (07:00:31 and 07:46:48), in the
+  foreground, and it authenticated at once.
+- Battery, from `dumpsys batterystats --charged` (since 17:48, 12 h on battery, 3407 mAh drained): the app used 84.6 mAh
+  (2.5 %), 13.4 mAh of it in the foreground service over 11 h 25 min, sixth among apps; the drain came mostly from another
+  app's 6 h 54 min location wake lock and GPS on for 12 h.
