@@ -111,11 +111,16 @@ Declared type: **Special use** (`FOREGROUND_SERVICE_SPECIAL_USE`, `android:foreg
 
 - **Video link**: an unlisted YouTube video of the script below.
 
-### Video script (recorded on the emulator against a demo desktop, `play-release` D8)
+### Video script (as recorded on 2026-10-19, on the emulator against a demo desktop, `play-release` D8)
 
-1. The app, not paired: Scan QR code; spekterm's Settings → Remote access → Pair a device shows the code; the app pairs.
-2. The ongoing "Connected" notification appears in the notification shade.
-3. The session list and a conversation of an agent at work.
-4. The app goes to the background; on the desktop, the agent finishes its turn and waits for the user.
-5. The phone shows "Waiting for your input"; tapping it opens that conversation.
-6. Pause on the ongoing notification: the notification and the service go away.
+75 seconds; the file is `~/Videos/spekterm-fgs-demo.mp4` on the maintainer's computer (not committed).
+
+1. The session list of a paired desktop ("demo"), its agents and their states.
+2. The notification shade: the ongoing "Connected via …" notification of the connection service.
+3. A conversation opens; the app goes to the background (Home).
+4. On the desktop, the agent finishes a turn: the phone shows "Waiting for your input" as a heads-up notification.
+5. Tapping it opens that session's conversation, with the agent's new reply.
+6. In the shade, Pause on the ongoing notification: the notification and the service go away ("No notifications").
+
+The ongoing notification shows the desktop's private LAN address (192.168.x.x), which is unreachable from outside that
+network.

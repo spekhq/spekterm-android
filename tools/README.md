@@ -11,6 +11,7 @@ event; the phone's connection log records when it arrived, against the item's dr
 node tools/drop-intake.mjs --count 1          # one item now
 node tools/drop-intake.mjs --every 30         # every 30 minutes until Ctrl-C (overnight run)
 node tools/drop-intake.mjs --count 1 --title "Deploy is red" --body-file body.txt   # one item with that title and body
+node tools/drop-intake.mjs --count 1 --origin "#weather-team" --dir <profile>/Spekterm/intake-inbox   # its origin, another profile
 ```
 
 - Each item has a unique id; the desktop silently drops a repeated id.

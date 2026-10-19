@@ -3,6 +3,7 @@
 // events to deliver during a measurement (design D9). Desktop-side only; it never talks to the phone.
 //
 //   node tools/drop-intake.mjs [--every <minutes>] [--count <n>] [--dir <intake-inbox>] [--title <t>] [--body-file <path>]
+//                              [--origin <label>]
 //
 // Defaults: every 30 minutes, until stopped, into the dev profile that `npm run dev` in ~/git/spekterm uses.
 // Delivery format: spekterm's `src/main/intake-schema.ts` `parseIntake` (id, origin.kind, origin.id, body).
@@ -22,6 +23,8 @@ const run = new Date().toISOString().replace(/[:.]/g, '-')
 // The inbox's screens (`inbox`, task 3.1): a chosen title, and a body read from a file (third-party: at most 4 000 characters).
 const title = option('title')
 const bodyFile = option('body-file')
+// Where the item says it came from, as the inbox shows it (the Play screenshots, `play-release` 3.4).
+const origin = option('origin', 'connection spike')
 
 mkdirSync(dir, { recursive: true })
 
@@ -33,7 +36,7 @@ function drop() {
   const id = `spike-${run}-${n}`
   const item = {
     id,
-    origin: { kind: 'spike-probe', id: hostname(), label: 'connection spike' },
+    origin: { kind: 'spike-probe', id: hostname(), label: origin },
     title: title ?? `Spike probe ${n}`,
     body: bodyFile !== undefined
       ? readFileSync(bodyFile, 'utf8')

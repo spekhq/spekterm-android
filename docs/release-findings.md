@@ -77,15 +77,56 @@ disconnected from adb and only `emulator-5554` listed, `ANDROID_SERIAL=emulator-
 `BUILD SUCCESSFUL`, 103 tests, 102 passed and `DesktopRaceTest.droppedAttemptsAreNotCountedAsFailures` skipped by its
 assumption (it needs a desktop's addresses as runner arguments). The Pixel was reconnected afterwards.
 
+## Screenshots and the video (3.4)
+
+Taken on the `Pixel_9` emulator at `wm size 1080x1920` with status bar demo mode (9:30, full Wi-Fi and battery), the profile
+build paired with a demo desktop: spekterm run from source with its own profile in the session's scratchpad, remote port
+47617, three throwaway repositories (`weather-app` with an OpenSpec change, `notes-api`, `landing-page`), paired by a link
+cut to `10.0.2.2` with `n=demo`. Five screens per locale in `play/listings/<locale>/graphics/phone-screenshots/`: the session
+list (idle, working, waiting, a handoff, the inbox count), a conversation (Markdown, a tool call), a question being answered,
+the inbox with an item from "#weather-team", an OpenSpec change's tasks. Each is 1080 × 1920 RGB without alpha and was
+looked at. Not used: screens showing a tool call or an attachment message with a path in the scratchpad (it holds the
+maintainer's user name), and Settings (it lists the desktop's addresses). `tools/drop-intake.mjs` gained `--origin` for the
+inbox item's source. The agents were asked to answer in English, since the maintainer's own Claude Code settings apply to them.
+
+The foreground service video (`play/forms.md`, Video script) is 75 s, recorded with `adb emu screenrecord`; a first take was
+discarded because the opened conversation showed such a path. It shows the desktop's private LAN address in the ongoing
+notification.
+
+## The shrunk build on the emulator (4.1)
+
+The profile build (R8) on the emulator against the demo desktop, 2026-10-19 21:34–22:00 +08:00, each through the app:
+
+| Step | Outcome |
+|---|---|
+| Pairing by a link (an expired one first: "The code is no longer valid…", then a fresh one) | pass |
+| Session list, live states, a handoff's relation, the inbox count | pass |
+| Wake a dormant session | pass |
+| A conversation with Markdown (lists, code, a table) and tool calls | pass |
+| A reply with a photo (photo picker) and a PDF (file picker) | pass — `send outcome=Submitted attachments=2`; the agent read both |
+| A question answered (`AskUserQuestion`) | pass — `answer kind=question decision=answer outcome=Done` |
+| OpenSpec: folder, change, tasks | pass |
+| Inbox: dismiss (asked first), accept into a chosen folder, send the first prompt | pass — `inbox op=ignore`, `op=accept outcome=accepted`, `op=submit outcome=confirmed` |
+| New session from the phone | pass — `create outcome=created` |
+| Notifications: waiting, intake, handoff; a tap opens the conversation | pass |
+| Settings: pause and resume; About; Privacy policy opens spekterm.com in Chrome; Licenses | pass |
+| Pair again (the offer says "Pair again with demo?"), then unpair (asked first) | pass — the service stops |
+
+The connection log, read with `run-as` after the debug build was installed over the profile build at 22:00:52 (+08:00), has
+134 lines, all written by the profile build; every outcome is named as in a debug build (`outcome=Submitted`, `Done`,
+`accepted`, `confirmed`, `created`); no error, no exception, no decoding failure. The per-UID socket sample (every second over
+`/proc/net/tcp*` and `udp*`, IPv4-mapped addresses normalized) saw one remote address for the app's UID across the session:
+`192.168.0.199:47617`, the desktop's own address, which it announces after pairing (in the 18:25 run, `192.168.50.22:47617` on
+another network). The pairing attempts to `10.0.2.2` were too short for the one-second sample; the log records them. Chrome,
+opened by Privacy policy, runs under its own UID.
+
+Found on the way, not changed here: the inbox shows an item's time in the English format under 中文（台灣）
+("Oct 19, 2026 9:46 PM"); the pairing screen's first step says "Pair device" where the desktop's button reads "Pair a
+device".
+
 ## In progress (2026-10-19 evening)
 
 - 4.2: the profile build was installed on the Pixel at 18:24:36 +08:00 over the debug build (`adb install -r`, pairing kept;
   the pairing saved first). The service came up in the foreground and reconnected to the installed desktop over Tailscale.
-  Waiting for a day of real use; then the debug build goes back over it and the log's lines before 18:24:36 and up to the
+  Waiting for a day of real use; then the debug build goes back over it and the log's lines from 18:24:36 up to the
   reinstall are read.
-- 3.4 and 4.1: started on the emulator against a demo desktop (dev spekterm, its own profile, port 47617, three throwaway
-  repositories). Paired by a link cut to `10.0.2.2` with `n=demo`: the session list's top bar says "demo". The per-UID socket
-  sample saw only `192.168.50.22:47617` — the desktop's own address, which it announces after pairing. Agents in the demo
-  repositories answer in Traditional Chinese unless asked otherwise (the maintainer's global Claude Code settings apply to
-  them), so the English screenshots need English turns. Not finished: the demo desktop, its profile and the emulator were
-  stopped; the profile lived in the session's scratchpad.
