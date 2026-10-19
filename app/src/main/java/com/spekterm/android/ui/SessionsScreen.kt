@@ -459,7 +459,7 @@ private fun SessionRow(
             }
             if (row.offered) CloseOffer(answers, actionsEnabled, onAnswer, Modifier.fillMaxWidth().padding(start = 34.dp, top = 4.dp))
         }
-        SessionMenu(menu, { menu = false }, actions, actionsEnabled, onAction)
+        SessionMenu(menu, { menu = false }, actions, actionsEnabled, onChoose = onAction)
     }
 }
 

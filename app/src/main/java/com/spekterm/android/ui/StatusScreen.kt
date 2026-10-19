@@ -69,6 +69,7 @@ fun StatusScreen(
     onResume: () -> Unit,
     onUnpair: () -> Unit,
     onPairAgain: () -> Unit,
+    onAbout: () -> Unit = {},
     onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -214,6 +215,9 @@ fun StatusScreen(
                 Section(stringResource(R.string.status_section_pairing))
                 OutlinedButton(onClick = onPairAgain) { Text(stringResource(R.string.status_pair_new_code)) }
                 TextButton(onClick = { unpairing = true }) { Text(stringResource(R.string.status_unpair), color = colors.error) }
+
+                Section(stringResource(R.string.status_section_about))
+                OutlinedButton(onClick = onAbout) { Text(stringResource(R.string.about_open)) }
                 Spacer(Modifier.height(16.dp))
             }
         }

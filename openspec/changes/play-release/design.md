@@ -146,9 +146,10 @@ read as always; only lines before the reinstall's time are the shrunk build's (t
 this project does not enable), and rows that open the privacy policy and the source repository in the browser, and the
 Licenses screen. Reached from Settings (a last section "About", while paired) and from the unpaired pairing screen — a text
 button at its bottom, hidden while pairing is busy and not shown when pairing again (that screen has a back button to
-Settings, which has About). On the pairing screen, About replaces the pairing content inside a `SaveableStateHolder` keyed by
-screen, so what was typed into the link field survives; the camera preview leaves composition with it and the scanner stops,
-and coming back starts it again as on first open.
+Settings, which has About). On the pairing screen, About (and Licenses from it) replaces the pairing content from inside `PairScreen`, by a saved
+state of that screen; `PairScreen` itself stays composed, so what was typed into the link field survives without a
+`SaveableStateHolder` *(changed in apply: simpler than the holder planned here)*; the camera preview leaves composition with
+the content and the scanner stops, and coming back starts it again as it was.
 
 Licenses shows `res/raw/third_party_licenses.txt` as plain selectable text. Its screen title and section headings are string
 resources in both languages (`app-language`); the license notices themselves are shown in English, as their authors wrote

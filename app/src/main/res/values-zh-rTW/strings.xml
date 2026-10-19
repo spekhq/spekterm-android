@@ -533,4 +533,23 @@
     <plurals name="inbox_characters">
         <item quantity="other">%1$d 個字元</item>
     </plurals>
+
+    <!-- About, Licenses and Report a problem (`play-release` D4, D5, D11). -->
+    <string name="url_privacy_policy">https://spekterm.com/zh-tw/android/privacy/</string>
+    <string name="about_title">關於</string>
+    <string name="about_version">版本 %1$s（%2$d）</string>
+    <string name="about_privacy">隱私權政策</string>
+    <string name="about_source">原始碼</string>
+    <string name="about_licenses">開放原始碼授權</string>
+    <string name="about_open">關於 spekterm</string>
+    <string name="status_section_about">關於</string>
+    <string name="licenses_title">開放原始碼授權</string>
+    <string name="licenses_app">本 app</string>
+    <string name="licenses_libraries">函式庫</string>
+    <string name="licenses_texts">授權條款全文</string>
+    <string name="licenses_notices">聲明</string>
+    <string name="report_problem">回報問題</string>
+    <string name="report_title">回報問題</string>
+    <string name="report_text">agent 寫的內容來自你電腦上你自己的 agent，本 app 的開發者看不到。要回報本 app 的問題，請到 GitHub 開 issue；這段對話的任何內容都不會附上。</string>
+    <string name="report_open">回報</string>
 </resources>

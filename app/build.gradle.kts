@@ -1,3 +1,7 @@
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.result.ResolvedComponentResult
+import org.gradle.api.artifacts.result.ResolvedDependencyResult
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -121,4 +125,78 @@ val checkUploadKey = tasks.register("checkUploadKey") {
 }
 tasks.configureEach {
     if (name == "preReleaseBuild") dependsOn(checkUploadKey)
+}
+
+/**
+ * Every library the release ships has an entry in the Licenses screen's file, and none is an analytics, advertising or
+ * crash-reporting SDK (`play-release` D4, `play-distribution`). Resolves the release runtime classpath, all of it.
+ */
+abstract class CheckLicenses : DefaultTask() {
+    @get:Input abstract val coordinates: ListProperty<String>
+
+    @get:InputFile @get:PathSensitive(PathSensitivity.RELATIVE) abstract val licenses: RegularFileProperty
+
+    @TaskAction
+    fun check() {
+        val lines = licenses.get().asFile.readLines()
+        val start = lines.indexOf("[libraries]")
+        val end = (start + 1 until lines.size).firstOrNull { lines[it].startsWith("[") } ?: lines.size
+        val patterns = lines.subList(start + 1, end).filter { " — " in it }.map { it.substringBefore(" — ").trim() }
+        fun covered(coordinate: String) = patterns.any { p ->
+            val group = coordinate.substringBefore(':')
+            when {
+                ':' in p -> coordinate == p
+                p.endsWith(".*") -> group == p.removeSuffix(".*") || group.startsWith(p.removeSuffix("*"))
+                else -> group == p
+            }
+        }
+        val vendors = coordinates.get().filter { c -> VENDORS.any { c.startsWith(it) } }
+        val missing = coordinates.get().filter { !covered(it) }
+        val problems = buildList {
+            if (vendors.isNotEmpty()) add("Analytics, advertising or crash-reporting libraries:\n  " + vendors.joinToString("\n  "))
+            if (missing.isNotEmpty()) add("No entry in ${licenses.get().asFile.name}:\n  " + missing.joinToString("\n  "))
+        }
+        if (problems.isNotEmpty()) throw GradleException(problems.joinToString("\n"))
+    }
+
+    companion object {
+        /** The vendors the app must never ship (`play-distribution`). */
+        val VENDORS = listOf(
+            "com.google.firebase:", "com.google.android.gms:play-services-ads", "com.google.android.gms:play-services-analytics",
+            "com.google.android.gms:play-services-measurement", "com.crashlytics", "io.sentry:", "com.bugsnag:", "com.appsflyer:",
+            "com.adjust.sdk:", "com.mixpanel.android:", "com.amplitude:",
+        )
+    }
+}
+
+val checkLicenses = tasks.register<CheckLicenses>("checkLicenses") {
+    coordinates.set(
+        configurations.named("releaseRuntimeClasspath").flatMap { classpath ->
+            classpath.incoming.resolutionResult.rootComponent.map { root ->
+                val seen = sortedSetOf<String>()
+                fun walk(component: ResolvedComponentResult) {
+                    for (dependency in component.dependencies) {
+                        if (dependency !is ResolvedDependencyResult) continue
+                        val id = dependency.selected.id
+                        if (id is ModuleComponentIdentifier && seen.add("${id.group}:${id.module}")) walk(dependency.selected)
+                    }
+                }
+                walk(root)
+                seen.toList()
+            }
+        },
+    )
+    licenses.set(layout.projectDirectory.file("src/main/res/raw/third_party_licenses.txt"))
+}
+tasks.named("check") { dependsOn(checkLicenses) }
+tasks.configureEach {
+    if (name == "preReleaseBuild") dependsOn(checkLicenses)
+}
+
+// Tests that read files — the listing's limits, the strings, the sources' literals and comments — run again when those
+// files change, not only when the compiled classes do (`play-release` D6).
+tasks.withType<Test>().configureEach {
+    inputs.dir(rootProject.layout.projectDirectory.dir("play/listings")).withPropertyName("playListings").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(layout.projectDirectory.dir("src/main/res")).withPropertyName("mainResources").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(layout.projectDirectory.dir("src/main/java")).withPropertyName("mainSources").withPathSensitivity(PathSensitivity.RELATIVE)
 }

@@ -101,6 +101,9 @@ fun PairScreen(
         if (otherCodeAt == at) otherCodeAt = null
     }
     LaunchedEffect(busy != null) { onBusy(busy != null) }
+    // About and its licenses, shown in place of pairing; this screen stays composed, so what was typed is kept, and the
+    // scanner leaves with the content and comes back with it (`play-release` D4).
+    var aside by rememberSaveable { mutableStateOf(Aside.NONE) }
 
     fun pair(raw: String) {
         scanning = false
@@ -152,6 +155,20 @@ fun PairScreen(
 
     val askCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) scanning = true else message = Message(listOf(UiText.Res(R.string.pair_camera_denied)), Tone.Warning)
+    }
+
+    when (aside) {
+        Aside.ABOUT -> {
+            BackHandler { aside = Aside.NONE }
+            AboutScreen(onLicenses = { aside = Aside.LICENSES }, onBack = { aside = Aside.NONE })
+            return
+        }
+        Aside.LICENSES -> {
+            BackHandler { aside = Aside.ABOUT }
+            LicensesScreen(onBack = { aside = Aside.ABOUT })
+            return
+        }
+        Aside.NONE -> {}
     }
 
     // Back while re-pairing returns to settings, as the top bar's back does; the pairing stays.
@@ -259,10 +276,17 @@ fun PairScreen(
                     Text(stringResource(R.string.pair_current_stays), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     TextButton(enabled = busy == null, onClick = onCancel) { Text(stringResource(R.string.pair_back_to_settings)) }
                 }
+                // Not while pairing again: Settings, one step back, has About.
+                if (onCancel == null && busy == null) {
+                    TextButton(onClick = { aside = Aside.ABOUT }) { Text(stringResource(R.string.about_open)) }
+                }
             }
         }
     }
 }
+
+/** What the unpaired pairing screen shows in its place (`play-release` D4). */
+private enum class Aside { NONE, ABOUT, LICENSES }
 
 /** A notice's lines and its tone (D5): the camera refused is a warning (pasting still works), failures errors. */
 private data class Message(val lines: List<UiText>, val tone: Tone)

@@ -1,0 +1,1 @@
+手機上的 spekterm：agent 等你時通知你，看 session、回覆、核准。不經伺服器。

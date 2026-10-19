@@ -47,7 +47,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps a direct connection to the user's own computer running spekterm, with no server in between, to deliver its notifications when an agent there needs the user. Push messaging cannot be used because there is no server to send it; the user can pause the connection from its notification." />
+                android:value="Keeps a direct, encrypted connection open to the user's own computer running spekterm, to show its notifications when an AI agent there is waiting for the user. Push messaging cannot deliver them, as there is no server in between, and no other foreground service type covers an unlimited connection to the user's own computer. The user pauses it from its ongoing notification or in Settings." />
         </service>
 
         <receiver

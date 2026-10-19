@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -124,8 +125,15 @@ fun rememberSessionDialogs(onDone: (SessionAction.Done) -> Unit = {}): SessionDi
 
 /** The items of [session]'s menu; [enabled] per D8's conditions. */
 @Composable
-fun SessionMenu(expanded: Boolean, onDismiss: () -> Unit, actions: List<SessionActions.Action>, enabled: Boolean, onChoose: (SessionActions.Action) -> Unit) {
-    DropdownMenu(expanded = expanded && actions.isNotEmpty(), onDismissRequest = onDismiss) {
+fun SessionMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    actions: List<SessionActions.Action>,
+    enabled: Boolean,
+    onReport: (() -> Unit)? = null,
+    onChoose: (SessionActions.Action) -> Unit,
+) {
+    DropdownMenu(expanded = expanded && (actions.isNotEmpty() || onReport != null), onDismissRequest = onDismiss) {
         for (action in actions) {
             DropdownMenuItem(
                 text = {
@@ -143,6 +151,17 @@ fun SessionMenu(expanded: Boolean, onDismiss: () -> Unit, actions: List<SessionA
                 onClick = {
                     onDismiss()
                     onChoose(action)
+                },
+            )
+        }
+        // The conversation's menu ends with Report a problem (`play-release` D11).
+        onReport?.let { report ->
+            if (actions.isNotEmpty()) HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.report_problem)) },
+                onClick = {
+                    onDismiss()
+                    report()
                 },
             )
         }

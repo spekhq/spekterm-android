@@ -65,6 +65,10 @@ private sealed interface Nav {
 
 @Serializable private data object StatusRoute
 
+@Serializable private data object AboutRoute
+
+@Serializable private data object LicensesRoute
+
 @Serializable private data class HandoffRoute(val sessionId: String)
 
 /** The inbox, scrolled to [focus] (an item key) when given (`inbox` design D10). */
@@ -295,9 +299,14 @@ class MainActivity : ComponentActivity() {
                     onResume = { resume() },
                     onUnpair = { unpair() },
                     onPairAgain = { repairing = true },
+                    onAbout = { nav.navigate(AboutRoute) { launchSingleTop = true } },
                     onBack = { nav.popBackStack() },
                 )
             }
+            composable<AboutRoute> {
+                AboutScreen(onLicenses = { nav.navigate(LicensesRoute) { launchSingleTop = true } }, onBack = { nav.popBackStack() })
+            }
+            composable<LicensesRoute> { LicensesScreen(onBack = { nav.popBackStack() }) }
         }
     }
 

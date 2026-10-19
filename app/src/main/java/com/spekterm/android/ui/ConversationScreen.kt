@@ -138,6 +138,7 @@ fun ConversationScreen(
     // Closing the session from its own screen returns to the list (design D9).
     val dialogs = rememberSessionDialogs { if (it.kind == SessionAction.Kind.CLOSE) onBack() }
     var menu by remember { mutableStateOf(false) }
+    var reporting by remember { mutableStateOf(false) }
     // Held here, not in the item, so it survives the work ending and coming back (`background-tasks` D4).
     var backgroundOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
     // A first prompt from the inbox waiting in this session (`inbox` design D7).
@@ -180,12 +181,10 @@ fun ConversationScreen(
                     IconButton(onClick = { onOpenSpecFolder(folder.id) }) { Icon(SpekIcons.File, stringResource(R.string.conversation_openspec_for, folder.name)) }
                 }
                 val actions = session?.let { SessionActions.of(it, operations, sessions.list) }.orEmpty()
-                if (actions.isNotEmpty()) {
-                    Box {
-                        MoreButton({ menu = true })
-                        SessionMenu(menu, { menu = false }, actions, actionsEnabled) {
-                            if (it == SessionActions.Action.HANDOFF) onHandoff(sessionId) else dialogs.choose(it, session!!)
-                        }
+                Box {
+                    MoreButton({ menu = true })
+                    SessionMenu(menu, { menu = false }, actions, actionsEnabled, onReport = { reporting = true }) {
+                        if (it == SessionActions.Action.HANDOFF) onHandoff(sessionId) else dialogs.choose(it, session!!)
                     }
                 }
             }
@@ -239,6 +238,7 @@ fun ConversationScreen(
         }
     }
     SessionDialogsHost(dialogs, actionsEnabled)
+    if (reporting) ReportProblemDialog { reporting = false }
 }
 
 /** The agent's wait state while watched, for the top bar (D4). */

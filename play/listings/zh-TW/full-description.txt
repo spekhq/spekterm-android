@@ -1,0 +1,20 @@
+spekterm（以 agent 為中心的桌面工作台）的配套 app。直接連到你自己電腦上的 spekterm——經由區域網路、Tailscale 或你自行轉發的連接埠——讓你在手機上掌握並回應你的 coding agent。
+
+功能
+• agent 等你回覆、要你選擇或核准權限、交接完成，或收件匣有新項目時，通知你。
+• 依資料夾列出桌機上的 session，即時顯示每個 agent 的狀態：等你回覆、執行中、閒置或休眠。
+• 對話：agent 的訊息、思考、工具呼叫與結果，支援 Markdown。
+• 回覆 agent，可附照片、PDF 或文字檔。
+• 回應提示：允許或拒絕權限請求、回答 agent 的問題、核准計畫。
+• 在任一資料夾開新的 agent session；重新命名、休眠、喚醒或關閉 session。
+• 桌機的收件匣：閱讀項目、選擇資料夾、接受或忽略；立即執行或取消排程的交接。
+• OpenSpec（唯讀）：每個資料夾的 change、proposal、design、spec 與 tasks，檔案變動即時跟上。
+• 英文或繁體中文，淺色或深色。
+
+你需要
+一台執行 spekterm 0.2.14 以上版本的電腦（Linux 或 Apple 晶片的 Mac；https://github.com/spekhq/spekterm/releases），並在「設定 → 遠端存取」開啟。掃描它顯示的配對碼即可配對。手機必須連得到那台電腦。
+
+隱私優先
+沒有帳號、沒有伺服器、中間沒有推播服務：通知經由本 app 自己連到桌機的連線送達。連線經過加密，並鎖定你桌機的憑證。本 app 不會把任何資料傳給開發者或其他人，也沒有分析或廣告。
+
+開放原始碼（MIT）：https://github.com/spekhq/spekterm-android

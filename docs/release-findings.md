@@ -39,3 +39,33 @@ shows them after upload.
 `./gradlew lintDebug` passes after `Replies.kt:152`'s literal U+FEFF became `'﻿'` (it was the one error,
 `ByteOrderMark`). Warnings left as they are: `PluralsCandidate` ×5, `UseKtx` ×3, `ExifInterface` ×2,
 `ConfigurationScreenWidthHeight`, `ModifierParameter`, `OldTargetApi` (API 37 exists; Play requires 36).
+
+## Licenses (2.3)
+
+The release runtime classpath resolves to 192 `group:artifact`. Their POMs (or parent POMs, for Guava) name: Apache License
+2.0 for 190 (in five spellings), MIT for `org.checkerframework:checker-qual`, and Apache 2.0 with BSD-3-Clause for
+`androidx.camera:camera-core` (it includes libyuv). Shipped NOTICE-type files found in the artifacts:
+`androidx.concurrent:concurrent-futures-ktx` (`META-INF/NOTICE.txt`, kotlinx.coroutines' notice), and OkHttp 5's Android
+artifact ships `assets/PublicSuffixDatabase.list`, compiled from the Public Suffix List under the Mozilla Public License
+2.0 — so the licenses file carries the Apache 2.0, MIT, BSD 3-Clause and MPL 2.0 texts. `checkLicenses`: green; with
+Okio's entry removed it fails naming `com.squareup.okio:okio` and `okio-jvm`, then runs again (not `UP-TO-DATE`) once the
+file is restored; the configuration cache is stored, then reused. In a scratch copy with
+`com.google.firebase:firebase-analytics:22.1.2` added (downloaded for this), it fails listing Firebase and the
+`play-services-measurement*` / `play-services-ads-identifier` artifacts under "Analytics, advertising or crash-reporting
+libraries", apart from the missing entries.
+
+## Tests that read files (2.6, 2.8, 3.2)
+
+After the test task declared `play/listings`, `src/main/res` and `src/main/java` as inputs, `testDebugUnitTest` ran again
+(not `UP-TO-DATE`) after each of: an 81-character short description (`PlayListingTest` red, without `--rerun`), an existing
+string's text changed (`pair_or`), and a comment added to `App.kt`. `NetworkHostsTest` went red when `pair_or`'s text held
+`https://example.com/x`, naming it; `NoClassNamesTest` went red on a scratch `String::class.java.simpleName`, naming
+`App.kt:84`. All restored.
+
+## About, Licenses, Report a problem (2.4, 2.5)
+
+`AboutTest` on the `Pixel_9` emulator (the Pixel disconnected from adb first): 6 of 6 pass — the installed version name and
+code shown; Licenses scrolls to the MPL text and the Notices heading; on the unpaired pairing screen, typed text survives
+About and back; no About button while pairing (a link to 192.0.2.1, which never answers) or when pairing again; Report starts
+exactly one `ACTION_VIEW` for `https://github.com/spekhq/spekterm-android/issues/new`, caught so nothing opens. (An
+`ActivityMonitor` built with a filter never calls `onStartActivity`; the no-argument one does.)

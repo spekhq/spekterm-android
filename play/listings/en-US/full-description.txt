@@ -1,0 +1,20 @@
+The companion app for spekterm, the agent-first desktop workbench. It connects directly to the spekterm on your own computer — over your local network, Tailscale, or a port you forward — and lets you follow and answer your coding agents from your phone.
+
+What it does
+• Notifications when an agent waits for you, asks for a choice or a permission, finishes a handoff, or an inbox item arrives.
+• Your desktop's sessions by folder, with each agent's state kept live: waiting for you, working, idle, or dormant.
+• Conversations: an agent's messages, thinking, tool calls and results, with Markdown.
+• Replies to an agent, with photos, PDFs or text files attached.
+• Answering prompts: allow or deny a permission request, pick an answer to an agent's questions, approve a plan.
+• Starting a new agent session in any folder, and renaming, hibernating, waking or closing sessions.
+• The desktop's inbox: read an item, choose its folder, accept or dismiss it; run or cancel scheduled handoffs.
+• OpenSpec, read-only: each folder's changes, proposals, designs, specs and tasks, following the files live.
+• English or Traditional Chinese, light or dark.
+
+What you need
+A computer running spekterm 0.2.14 or later (Linux or an Apple silicon Mac; https://github.com/spekhq/spekterm/releases) with Settings → Remote access turned on. Pair by scanning the code it shows. The phone must be able to reach that computer.
+
+Private by design
+No account, no server, no push service in between: notifications arrive over the app's own connection to your desktop. The connection is encrypted and pinned to your desktop's certificate. The app sends nothing to its developer or anyone else, and has no analytics or ads.
+
+Open source (MIT): https://github.com/spekhq/spekterm-android
