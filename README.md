@@ -95,10 +95,11 @@ one deliberately, for example once with `./gradlew assembleDebug -Pandroid.build
 
 ### Testing against a desktop
 
-The released spekterm does not have remote access yet. Run it from source — `npm run dev` in a spekterm
-checkout, which uses its own profile `~/.config/spekterm-dev` — then Settings → Remote access → turn on → Pair
+Use spekterm [0.2.14](https://github.com/spekhq/spekterm/releases/tag/v0.2.14) or later, which has everything
+above, or run it from source — `npm run dev` in a spekterm checkout, which uses its own profile
+`~/.config/spekterm-dev` — for a desktop change not released yet. Then Settings → Remote access → turn on → Pair
 device, and scan the code with the app. The phone must reach the desktop's port (47615 by default) over the LAN,
-Tailscale, or a forwarded port. `tools/drop-intake.mjs` drops inbox items into that profile to produce attention
+Tailscale, or a forwarded port. `tools/drop-intake.mjs` drops inbox items into the dev profile (by default) to produce attention
 events on a schedule (see [`tools/README.md`](tools/README.md)).
 
 ## License
