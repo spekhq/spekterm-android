@@ -40,8 +40,12 @@ markup rendering. A newer event for the same session SHALL replace that session'
 items SHALL be keyed by the item. Within one `complete: true` answer, only the latest event for each session or
 item SHALL be posted, and the answer SHALL sound or vibrate at most once. Tapping a notification SHALL open the
 app: a notification about a session SHALL open that session's conversation with the session list behind it,
-each session's notification opening its own session; any other attention notification SHALL open the session
-list.
+each session's notification opening its own session; a notification about a new inbox item (`intake`) SHALL be
+resolved against the inbox the app holds (waiting up to 5 seconds for a current one): an item still pending SHALL open the Inbox
+(`inbox`) at that item; an accepted item whose session the current session list holds SHALL open that session's conversation; an
+accepted item whose session is not listed yet SHALL open the session list; an item not held while the held inbox is current SHALL
+open the session list; and an item not held because no current inbox arrived in time SHALL open the Inbox, which says it is not
+current — each with the session list behind it; any other attention notification SHALL open the session list.
 
 #### Scenario: An agent waits for input
 
@@ -89,6 +93,22 @@ list.
 
 - **WHEN** the app shows one session's conversation and the user taps another session's notification
 - **THEN** the other session's conversation opens, and going back shows the session list
+
+#### Scenario: Tapping a new inbox item's notification
+
+- **WHEN** a Slack mention reaches the desktop's inbox and the user taps the phone's notification about it while it is pending
+- **THEN** the Inbox opens showing the mention, and going back shows the session list
+
+#### Scenario: Tapping a handoff's notification
+
+- **WHEN** an agent's handoff arrives, its session opens and its agent starts, and the user then taps the phone's notification about
+  it
+- **THEN** the session list opens, showing the new session
+
+#### Scenario: Tapping after the app was closed
+
+- **WHEN** the app's process was killed, the phone cannot reach the desktop, and the user taps an inbox item's notification
+- **THEN** the Inbox opens and says it is not current
 
 ### Requirement: Do not notify for a suppressed event
 
