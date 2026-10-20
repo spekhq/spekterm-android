@@ -144,3 +144,16 @@ pass (maintainer, "感覺還行").
 - Battery, from `dumpsys batterystats --charged` (since 17:48, 12 h on battery, 3407 mAh drained): the app used 84.6 mAh
   (2.5 %), 13.4 mAh of it in the foreground service over 11 h 25 min, sixth among apps; the drain came mostly from another
   app's 6 h 54 min location wake lock and GPS on for 12 h.
+
+## The first Play build on the Pixel (2026-10-20)
+
+`0.1.0 (1)`, built from `e7b2412` (tag `v0.1.0`), rolled out to internal testing at 13:08 +08:00 and installed on the Pixel
+7 from Play at 13:12 (installer `com.android.vending`), after the debug build was uninstalled; paired again with the
+installed desktop (spekterm 0.2.15). The maintainer used it: pass (maintainer, "目前測試好像都沒什麼問題").
+
+Play Console turned on automatic protection's installer check for this app (Protect with Play → Automatic protection
+settings). Google's help page says the check runs when the app is opened, on the device, and that only the Play Store app
+needs a data connection after a long time offline. Sockets owned by the app's UID, sampled every second over
+`/proc/net/tcp*` and `udp*` from 13:14:02 to 13:19:42 (295 samples), across two force-stops and restarts at 13:17:54 and
+13:18:10: one remote address throughout, `192.168.0.199:47615`, the desktop. A connection shorter than a second could
+fall between samples, and the Play Store app's own connections are under its UID, not the app's.
