@@ -49,6 +49,13 @@ IARC questionnaire, category **Utility, Productivity, Communication, or Other** 
 - Digital purchases: **No**.
 - Unrestricted internet access (a browser or search engine): **No** — a link opens in the user's browser only when tapped.
 
+Submitted 2026-10-20 (category "All other app types"; every answer No, including cash rewards or NFTs and news or
+education). Ratings: IARC 3+, PEGI 3, ESRB Everyone, USK 0, ClassInd L. IARC's Live Rating Notice gives the **Global
+Rating ID `5a6d039e-f416-88e8-8000-3fae94adacd2`**: another storefront that has licensed IARC takes it in place of a new
+questionnaire. Fill the questionnaire in again (Policy → App content → Content rating) when a release would change an
+answer — for example users exchanging content with each other, an in-app browser, purchases or rewards, sharing location
+— and not for a release that leaves them all true.
+
 ## Target audience and content
 
 - **Target age groups**: 18 and over only.
