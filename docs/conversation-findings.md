@@ -717,3 +717,37 @@ it was not read or captured). Dark theme, 中文（台灣）.
 | Paused: 「連線已暫停。」; every 接受 and 忽略 disabled | pass |
 | The connection log: eight `inbox op=…` entries (list, accept, submit, ignore), 0 matches for any test title, body or prompt | pass |
 | The saved pairing written back (byte-identical), 繼續: authenticated with the installed desktop at 14:45:56 over Tailscale; its inbox (9 waiting) shown in place of the dev desktop's | pass |
+
+## Message times
+
+The `conversation-times` change: the time under the user's messages and the agent's text, and day headings.
+
+### Build and suites (task 3.3)
+
+| What | Outcome |
+|---|---|
+| `./gradlew test assembleDebug`, with `ConversationTimesTest` (11 tests: which items show a time, where headings go — one day, two days, untimed items, Mon/Tue/Mon, a run, the zone, replies — the day words, and `untilMidnight` across Santiago's 23- and 25-hour days and São Paulo's 2018-11-04), `StringsTest` and `HardcodedTextTest` | pass |
+| `connectedDebugAndroidTest` on the emulator (AVD `Pixel_9`, Android 16), the only device `adb devices` listed: 103 tests, 102 passed, `DesktopRaceTest.droppedAttemptsAreNotCountedAsFailures` skipped by its own assumption | pass |
+
+### On the emulator (task 3.2)
+
+On the emulator, 2026-10-20 08:43–08:48 (+08:00, zone Asia/Taipei), paired with the dev desktop (spekterm `ed7d098`,
+port 47616) by its link (`startPairing` over CDP) opened in the app; driven over adb. A dormant session in `go`,
+last used 2026-10-19, was woken and given two short replies. The clock was set with `cmd alarm set-time` (works from
+the shell on this image) with automatic time off, the 12/24-hour setting with `settings put system time_12_24`;
+both put back afterwards. Screenshots kept outside the repository.
+
+| What | Outcome |
+|---|---|
+| The woken session, English, 12-hour: "Yesterday" over the 2026-10-19 exchange, "11:15 AM" under the user's bubble (end) and the agent's text (start) | pass |
+| A reply sent: "Today" heading before it, "8:44 AM" under it, and "8:44 AM" under the agent's "ok" | pass |
+| Clock set to 23:59:30 with the screen on and the conversation open: "Today" at 23:59:45; at 00:00:25 the same heading read "Yesterday", nothing touched | pass |
+| App sent home, date moved to 2026-10-22 08:30 and 24-hour set, app brought back: at once "Oct 19, 2026" and "Oct 20, 2026" headings, times "11:15", "08:44" | pass |
+| 中文（台灣）(per-app locale), 24-hour: 「2026年10月19日」「2026年10月20日」, times 「11:15」「08:44」 | pass |
+| Real time and 12-hour restored, 中文（台灣）: 「昨天」「今天」, times 「上午11:15」「上午8:44」 | pass |
+| A reply still sending: 「送出中…」 under the "今天" heading, no time; confirmed, it got 「上午8:47」 | pass |
+| The agent's `Bash ls` call between that reply and its answer: no time on the call; 「上午8:47」 under the answer | pass |
+| The jump-to-newest button and following the newest with headings in the list | pass |
+
+The second reply's text arrived garbled (the emulator's keyboard was in Chinese when `adb shell input text` typed);
+not the app's doing.
