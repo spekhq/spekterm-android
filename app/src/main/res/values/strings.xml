@@ -44,7 +44,7 @@
     <string name="pair_title">Pair with spekterm</string>
     <string name="pair_again_title">Pair again</string>
     <string name="pair_revoked">The desktop no longer accepts this phone (it was revoked, or remote access was reset). Pair again.</string>
-    <string name="pair_step_1">On the desktop, open Settings → Remote access → Pair device.</string>
+    <string name="pair_step_1">On the desktop, open Settings → Remote access → Pair a device.</string>
     <string name="pair_step_2">Scan the code, or paste its link.</string>
     <string name="pair_scan">Scan QR code</string>
     <string name="pair_or">or</string>

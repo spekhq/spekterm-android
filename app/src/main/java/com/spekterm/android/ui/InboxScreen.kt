@@ -41,6 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -328,7 +329,12 @@ private fun Body(item: InboxItem) {
     Meta(pluralStringResource(R.plurals.inbox_characters, item.bodyLength.toInt(), item.bodyLength))
 }
 
-private val WHEN = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+/** A date and time in the app's language, read when composed: a format made once at start keeps the language it began with. */
+@Composable
+private fun whenText(at: Long): String {
+    val locale = LocalConfiguration.current.locales[0]
+    return remember(locale, at) { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale).format(Date(at)) }
+}
 
 @Composable
 private fun ScheduledCard(
@@ -344,7 +350,7 @@ private fun ScheduledCard(
     ItemCard {
         val at = item.scheduledAt ?: 0
         Text(
-            if (at <= System.currentTimeMillis()) stringResource(R.string.inbox_due) else stringResource(R.string.inbox_opens_at, WHEN.format(Date(at))),
+            if (at <= System.currentTimeMillis()) stringResource(R.string.inbox_due) else stringResource(R.string.inbox_opens_at, whenText(at)),
             style = MaterialTheme.typography.labelLarge,
         )
         Meta(
@@ -381,7 +387,7 @@ private fun WaitingCard(
             listOfNotNull(
                 item.actor.takeIf { it.isNotEmpty() },
                 item.originLabel.takeIf { it.isNotEmpty() },
-                item.occurredAt.takeIf { it > 0 }?.let { WHEN.format(Date(it)) },
+                item.occurredAt.takeIf { it > 0 }?.let { whenText(it) },
             ).joinToString(" · "),
         )
         if (expired) {

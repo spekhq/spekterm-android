@@ -122,7 +122,9 @@ opened by Privacy policy, runs under its own UID.
 
 Found on the way, not changed here: the inbox shows an item's time in the English format under 中文（台灣）
 ("Oct 19, 2026 9:46 PM"); the pairing screen's first step says "Pair device" where the desktop's button reads "Pair a
-device".
+device". Both fixed after the first release (2026-10-20): the inbox formats its times with the language the
+app is shown in, read when the card is composed (the format was made once, at start, in the language the process began
+with), and the step says "Pair a device".
 
 ## The shrunk build on the Pixel (4.2)
 
