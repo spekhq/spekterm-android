@@ -19,15 +19,14 @@ From `play/listings/<locale>/` — `title.txt`, `short-description.txt`, `full-d
 
 ## App access
 
-**All or some functionality is restricted** → instructions (no username or password exist):
+**All or some functionality is restricted** → one entry, name "Pairing with spekterm on a computer", no username or
+password, and these instructions (the field takes at most 500 characters; this is 495):
 
-> The app is a remote client for spekterm, a desktop app, and shows nothing until it is paired with a computer running
-> spekterm 0.2.14 or later (Linux or an Apple silicon Mac: https://github.com/spekhq/spekterm/releases). To see it work:
-> install spekterm on such a computer; in spekterm, open Settings → Remote access, turn it on, and choose Pair a device; in the
-> app, choose Scan QR code and scan the code spekterm shows (the phone must reach that computer over the same
-> network, Tailscale, or a forwarded port). Seeing an agent work also needs an AI coding agent there, such as Claude Code,
-> with its own account. The app has no account, no server and no demo mode. This video shows pairing, the app's screens,
-> and a notification arriving when an agent waits for the user: <video link>.
+> No account or password. The app is a remote client for spekterm, a desktop app (0.2.14 or later, Linux or Apple silicon
+> Mac: github.com/spekhq/spekterm/releases), and shows nothing until paired. In spekterm: Settings > Remote access, turn it
+> on, Pair a device. In the app: Scan QR code (the phone must reach the computer over LAN, Tailscale or a forwarded port).
+> Agent activity needs an AI coding agent there, such as Claude Code. No demo mode. Video:
+> https://www.youtube.com/watch?v=hX5qdI8e0yg
 
 ## Ads
 
@@ -109,7 +108,7 @@ Declared type: **Special use** (`FOREGROUND_SERVICE_SPECIAL_USE`, `android:foreg
   > happens to look. Events missed while disconnected are replayed when the connection returns, so an interruption delays
   > the notifications rather than losing them, but a delay of minutes or hours defeats their purpose.
 
-- **Video link**: an unlisted YouTube video of the script below.
+- **Video link**: https://www.youtube.com/watch?v=hX5qdI8e0yg (unlisted), the script below.
 
 ### Video script (as recorded on 2026-10-19, on the emulator against a demo desktop, `play-release` D8)
 
