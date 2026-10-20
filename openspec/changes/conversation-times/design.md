@@ -82,6 +82,17 @@ uses uptime and can run late after sleep, so it is restarted on every re-read (k
 re-read, not on the `Clock` value, which a same-day re-read leaves unchanged). Headings (D2) and message times (D1)
 both use `Clock.zone`, so they never disagree.
 
+### D5. Headings stay in sight
+
+Found on the Pixel: with headings only at the start of each day, a user scrolling through a long day could not
+tell which day they were in, and the small, muted pill was easy to miss. Each `Line.Day` is therefore a
+`stickyHeader` of the `LazyColumn`: the current day's heading stays pinned at the top until the next one pushes it
+off. Pinned, it is drawn over the messages, so it is an opaque pill (`surfaceContainerHighest`, an `outlineVariant`
+border, a 2 dp shadow) in `labelLarge` and `onSurface`, while the row around it stays see-through; the message times
+grow from `labelSmall` to `labelMedium`. Sticky headers are ordinary items of the list, so `count` and following the
+newest are unchanged. *Alternative:* a floating overlay computed from the first visible item — rejected: it
+duplicates what the list already does and needs its own measurement of which day is on top.
+
 ### D4. Older desktops and missing times
 
 Every desktop that sends the conversation fills `at`; one with no readable record time sends `0`. Such an item shows

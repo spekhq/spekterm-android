@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,7 +40,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -55,6 +55,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -373,11 +374,12 @@ private fun Entries(c: Conversation?, modifier: Modifier) {
     LaunchedEffect(lastEntry, lastReply, working) { if (follow && count > 0) toNewest() }
     Box(modifier.fillMaxWidth()) {
         LazyColumn(Modifier.fillMaxSize(), state = state) {
-            items(list, key = { it.key }) { item ->
+            for (item in list) {
                 when (item) {
-                    is Line.Of -> ShownRow(item.shown, open, ConversationTimes.timeOf(item.shown)?.let { timeFormat.format(Date(it)) })
-                    is Line.Mine -> ReplyRow(item.reply, now)
-                    is Line.Day -> DayHeading(ConversationTimes.dayWord(item.date, clock.today))
+                    // A day's heading stays pinned at the top while its items scroll under it (D5).
+                    is Line.Day -> stickyHeader(key = item.key) { DayHeading(ConversationTimes.dayWord(item.date, clock.today)) }
+                    is Line.Of -> item(key = item.key) { ShownRow(item.shown, open, ConversationTimes.timeOf(item.shown)?.let { timeFormat.format(Date(it)) }) }
+                    is Line.Mine -> item(key = item.key) { ReplyRow(item.reply, now) }
                 }
             }
             if (working) item(key = "working") { WorkingRow() }
@@ -459,10 +461,13 @@ private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit, time: 
 /** When a message was recorded, under it (`conversation-times` D1). */
 @Composable
 private fun TimeLine(time: String, modifier: Modifier) {
-    Text(time, modifier, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(time, modifier, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-/** The heading before a day's first item: "Today", "Yesterday" or the date (D3). */
+/**
+ * The heading before a day's first item: "Today", "Yesterday" or the date (D3). Pinned over the entries while its
+ * day scrolls, so it is an opaque pill that stands out from them, with the row around it see-through (D5).
+ */
 @Composable
 internal fun DayHeading(word: DayWord) {
     val text = when (word) {
@@ -470,16 +475,20 @@ internal fun DayHeading(word: DayWord) {
         DayWord.Yesterday -> stringResource(R.string.conversation_yesterday)
         is DayWord.Date -> remember(word.date) { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault()).format(word.date) }
     }
-    Box(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {
-        Text(
-            text,
-            Modifier
-                .semantics { heading() }
-                .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape)
-                .padding(horizontal = 10.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            shadowElevation = 2.dp,
+        ) {
+            Text(
+                text,
+                Modifier.semantics { heading() }.padding(horizontal = 14.dp, vertical = 5.dp),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
     }
 }
 

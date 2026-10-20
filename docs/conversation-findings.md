@@ -765,3 +765,19 @@ and the pairing with the installed spekterm kept); driven over adb only while th
 | The row's background work: 「背景執行中：1 個」, the dev desktop's shell; no artifact monitor listed | pass |
 | A session from an earlier day: every one on the installed desktop was dormant, and waking one was not done; carried by the emulator run (「昨天」, dates) | carried |
 | The conversation left open overnight with the screen off, read the next morning | pending (kewang) |
+
+kewang, on the Pixel the same morning, opened sessions from earlier days: their times and headings showed correctly.
+That stands for the overnight check: a day's change while the screen is away is the resume path the emulator run
+covered (the date moved while the app was in the background). kewang also found that while scrolling there was no
+telling which day a message belonged to, and that the headings were too faint (design D5).
+
+### Pinned day headings (task 3.4)
+
+On the emulator, 2026-10-20 09:59–10:00 (+08:00), against the dev desktop restarted, 中文（台灣）, 24-hour:
+
+| What | Outcome |
+|---|---|
+| Scrolled into yesterday's long answer: 「昨天」 pinned at the top over the text, an opaque pill with a border and shadow, the text around it showing | pass |
+| Scrolled up to yesterday's first message: 「昨天」 back in its own place, 「今天」 further down before today's first message | pass |
+| Dark mode: the pinned pill readable over the text | pass |
+| Times under messages in the larger size; `./gradlew test assembleDebug` | pass |

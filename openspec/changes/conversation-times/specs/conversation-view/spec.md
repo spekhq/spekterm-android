@@ -7,7 +7,9 @@ time the desktop says it was recorded, in the phone's time zone and time format.
 messages the agent injected SHALL NOT show a time of their own. Going through the items in the order they are shown,
 the screen SHALL show a heading naming the day — "Today", "Yesterday", or the date, by the phone's time zone —
 before the first item with a recorded time, and before each item with a recorded time whose day differs from that of
-the last item with a recorded time before it — tool calls and thinking included, though they show no time; a day is therefore headed again when recorded times go back across midnight. The headings and
+the last item with a recorded time before it — tool calls and thinking included, though they show no time;
+while the user scrolls, the heading of the day the topmost shown item belongs to SHALL stay at the top of the
+conversation, standing out from the messages, until the next day's heading reaches it; a day is therefore headed again when recorded times go back across midnight. The headings and
 the times SHALL follow the phone's current date, time zone and clock without the user doing anything: after
 midnight, after the phone slept, and after its date, time or time zone changed. An entry the desktop sends without a
 time SHALL show no time and SHALL start no day. A reply of the user's that is not yet, or not, in the conversation
@@ -25,6 +27,12 @@ SHALL show no time and SHALL start no day.
 - **WHEN** a session's conversation started yesterday evening and went on this morning
 - **THEN** a "Yesterday" heading comes before yesterday's first item and a "Today" heading before this morning's
   first item
+
+#### Scenario: Scrolling through a long day
+
+- **WHEN** the user scrolls up through yesterday's long answer, whose heading has scrolled out of view
+- **THEN** "Yesterday" stays shown at the top of the conversation over the answer, and gives way to "Today" when
+  today's heading reaches the top
 
 #### Scenario: Midnight while the screen is open
 
