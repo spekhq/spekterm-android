@@ -138,6 +138,7 @@
     <string name="conversation_reply_not_yet_confirmed">尚未確認</string>
     <string name="conversation_reply_waiting_for_agent">等 agent 接收</string>
     <string name="conversation_reply_not_in_conversation_yet">還沒出現在對話裡 —— 請到桌機確認</string>
+    <string name="conversation_reply_command_not_shown">沒有出現在對話裡 —— agent 的 CLI 不認得的指令，或在桌機開了畫面的指令，都不會出現在對話裡；請到桌機確認</string>
     <string name="conversation_reply_not_shown_after_work">在 agent 處理中時送出 —— 沒有出現在對話裡；請到桌機確認</string>
     <string name="conversation_reply_may_not_have_been_sent">可能沒有送出 —— 請到桌機確認</string>
     <string name="conversation_reply_not_submitted">已輸入到 agent 的輸入框但沒有送出 —— agent 的狀態變了（例如出現了選項）。請到桌機上完成。</string>
@@ -554,4 +555,31 @@
     <string name="report_title">回報問題</string>
     <string name="report_text">agent 寫的內容來自你電腦上你自己的 agent，本 app 的開發者看不到。要回報本 app 的問題，請到 GitHub 開 issue；這段對話的任何內容都不會附上。</string>
     <string name="report_open">回報</string>
+    <!-- The agent's model and usage, and its skills (agent-usage-and-skills) -->
+    <string name="usage_details">用量詳情</string>
+    <string name="usage_model_effort">%1$s（%2$s）</string>
+    <string name="usage_context_of">Context %1$d%%（共 %2$s）</string>
+    <string name="usage_context_percent">Context %1$d%%</string>
+    <string name="usage_context_size">Context 視窗 %1$s</string>
+    <string name="usage_limit_five_hour">5 小時額度 %1$d%%</string>
+    <string name="usage_limit_seven_day">7 天額度 %1$d%%</string>
+    <string name="usage_row_model">Model</string>
+    <string name="usage_row_effort">Effort</string>
+    <string name="usage_row_context">Context</string>
+    <string name="usage_row_cost">花費</string>
+    <string name="usage_row_five_hour">5 小時額度</string>
+    <string name="usage_row_seven_day">7 天額度</string>
+    <string name="usage_detail_context_of">%2$s 個 token 中的 %1$d%%</string>
+    <string name="usage_detail_context_size">%1$s 個 token</string>
+    <string name="usage_detail_limit_resets">%1$d%% · %2$s 重置</string>
+    <string name="usage_detail_reset_past">已於 %1$s 重置，之後還沒有回報</string>
+    <string name="usage_footnote">這是 agent 最後一次回報給桌機的數值。額度是整個帳號的，不是這個 session 的。</string>
+    <string name="skills_title">Skill</string>
+    <string name="skills_search">搜尋 skill</string>
+    <string name="skills_unknown">agent 會在這個 session 的第一則訊息時列出它的 skill，/clear 之後也會重新列。先送一則訊息，再回來看。</string>
+    <string name="skills_none">這個 session 沒有 skill。</string>
+    <string name="skills_no_match">沒有符合的 skill。</string>
+    <string name="skills_builtin_note">/compact 這類內建指令不在清單裡，可以直接輸入。</string>
+    <string name="conversation_skills">Skill</string>
+    <string name="conversation_long_command">這麼長的指令會被當成一般訊息送出，不會當成指令執行。</string>
 </resources>

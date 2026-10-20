@@ -15,7 +15,9 @@ class StringsTest {
 
     /** Names whose zh-TW text may equal the English one: names of things, not sentences. */
     private val sameInBoth = setOf("app_name", "conversation_title_fallback", "sessions_agent", "sessions_shell", "openspec_tab_spec", "openspec_tab_specs",
-        "background_kind_agent", "background_kind_shell", "background_kind_monitor")
+        "background_kind_agent", "background_kind_shell", "background_kind_monitor",
+        // The agent's own terms, kept as they are in zh-TW (`agent-usage-and-skills`).
+        "usage_context_percent", "usage_row_model", "usage_row_effort", "usage_row_context")
 
     private data class Entry(val text: String, val translatable: Boolean, val plural: Map<String, String> = emptyMap())
 

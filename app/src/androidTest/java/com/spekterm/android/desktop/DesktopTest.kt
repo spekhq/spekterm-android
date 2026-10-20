@@ -127,6 +127,51 @@ class DesktopTest {
     }
 
     @Test
+    fun usageAndSkillsBeforeTheWatchAnswerAreHeldAndOtherSessionsIgnored() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            standard { req, ws ->
+                ws.send(evt("conversation.status", """{"sessionId":"s1","model":"Opus 5.5"}"""))
+                ws.send(evt("conversation.skills", """{"sessionId":"s1","skills":[{"name":"simplify","description":null}]}"""))
+                ws.send(evt("conversation.status", """{"sessionId":"s2","model":"Other"}"""))
+                ws.send(evt("conversation.skills", """{"sessionId":"s2","skills":null}"""))
+                ws.send(wait("ready"))
+                ws.send(update(user("u1", "hi"), reset = true))
+                ws.send(ok(req.id, """{"sessionId":"s1"}"""))
+            }
+        }
+        connect(desktop)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching && it.entries.isNotEmpty() }
+        delay(300)
+        val c = Desktop.conversation.value!!
+        assertEquals("Opus 5.5", c.usage?.model)
+        assertEquals(Skills.Known(listOf(com.spekterm.android.net.Skill("simplify"))), c.skills)
+    }
+
+    @Test
+    fun aReWatchAfterAReconnectStartsWithoutUsageOrSkills() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            standard { req, ws ->
+                ws.send(evt("conversation.status", """{"sessionId":"s1","model":"Opus 5.5"}"""))
+                ws.send(evt("conversation.skills", """{"sessionId":"s1","skills":null}"""))
+                ws.send(wait("ready"))
+                ws.send(ok(req.id, """{"sessionId":"s1"}"""))
+            }
+        }
+        val connection = connect(desktop)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching && it.skills == Skills.Unknown && it.usage != null }
+        connection.cancel()
+        until { it.phase == Phase.DISCONNECTED && it.usage == null && it.skills == null }
+        val again = Scripted().apply { standard { req, ws -> ws.send(wait("ready")); ws.send(ok(req.id, """{"sessionId":"s1"}""")) } }
+        connect(again)
+        val c = until { it.watch == Watch.Watching }
+        delay(300)
+        assertNull(Desktop.conversation.value!!.usage)
+        assertNull(c.skills)
+    }
+
+    @Test
     fun anOldUpdateRedeliveringHeldEntriesShowsNoDuplicates() = runBlocking<Unit> {
         val desktop = Scripted().apply { standard() }
         connect(desktop)

@@ -417,6 +417,85 @@ data class ConversationEnded(val sessionId: String, val reason: String = "") {
     }
 }
 
+/**
+ * `conversation.status`: the model and usage the watched session's agent last reported (`agent-usage` D1). Every value
+ * is read on its own and is null when missing or malformed; an event with the session id alone is a usage with no value.
+ */
+data class AgentUsage(
+    val sessionId: String,
+    val model: String? = null,
+    val effort: String? = null,
+    /** Context used, 0–100. */
+    val contextPercent: Double? = null,
+    /** The context window, in tokens. */
+    val contextSize: Long? = null,
+    val costUsd: Double? = null,
+    val fiveHour: UsageWindow? = null,
+    val sevenDay: UsageWindow? = null,
+) {
+    /** Whether the desktop reported anything at all. */
+    val reported: Boolean get() = listOf(model, effort, contextPercent, contextSize, costUsd, fiveHour, sevenDay).any { it != null }
+
+    companion object {
+        fun decode(element: JsonElement?): AgentUsage? {
+            val o = element as? JsonObject ?: return null
+            val context = o["context"] as? JsonObject
+            val limits = o["rateLimits"] as? JsonObject
+            return AgentUsage(
+                sessionId = o.string("sessionId") ?: return null,
+                model = o.string("model")?.trim()?.ifEmpty { null },
+                effort = o.string("effort")?.trim()?.ifEmpty { null },
+                contextPercent = context?.finite("percent")?.coerceIn(0.0, 100.0),
+                contextSize = context?.finite("size")?.takeIf { it >= 0 }?.toLong(),
+                costUsd = o.finite("costUsd")?.takeIf { it >= 0 },
+                fiveHour = UsageWindow.decode(limits?.get("fiveHour")),
+                sevenDay = UsageWindow.decode(limits?.get("sevenDay")),
+            )
+        }
+    }
+}
+
+/** One rate-limit window of the account: [percent] used, 0–100, and when it resets (epoch ms), if known. */
+data class UsageWindow(val percent: Double, val resetsAt: Long? = null) {
+    companion object {
+        fun decode(element: JsonElement?): UsageWindow? {
+            val o = element as? JsonObject ?: return null
+            return UsageWindow(
+                percent = o.finite("percent")?.coerceIn(0.0, 100.0) ?: return null,
+                resetsAt = o.finite("resetsAt")?.takeIf { it > 0 }?.toLong(),
+            )
+        }
+    }
+}
+
+/** A skill the agent can invoke as `/name`. [description] is the agent's plain text, or null. */
+data class Skill(val name: String, val description: String? = null)
+
+/**
+ * `conversation.skills`. [skills] null means no list is known — the desktop said so, or sent something malformed —
+ * never an empty list (`skill-commands` D1).
+ */
+data class SkillList(val sessionId: String, val skills: List<Skill>?) {
+    /** What the log records: the count, or null when no list is known (design D7). */
+    val logCount: Int? get() = skills?.size
+
+    companion object {
+        fun decode(element: JsonElement?): SkillList? {
+            val o = element as? JsonObject ?: return null
+            val sessionId = o.string("sessionId") ?: return null
+            val items = o["skills"] as? JsonArray ?: return SkillList(sessionId, null)
+            val seen = HashSet<String>()
+            val skills = items.mapNotNull { item ->
+                val s = item as? JsonObject ?: return@mapNotNull null
+                val name = s.string("name")?.takeIf { name -> name.isNotEmpty() && name.none { it.isWhitespace() || it == '\uFEFF' } } ?: return@mapNotNull null
+                if (!seen.add(name)) return@mapNotNull null
+                Skill(name, s.string("description")?.trim()?.ifEmpty { null })
+            }
+            return SkillList(sessionId, skills)
+        }
+    }
+}
+
 /** The answer to `sessions.create` and `sessions.wake`. */
 @Serializable
 data class CreateResult(val sessionId: String)
@@ -465,5 +544,9 @@ internal fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimit
 
 internal fun JsonObject.long(key: String): Long? =
     (this[key] as? JsonPrimitive)?.takeUnless { it.isString }?.let { it.longOrNull ?: it.doubleOrNull?.toLong() }
+
+/** A JSON number that is finite; a string, a boolean or a number too large for a double is none. */
+internal fun JsonObject.finite(key: String): Double? =
+    (this[key] as? JsonPrimitive)?.takeUnless { it.isString }?.doubleOrNull?.takeIf { it.isFinite() }
 
 internal fun JsonObject.bool(key: String): Boolean = (this[key] as? JsonPrimitive)?.booleanOrNull ?: false

@@ -116,6 +116,11 @@ object SpekIcons {
         "M19,3H5c-1.11,0 -2,0.9 -2,2v14c0,1.1 0.89,2 2,2h14c1.11,0 2,-0.9 2,-2V5c0,-1.1 -0.89,-2 -2,-2zM10,17l-5,-5 " +
             "1.41,-1.41L10,14.17l7.59,-7.59L19,8l-9,9z",
     )
+    /** A slash in a rounded square: the session's skills (`agent-usage-and-skills` D4). Drawn for the app. */
+    val Skills = icon(
+        "Skills",
+        "M19,5v14H5V5h14m0,-2H5c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2V5c0,-1.1 -0.9,-2 -2,-2zM14.6,7h-1.9l-3.3,10h1.9z",
+    )
     val CheckBoxOutline = icon(
         "CheckBoxOutline",
         "M19,5v14H5V5h14m0,-2H5c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2V5c0,-1.1 -0.9,-2 -2,-2z",

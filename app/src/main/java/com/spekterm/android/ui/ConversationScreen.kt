@@ -85,7 +85,11 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -117,6 +121,7 @@ import com.spekterm.android.desktop.Reply
 import com.spekterm.android.desktop.Screen
 import com.spekterm.android.desktop.SessionAction
 import com.spekterm.android.desktop.SessionsView
+import com.spekterm.android.desktop.SkillInsert
 import com.spekterm.android.desktop.Watch
 import com.spekterm.android.net.Entry
 import com.spekterm.android.net.Operations
@@ -159,6 +164,7 @@ fun ConversationScreen(
     val dialogs = rememberSessionDialogs { if (it.kind == SessionAction.Kind.CLOSE) onBack() }
     var menu by remember { mutableStateOf(false) }
     var reporting by remember { mutableStateOf(false) }
+    var usageOpen by remember { mutableStateOf(false) }
     // Held here, not in the item, so it survives the work ending and coming back (`background-tasks` D4).
     var backgroundOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
     // A first prompt from the inbox waiting in this session (`inbox` design D7).
@@ -225,6 +231,12 @@ fun ConversationScreen(
                     Screen.Shell -> CenteredMessage(SpekIcons.Shell, stringResource(R.string.conversation_shell))
                     Screen.Dormant -> Dormant(sessionId)
                     else -> {
+                        // What the agent last reported, while watched (`agent-usage-and-skills` D3).
+                        c?.usage?.takeIf { c.watch.active && it.reported }?.let { usage ->
+                            val now = rememberUsageNow(usage)
+                            UsageRow(usage, now) { usageOpen = true }
+                            if (usageOpen) UsageDialog(usage, now) { usageOpen = false }
+                        }
                         if (screen == Screen.Content && c != null) ContentNotices(c)
                         // From the last list held, as the close offer is (`background-tasks` D4).
                         val background = session?.let { SessionsView.background(it) }.orEmpty()
@@ -659,6 +671,7 @@ private fun ReplyRow(reply: Reply, now: Long) {
             Reply.Label.WAITING_FOR_AGENT -> R.string.conversation_reply_waiting_for_agent
             Reply.Label.NOT_IN_CONVERSATION_YET -> R.string.conversation_reply_not_in_conversation_yet
             Reply.Label.NOT_SHOWN_AFTER_WORK -> R.string.conversation_reply_not_shown_after_work
+            Reply.Label.COMMAND_NOT_SHOWN -> R.string.conversation_reply_command_not_shown
             Reply.Label.MAY_NOT_HAVE_BEEN_SENT -> R.string.conversation_reply_may_not_have_been_sent
             Reply.Label.NOT_SUBMITTED -> R.string.conversation_reply_not_submitted
         },
@@ -693,13 +706,17 @@ private fun ReplyRow(reply: Reply, now: Long) {
 }
 
 @Composable
-private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, paused: Boolean, answerable: Boolean, canAttach: Boolean, inboxPrompt: Boolean = false) {
+internal fun Composer(sessionId: String, c: Conversation?, connected: Boolean, paused: Boolean, answerable: Boolean, canAttach: Boolean, inboxPrompt: Boolean = false) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
-    // The draft is held by Desktop across leaving the screen; plain `remember`, never saved instance state.
-    var text by remember(sessionId) { mutableStateOf(c?.draft ?: "") }
-    LaunchedEffect(c?.draftReturns) { if (c != null && c.draftReturns > 0) text = c.draft }
+    // The draft is held by Desktop across leaving the screen; plain `remember`, never saved instance state. A value,
+    // not a string, so a chosen skill can place the cursor (`agent-usage-and-skills` D4).
+    var field by remember(sessionId) { mutableStateOf((c?.draft ?: "").let { TextFieldValue(it, TextRange(it.length)) }) }
+    val text = field.text
+    LaunchedEffect(c?.draftReturns) { if (c != null && c.draftReturns > 0) field = TextFieldValue(c.draft, TextRange(c.draft.length)) }
+    var choosingSkill by remember { mutableStateOf(false) }
+    val focus = remember { FocusRequester() }
     val inFlight = c?.replies?.any { it.state == Reply.State.SENDING } == true
     val attachments = c?.attachments.orEmpty()
     val blocked = Replies.blocked(connected, paused, c?.watch ?: Watch.Idle, c?.wait ?: WaitState.UNKNOWN, c?.pending, inFlight, text, attachments, inboxPrompt)
@@ -720,6 +737,10 @@ private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, pa
         blockedText(blocked, answerable)?.let {
             Text(it.text(), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
+        // Past the agent CLI's limit, a command is taken as pasted text (D6); sending stays allowed.
+        if (Replies.pastedCommand(text, attachments.map { it.name })) {
+            Text(stringResource(R.string.conversation_long_command), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        }
         HorizontalDivider(color = colors.outlineVariant)
         Column(Modifier.fillMaxWidth().background(colors.surfaceContainer).padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (attachments.isNotEmpty()) {
@@ -728,6 +749,21 @@ private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, pa
                 }
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                // The session's skills, once the desktop said anything about them this watch (D4).
+                val skills = c?.skills?.takeIf { c.watch.active }
+                if (skills != null) {
+                    IconButton(enabled = connected && !paused && !c.closed, onClick = { choosingSkill = true }) { Icon(SpekIcons.Skills, stringResource(R.string.conversation_skills)) }
+                    if (choosingSkill) {
+                        SkillsSheet(skills, { choosingSkill = false }) { skill ->
+                            choosingSkill = false
+                            val inserted = SkillInsert.insert(field.text, skill.name)
+                            field = TextFieldValue(inserted.text, TextRange(inserted.cursor))
+                            // Set by the program, so not through onValueChange: kept for leaving the screen.
+                            Desktop.setDraft(sessionId, inserted.text)
+                            focus.requestFocus()
+                        }
+                    }
+                }
                 if (canAttach) {
                     Box {
                         IconButton(enabled = connected && !paused && c?.closed != true, onClick = { picking = true }) { Icon(SpekIcons.Attach, stringResource(R.string.conversation_attach)) }
@@ -744,12 +780,12 @@ private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, pa
                     }
                 }
                 TextField(
-                    value = text,
+                    value = field,
                     onValueChange = {
-                        text = it
-                        Desktop.setDraft(sessionId, it)
+                        if (it.text != field.text) Desktop.setDraft(sessionId, it.text)
+                        field = it
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).focusRequester(focus),
                     placeholder = { Text(stringResource(R.string.conversation_reply_hint)) },
                     minLines = 1,
                     maxLines = 6,
@@ -767,8 +803,8 @@ private fun Composer(sessionId: String, c: Conversation?, connected: Boolean, pa
                     enabled = blocked == null,
                     onClick = {
                         val sending = text
-                        text = ""
-                        scope.launch { if (!Desktop.send(sessionId, sending)) text = sending }
+                        field = TextFieldValue("")
+                        scope.launch { if (!Desktop.send(sessionId, sending)) field = TextFieldValue(sending, TextRange(sending.length)) }
                     },
                     modifier = Modifier.padding(bottom = 4.dp),
                 ) { Icon(SpekIcons.Send, stringResource(R.string.conversation_send)) }

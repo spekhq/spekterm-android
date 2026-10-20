@@ -4,7 +4,9 @@ import com.spekterm.android.net.ConversationEnded
 import com.spekterm.android.net.ConversationUpdate
 import com.spekterm.android.net.Entry
 import com.spekterm.android.net.Pending
+import com.spekterm.android.net.AgentUsage
 import com.spekterm.android.net.Prompt
+import com.spekterm.android.net.Skill
 import com.spekterm.android.net.SessionList
 import com.spekterm.android.net.WaitState
 
@@ -21,6 +23,18 @@ sealed interface Watch {
     data class Refused(val code: String) : Watch
 
     val active: Boolean get() = this == Requested || this == Watching
+}
+
+/** The skills of the watched session as the desktop last stated them (`agent-usage-and-skills` D2). */
+sealed interface Skills {
+    /** The desktop knows no list yet: no first message, or just after `/clear`. Never shown as an empty list. */
+    data object Unknown : Skills
+
+    data class Known(val list: List<Skill>) : Skills
+
+    companion object {
+        fun of(skills: List<Skill>?): Skills = skills?.let(::Known) ?: Unknown
+    }
 }
 
 /** What the conversation screen can say about its content (design D4). */
@@ -74,6 +88,13 @@ data class Conversation(
      * (`PREFILL_PENDING`, `inbox` design D7), until the next send.
      */
     val prefillRefused: Boolean = false,
+    /**
+     * The model and usage the agent last reported, for the current watch; null before its first `conversation.status`
+     * — always so with a desktop before 0.2.15 (`agent-usage-and-skills` D2, D5).
+     */
+    val usage: AgentUsage? = null,
+    /** The session's skills, for the current watch; null before its first `conversation.skills`. */
+    val skills: Skills? = null,
 ) {
     /** The uuid to resume from: the last held entry's, or none when nothing is held. */
     val afterUuid: String? get() = entries.lastOrNull()?.uuid?.takeIf { it.isNotEmpty() }
@@ -123,7 +144,7 @@ object ConversationReducer {
     }
 
     /** A watch is being sent: catching up, and nothing known about the wait state yet. */
-    fun requested(c: Conversation) = c.copy(watch = Watch.Requested, phase = Phase.CATCHING_UP, wait = WaitState.UNKNOWN, pending = null, prompt = null, notRunning = false)
+    fun requested(c: Conversation) = c.copy(watch = Watch.Requested, phase = Phase.CATCHING_UP, wait = WaitState.UNKNOWN, pending = null, prompt = null, notRunning = false, usage = null, skills = null)
 
     fun answered(c: Conversation, errorCode: String?): Conversation = when (errorCode) {
         null -> c.copy(watch = Watch.Watching)
@@ -132,7 +153,7 @@ object ConversationReducer {
         else -> c.copy(watch = Watch.Refused(errorCode), phase = Phase.IDLE)
     }
 
-    fun unwatched(c: Conversation) = c.copy(watch = Watch.Idle, phase = if (c.phase == Phase.WINDOW_GONE) c.phase else Phase.IDLE, wait = WaitState.UNKNOWN, pending = null, prompt = null)
+    fun unwatched(c: Conversation) = c.copy(watch = Watch.Idle, phase = if (c.phase == Phase.WINDOW_GONE) c.phase else Phase.IDLE, wait = WaitState.UNKNOWN, pending = null, prompt = null, usage = null, skills = null)
 
     fun disconnected(c: Conversation) = Replies.disconnected(
         c.copy(
@@ -143,6 +164,8 @@ object ConversationReducer {
             wait = WaitState.UNKNOWN,
             pending = null,
             prompt = null,
+            usage = null,
+            skills = null,
             // An answer still waiting may or may not have been written.
             answer = c.answer?.let { if (it.inFlight) it.copy(outcome = AnswerOutcome.Unknown) else it },
         ),
@@ -154,7 +177,7 @@ object ConversationReducer {
      * the process not running, which never re-watches by itself.
      */
     fun ended(c: Conversation, reason: String): Conversation {
-        val idle = c.copy(watch = Watch.Idle, wait = WaitState.UNKNOWN, pending = null, prompt = null)
+        val idle = c.copy(watch = Watch.Idle, wait = WaitState.UNKNOWN, pending = null, prompt = null, usage = null, skills = null)
         return when (reason) {
             ConversationEnded.WINDOW -> idle.copy(phase = Phase.WINDOW_GONE)
             ConversationEnded.CLOSED, ConversationEnded.EXITED -> gone(idle.copy(phase = Phase.IDLE))

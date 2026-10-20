@@ -346,4 +346,74 @@ class RepliesTest {
         assertEquals("Refused", SendOutcome.Refused(RemoteError.WAIT_STATE).logName)
         assertEquals("Unknown", SendOutcome.Unknown.logName)
     }
+
+    // ---- Slash commands (`agent-usage-and-skills` D5, D6) ----
+
+    private fun withUsage(c: Conversation) = c.copy(usage = com.spekterm.android.net.AgentUsage("s1"))
+
+    @Test
+    fun aReplyRecordsWhetherTheDesktopShowsCommandsAtTheSend() {
+        val shown = send(withUsage(watching()), "/simplify")
+        assertTrue(shown.replies.single().commandsShown)
+        assertFalse(send(watching(), "/simplify").replies.single().commandsShown)
+        // A dropped connection clears the usage, not what the reply recorded.
+        assertTrue(ConversationReducer.disconnected(shown).replies.single().commandsShown)
+    }
+
+    @Test
+    fun aCommandNotShownSaysWhyOnADesktopThatShowsCommands() {
+        val ready = send(withUsage(watching(WaitState.READY)), "/no-such-skill", at = 1_000).replies.single()
+        assertEquals(Reply.Label.NOT_YET_CONFIRMED, ready.label(1_000 + 29_999))
+        assertEquals(Reply.Label.COMMAND_NOT_SHOWN, ready.label(1_000 + 30_000))
+        assertTrue(Reply.Label.COMMAND_NOT_SHOWN.settled)
+        var busy = send(withUsage(watching(WaitState.BUSY)), "/simplify", at = 0)
+        busy = waited(busy, WaitState.READY, 10_000)
+        assertEquals(Reply.Label.COMMAND_NOT_SHOWN, busy.replies.single().label(40_000))
+    }
+
+    @Test
+    fun otherRepliesKeepTheirMarks() {
+        // An older desktop: a command that ran never matched there.
+        assertEquals(Reply.Label.NOT_IN_CONVERSATION_YET, send(watching(), "/simplify").replies.single().label(30_000))
+        assertEquals(Reply.Label.NOT_IN_CONVERSATION_YET, send(withUsage(watching()), "hello").replies.single().label(30_000))
+        val long = "/simplify " + "x".repeat(800)
+        assertEquals(Reply.Label.NOT_IN_CONVERSATION_YET, send(withUsage(watching()), long).replies.single().label(30_000))
+        var busy = send(withUsage(watching(WaitState.BUSY)), "plain")
+        busy = waited(busy, WaitState.READY, 0)
+        assertEquals(Reply.Label.NOT_SHOWN_AFTER_WORK, busy.replies.single().label(30_000))
+        val c = withUsage(watching())
+        assertEquals(Reply.Label.SENDING, Replies.sent(c, 1, "/x").replies.single().label(60_000))
+        assertEquals(Reply.Label.MAY_NOT_HAVE_BEEN_SENT, send(c, "/x", outcome = SendOutcome.Unknown).replies.single().label(60_000))
+        assertEquals(Reply.Label.NOT_SUBMITTED, send(c, "/x", outcome = SendOutcome.NotSubmitted).replies.single().label(60_000))
+    }
+
+    @Test
+    fun whatIsACommand() {
+        for (t in listOf("/simplify", " /x", "/opsx:apply 1.2")) assertTrue(t, Replies.command(t))
+        for (t in listOf("/", "/ x", "/\u3000x", "a/b", "", "x /y")) assertFalse(t, Replies.command(t))
+    }
+
+    @Test
+    fun theLineTheDesktopWrites() {
+        assertEquals("/x a b", Replies.normalized("  /x   a b "))
+        assertEquals("/x a\nb", Replies.normalized("/x a\nb\n"))
+        assertEquals("/x a", Replies.normalized("/x\u00a0\u3000a"))
+        assertEquals("/x a", Replies.normalized("/x\n a"))
+        assertEquals("/x", Replies.normalized(" /x "))
+        // Anything else is only cleaned, as the desktop leaves it.
+        assertEquals(" plain  text ", Replies.normalized(" plain\u0007  text "))
+    }
+
+    @Test
+    fun aCommandLongerThanTheCliRunsIsAPaste() {
+        val name = "/simplify "
+        assertFalse(Replies.pastedCommand(name + "x".repeat(800 - name.length)))
+        assertFalse(Replies.pastedCommand(name + "字".repeat(800 - name.length)))
+        // 800 only once trimmed and collapsed.
+        assertFalse(Replies.pastedCommand("  /simplify     " + "x".repeat(800 - name.length) + "   "))
+        assertTrue(Replies.pastedCommand(name + "x".repeat(801 - name.length)))
+        assertFalse(Replies.pastedCommand("x".repeat(801)))
+        assertTrue(Replies.pastedCommand(name + "x".repeat(640), listOf("photo.jpg")))
+        assertFalse(Replies.pastedCommand(name + "x".repeat(490), listOf("photo.jpg")))
+    }
 }

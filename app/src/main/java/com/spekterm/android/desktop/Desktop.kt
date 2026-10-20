@@ -1,6 +1,7 @@
 package com.spekterm.android.desktop
 
 import com.spekterm.android.log.ConnectionLog.Kind
+import com.spekterm.android.net.AgentUsage
 import com.spekterm.android.net.AnswerResult
 import com.spekterm.android.net.ConnectionClosedException
 import com.spekterm.android.net.ConversationEnded
@@ -28,6 +29,7 @@ import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.SendResult
 import com.spekterm.android.net.ServerFrame
 import com.spekterm.android.net.SessionList
+import com.spekterm.android.net.SkillList
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.Base64
@@ -223,6 +225,17 @@ object Desktop {
             }
             "conversation.wait" -> ConversationWait.decode(event.data)?.let { wait ->
                 change(wait.sessionId) { ConversationReducer.waited(it, wait.state, wait.pending, now(), wait.prompt) }
+            }
+            "conversation.status" -> AgentUsage.decode(event.data)?.let { usage ->
+                val before = mutableConversation.value?.takeIf { it.sessionId == usage.sessionId }?.usage
+                change(usage.sessionId) { it.copy(usage = usage) }
+                // Which values are present, when that changes: context and cost change with every call (D7).
+                val fields = UsageLine.logFields(usage)
+                if (before == null || UsageLine.logFields(before) != fields) log(Kind.CONVERSATION, "event" to "status", "values" to fields)
+            }
+            "conversation.skills" -> SkillList.decode(event.data)?.let { list ->
+                change(list.sessionId) { it.copy(skills = Skills.of(list.skills)) }
+                log(Kind.CONVERSATION, "event" to "skills", "count" to list.logCount)
             }
             "conversation.ended" -> Frames.decodeOrNull<ConversationEnded>(event.data)?.let { ended ->
                 val c = mutableConversation.value

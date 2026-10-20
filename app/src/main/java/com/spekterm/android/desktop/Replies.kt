@@ -32,6 +32,11 @@ data class Reply(
     val attachments: List<Attachment> = emptyList(),
     /** Exactly what the desktop wrote (`r.text`); `null` before the answer, or from a desktop before 29a5d0a. */
     val written: String? = null,
+    /**
+     * The desktop had sent a usage event for the watch when this was sent, so it is 0.2.15 or later and shows a
+     * command that ran as the line typed (`agent-usage-and-skills` D5). Read at the send, never live.
+     */
+    val commandsShown: Boolean = false,
 ) {
     enum class State { SENDING, SUBMITTED, MAY_NOT_HAVE_BEEN_SENT, NOT_SUBMITTED }
 
@@ -44,6 +49,9 @@ data class Reply(
         NOT_SHOWN_AFTER_WORK(true),
         MAY_NOT_HAVE_BEEN_SENT(true),
         NOT_SUBMITTED(true),
+
+        /** Not in the conversation, and a slash command: one the agent's CLI does not know never is (D5). */
+        COMMAND_NOT_SHOWN(true),
     }
 
     fun label(now: Long): Label = when (state) {
@@ -54,11 +62,21 @@ data class Reply(
             sentWhile == WaitState.BUSY -> when {
                 stoppedAt == null -> Label.WAITING_FOR_AGENT
                 inGrace(now) -> Label.NOT_YET_CONFIRMED
-                else -> Label.NOT_SHOWN_AFTER_WORK
+                else -> notShown(Label.NOT_SHOWN_AFTER_WORK)
             }
-            now - (submittedAt ?: now) >= Replies.NOT_SEEN_MS -> Label.NOT_IN_CONVERSATION_YET
+            now - (submittedAt ?: now) >= Replies.NOT_SEEN_MS -> notShown(Label.NOT_IN_CONVERSATION_YET)
             else -> Label.NOT_YET_CONFIRMED
         }
+    }
+
+    /**
+     * A slash command that would run, sent to a desktop that shows one as typed, says why it may never appear (D5).
+     * What the desktop wrote already names the attachments; before its answer they are counted from here.
+     */
+    private fun notShown(plain: Label): Label {
+        val line = written ?: text
+        val named = if (written != null) emptyList() else attachments.map { it.name }
+        return if (commandsShown && Replies.command(line) && !Replies.pastedCommand(line, named)) Label.COMMAND_NOT_SHOWN else plain
     }
 
     /**
@@ -157,8 +175,42 @@ object Replies {
     /** The desktop's cleaning (`cleanReply`): C0 controls except newline, and DEL, removed. */
     fun clean(text: String): String = text.replace(CONTROL, "")
 
-    /** JavaScript's `trim()`: white space and line terminators, U+FEFF included. */
-    fun jsTrim(text: String): String = text.trim { it.isWhitespace() || it == '\uFEFF' }
+    /** JavaScript's `\s`: white space and line terminators, U+FEFF and the Unicode spaces (U+3000 among them) included. */
+    fun jsSpace(c: Char): Boolean = c.isWhitespace() || c == '\uFEFF'
+
+    /** JavaScript's `trim()`. */
+    fun jsTrim(text: String): String = text.trim(::jsSpace)
+
+    /** The agent's CLI runs a slash command whose written line is at most this long; a longer one is a paste (D6). */
+    const val PASTE_CHARS = 800
+
+    /** What one attachment adds to the written line at most: the desktop's sentence, a path and its name (D6). */
+    const val ATTACHMENT_CHARS = 250
+
+    /** A slash and a character that is not white space, after any leading white space. */
+    fun command(text: String): Boolean {
+        val d = text.dropWhile(::jsSpace)
+        return d.length >= 2 && d[0] == '/' && !jsSpace(d[1])
+    }
+
+    /**
+     * The line the desktop writes for [text] (`slashForm(cleanReply(text))`): a slash command trimmed with the white
+     * space after its name collapsed to one space; any other text cleaned only.
+     */
+    fun normalized(text: String): String {
+        val cleaned = clean(text)
+        val t = jsTrim(cleaned)
+        if (!t.startsWith("/")) return cleaned
+        val end = t.indexOfFirst(::jsSpace)
+        if (end <= 1) return t
+        return t.substring(0, end) + " " + t.substring(end).dropWhile(::jsSpace)
+    }
+
+    /** A slash command too long to run as one: it arrives as a plain message (D6). */
+    fun pastedCommand(text: String, attachmentNames: List<String> = emptyList()): Boolean {
+        val line = normalized(text)
+        return command(line) && line.length + attachmentNames.sumOf { ATTACHMENT_CHARS + it.length } > PASTE_CHARS
+    }
 
     /** The reply gate (design D6). `null` when the text can be sent now. */
     fun blocked(
@@ -207,6 +259,7 @@ object Replies {
             held = c.entries.mapNotNullTo(HashSet()) { it.uuid.takeIf(String::isNotEmpty) },
             anchor = ConversationReducer.keys(c.entries).lastOrNull(),
             attachments = attachments,
+            commandsShown = c.usage != null,
         )
         val sentIds = attachments.map { it.localId }.toSet()
         return c.copy(replies = c.replies + reply, draft = "", attachments = c.attachments.filter { it.localId !in sentIds }, attachNote = null, prefillRefused = false)

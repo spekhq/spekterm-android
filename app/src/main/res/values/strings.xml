@@ -133,6 +133,7 @@
     <string name="conversation_reply_not_yet_confirmed">Not yet confirmed</string>
     <string name="conversation_reply_waiting_for_agent">Waiting for the agent to take it</string>
     <string name="conversation_reply_not_in_conversation_yet">Not in the conversation yet — check the desktop</string>
+    <string name="conversation_reply_command_not_shown">Not in the conversation — a command the agent\'s CLI doesn\'t know, or one that opened something on the desktop, never appears; check the desktop</string>
     <string name="conversation_reply_not_shown_after_work">Sent while the agent worked — not in the conversation; check the desktop</string>
     <string name="conversation_reply_may_not_have_been_sent">May not have been sent — check the desktop</string>
     <string name="conversation_reply_not_submitted">Typed into the agent\'s input but not sent — the agent\'s state changed (for example, a choice appeared). Finish it on the desktop.</string>
@@ -566,4 +567,32 @@
     <string name="report_title">Report a problem</string>
     <string name="report_text">What the agent writes comes from your own agent on your computer; the app\'s developer never sees it. To report a problem with the app, open an issue on GitHub. Nothing from this conversation is attached.</string>
     <string name="report_open">Report</string>
+    <!-- The agent's model and usage, and its skills (agent-usage-and-skills) -->
+    <string name="usage_details">Usage details</string>
+    <string name="usage_model_effort">%1$s (%2$s)</string>
+    <string name="usage_context_of">Context %1$d%% of %2$s</string>
+    <string name="usage_context_percent">Context %1$d%%</string>
+    <string name="usage_context_size">Context window %1$s</string>
+    <string name="usage_limit_five_hour">5-hour limit %1$d%%</string>
+    <string name="usage_limit_seven_day">7-day limit %1$d%%</string>
+    <string name="usage_row_model">Model</string>
+    <string name="usage_row_effort">Effort</string>
+    <string name="usage_row_context">Context</string>
+    <string name="usage_row_cost">Cost</string>
+    <string name="usage_row_five_hour">5-hour limit</string>
+    <string name="usage_row_seven_day">7-day limit</string>
+    <string name="usage_detail_context_of">%1$d%% of %2$s tokens</string>
+    <string name="usage_detail_context_size">%1$s tokens</string>
+    <string name="usage_detail_percent" translatable="false">%1$d%%</string>
+    <string name="usage_detail_limit_resets">%1$d%% · resets %2$s</string>
+    <string name="usage_detail_reset_past">Reset at %1$s — not reported since</string>
+    <string name="usage_footnote">As the agent last reported them to the desktop. The rate limits are your account\'s, not this session\'s.</string>
+    <string name="skills_title">Skills</string>
+    <string name="skills_search">Search skills</string>
+    <string name="skills_unknown">The agent lists its skills with the session\'s first message, and again after /clear. Send a message, then look again.</string>
+    <string name="skills_none">No skills in this session.</string>
+    <string name="skills_no_match">No skill matches.</string>
+    <string name="skills_builtin_note">Built-in commands such as /compact aren\'t listed; type them.</string>
+    <string name="conversation_skills">Skills</string>
+    <string name="conversation_long_command">This long, it will arrive as a plain message, not run as a command.</string>
 </resources>

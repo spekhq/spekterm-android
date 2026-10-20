@@ -235,4 +235,28 @@ class ConversationReducerTest {
         repeat(3) { unknown = ConversationReducer.listed(unknown, listed(true)) }
         assertTrue(unknown.notRunning)
     }
+
+    @Test
+    fun usageAndSkillsGoWithTheWatch() {
+        val held = apply(empty, update(text("a"), reset = true)).copy(
+            usage = com.spekterm.android.net.AgentUsage("s1", model = "M"),
+            skills = Skills.Known(listOf(com.spekterm.android.net.Skill("simplify"))),
+        )
+        for (next in listOf(
+            ConversationReducer.requested(held),
+            ConversationReducer.unwatched(held),
+            ConversationReducer.disconnected(held),
+            ConversationReducer.ended(held, ConversationEnded.WINDOW),
+            ConversationReducer.ended(held, ConversationEnded.HIBERNATED),
+            ConversationReducer.ended(held, ConversationEnded.CLOSED),
+        )) {
+            assertNull(next.usage)
+            assertNull(next.skills)
+            assertEquals(listOf("a"), next.entries.map { it.uuid })
+        }
+        // Answering the watch keeps what arrived before the answer.
+        val answered = ConversationReducer.answered(held, null)
+        assertEquals(held.usage, answered.usage)
+        assertEquals(held.skills, answered.skills)
+    }
 }
