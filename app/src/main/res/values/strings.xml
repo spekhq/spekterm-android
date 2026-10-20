@@ -113,6 +113,8 @@
     <string name="conversation_jump_to_newest">Jump to newest</string>
     <string name="conversation_injected">Injected by the agent</string>
     <string name="conversation_you">You</string>
+    <string name="conversation_today">Today</string>
+    <string name="conversation_yesterday">Yesterday</string>
     <string name="conversation_thinking">Thinking</string>
     <string name="conversation_call_failed">Failed</string>
     <string name="conversation_call_succeeded">Succeeded</string>

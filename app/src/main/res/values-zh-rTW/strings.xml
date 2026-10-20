@@ -120,6 +120,8 @@
     <string name="conversation_jump_to_newest">跳到最新</string>
     <string name="conversation_injected">由 agent 插入</string>
     <string name="conversation_you">你</string>
+    <string name="conversation_today">今天</string>
+    <string name="conversation_yesterday">昨天</string>
     <string name="conversation_thinking">思考中</string>
     <string name="conversation_call_failed">失敗</string>
     <string name="conversation_call_succeeded">成功</string>

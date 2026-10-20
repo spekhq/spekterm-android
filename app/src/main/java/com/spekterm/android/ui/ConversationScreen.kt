@@ -2,6 +2,21 @@
 
 package com.spekterm.android.ui
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.text.format.DateFormat
+import androidx.core.content.ContextCompat
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
 import com.spekterm.android.R
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -48,6 +63,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -62,6 +78,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
@@ -82,12 +99,14 @@ import com.spekterm.android.desktop.AttachmentState
 import com.spekterm.android.desktop.Answers
 import com.spekterm.android.desktop.Blocked
 import com.spekterm.android.desktop.ConversationItems
+import com.spekterm.android.desktop.ConversationTimes
+import com.spekterm.android.desktop.ConversationTimes.DayWord
+import com.spekterm.android.desktop.ConversationTimes.Line
 import com.spekterm.android.desktop.ConversationItems.Shown
 import com.spekterm.android.desktop.Offer
 import com.spekterm.android.desktop.SessionActions
 import com.spekterm.android.desktop.Uploads
 import com.spekterm.android.desktop.Conversation
-import com.spekterm.android.desktop.ConversationReducer
 import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.desktop.InboxView
 import com.spekterm.android.desktop.OpenSpecGates
@@ -271,35 +290,44 @@ private fun Dormant(sessionId: String) {
     }
 }
 
-/** One row of the list: a shown item, or a reply of the user's not (yet) in the conversation. */
-private sealed interface Item {
-    val key: String
-
-    data class Of(val shown: Shown) : Item {
-        override val key: String get() = shown.key
-    }
-
-    data class Mine(val reply: Reply) : Item {
-        override val key: String get() = "reply:${reply.id}"
-    }
-}
+/** Today and the phone's zone, as of the last re-read; [reads] counts them (`conversation-times` D3). */
+private data class Clock(val today: LocalDate, val zone: ZoneId, val reads: Int)
 
 /**
- * Shown items in order, settled replies right after the item carrying their anchor (D7); replies whose anchor is
- * gone first, pending ones at the end.
+ * The clock the conversation's days and times are read by, re-read when the screen resumes (a delay alone runs late
+ * after the phone slept), when the system's date, time or zone changes, and at the next local midnight (D3).
  */
-private fun items(c: Conversation, now: Long): List<Item> {
-    val keys = ConversationReducer.keys(c.entries)
-    val known = keys.toSet()
-    val settled = c.replies.filter { it.label(now).settled }.groupBy { it.anchor?.takeIf { a -> a in known } }
-    val out = mutableListOf<Item>()
-    settled[null]?.forEach { out += Item.Mine(it) }
-    for (shown in ConversationItems.group(c.entries, keys, settled.keys.filterNotNull().toSet())) {
-        out += Item.Of(shown)
-        for (anchor in shown.anchorsAfter) settled[anchor]?.forEach { out += Item.Mine(it) }
+@Composable
+private fun rememberClock(): Clock {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var reads by remember { mutableIntStateOf(0) }
+    val clock = remember(reads) { ZoneId.systemDefault().let { Clock(LocalDate.now(it), it, reads) } }
+    DisposableEffect(context, lifecycleOwner) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, intent: Intent) {
+                reads++
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            addAction(Intent.ACTION_DATE_CHANGED)
+        }
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) reads++ }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            context.unregisterReceiver(receiver)
+        }
     }
-    c.replies.filter { !it.label(now).settled }.forEach { out += Item.Mine(it) }
-    return out
+    // A backstop while the screen stays on, restarted by every re-read.
+    LaunchedEffect(reads) {
+        delay(ConversationTimes.untilMidnight(ZonedDateTime.now(clock.zone)).toMillis() + 1_000)
+        reads++
+    }
+    return clock
 }
 
 @Composable
@@ -320,7 +348,11 @@ private fun Entries(c: Conversation?, modifier: Modifier) {
             delay(1_000)
         }
     }
-    val list = items(c, now)
+    val clock = rememberClock()
+    val list = ConversationTimes.place(ConversationTimes.rows(c, now), clock.zone)
+    // The phone's time format, 12- or 24-hour as it is set, in the clock's zone (D1).
+    val context = LocalContext.current
+    val timeFormat = remember(clock) { DateFormat.getTimeFormat(context).apply { timeZone = TimeZone.getTimeZone(clock.zone) } }
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
     // What is open, by item key: a call that becomes a run's first keeps it, and it survives scrolling away (D7).
@@ -343,8 +375,9 @@ private fun Entries(c: Conversation?, modifier: Modifier) {
         LazyColumn(Modifier.fillMaxSize(), state = state) {
             items(list, key = { it.key }) { item ->
                 when (item) {
-                    is Item.Of -> ShownRow(item.shown, open)
-                    is Item.Mine -> ReplyRow(item.reply, now)
+                    is Line.Of -> ShownRow(item.shown, open, ConversationTimes.timeOf(item.shown)?.let { timeFormat.format(Date(it)) })
+                    is Line.Mine -> ReplyRow(item.reply, now)
+                    is Line.Day -> DayHeading(ConversationTimes.dayWord(item.date, clock.today))
                 }
             }
             if (working) item(key = "working") { WorkingRow() }
@@ -373,19 +406,19 @@ internal fun Modifier.toggles(open: Boolean, onToggle: () -> Unit): Modifier {
 }
 
 @Composable
-private fun ShownRow(shown: Shown, open: MutableMap<String, Boolean>) {
+private fun ShownRow(shown: Shown, open: MutableMap<String, Boolean>, time: String?) {
     val expanded = open[shown.key] == true
     val toggle = { open[shown.key] = !expanded }
     when (shown) {
         is ConversationItems.Call -> CallLine(shown, expanded, toggle, rowPad)
         is ConversationItems.Run -> RunItem(shown, expanded, toggle, open)
         is ConversationItems.LoneResult -> ResultLine(shown.result, expanded, toggle, rowPad)
-        is ConversationItems.Plain -> PlainRow(shown.entry, expanded, toggle)
+        is ConversationItems.Plain -> PlainRow(shown.entry, expanded, toggle, time)
     }
 }
 
 @Composable
-private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit) {
+private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit, time: String?) {
     val colors = MaterialTheme.colorScheme
     when (entry) {
         is Entry.User -> if (entry.meta) {
@@ -396,16 +429,23 @@ private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit) {
             // The user's own message: a quiet bubble at the end, said to be theirs for a screen reader (D7).
             val you = stringResource(R.string.conversation_you)
             BoxWithConstraints(Modifier.fillMaxWidth().padding(start = 48.dp, end = 12.dp, top = 6.dp, bottom = 6.dp), contentAlignment = Alignment.CenterEnd) {
-                Box(
-                    Modifier
-                        .widthIn(max = maxWidth)
-                        .semantics { contentDescription = you }
-                        .background(colors.surfaceContainerHigh, MaterialTheme.shapes.large)
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                ) { SelectionContainer { AgentMarkdown(entry.text) } }
+                val maxWidth = maxWidth
+                Column(horizontalAlignment = Alignment.End) {
+                    Box(
+                        Modifier
+                            .widthIn(max = maxWidth)
+                            .semantics { contentDescription = you }
+                            .background(colors.surfaceContainerHigh, MaterialTheme.shapes.large)
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                    ) { SelectionContainer { AgentMarkdown(entry.text) } }
+                    time?.let { TimeLine(it, Modifier.padding(end = 4.dp, top = 2.dp)) }
+                }
             }
         }
-        is Entry.Text -> Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) { SelectionContainer { AgentMarkdown(entry.text) } }
+        is Entry.Text -> Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
+            SelectionContainer { AgentMarkdown(entry.text) }
+            time?.let { TimeLine(it, Modifier.padding(top = 2.dp)) }
+        }
         is Entry.Thinking -> Muted(stringResource(R.string.conversation_thinking), expanded, toggle) {
             SelectionContainer {
                 Text(entry.text, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic, color = colors.onSurfaceVariant)
@@ -413,6 +453,33 @@ private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit) {
         }
         // Calls and results are shown by ConversationItems; these never reach here.
         is Entry.Tool, is Entry.Result -> Unit
+    }
+}
+
+/** When a message was recorded, under it (`conversation-times` D1). */
+@Composable
+private fun TimeLine(time: String, modifier: Modifier) {
+    Text(time, modifier, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** The heading before a day's first item: "Today", "Yesterday" or the date (D3). */
+@Composable
+internal fun DayHeading(word: DayWord) {
+    val text = when (word) {
+        DayWord.Today -> stringResource(R.string.conversation_today)
+        DayWord.Yesterday -> stringResource(R.string.conversation_yesterday)
+        is DayWord.Date -> remember(word.date) { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault()).format(word.date) }
+    }
+    Box(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {
+        Text(
+            text,
+            Modifier
+                .semantics { heading() }
+                .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape)
+                .padding(horizontal = 10.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

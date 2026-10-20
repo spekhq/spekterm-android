@@ -35,9 +35,10 @@ access turned on.
   Long-pressing a session (or the menu on its screen) renames, hibernates, wakes or closes it. Closing asks first,
   and so does stopping a session the desktop says is busy. When an agent asks to close its own session, its row
   and its screen say so with "Close" and "Keep"; that Close is the answer, so it does not ask again.
-  An agent that still runs work in the background — subagents, shells (the Monitor tool's waits among them),
-  monitors — says so on its row ("Background: 1 subagent, 2 shells"), and its screen lists each task as its agent
-  last reported it.
+  An agent that still runs work in the background — subagents, shells (the Monitor tool's waits among them) — says
+  so on its row ("Background: 1 subagent, 2 shells"), and its screen lists each task as its agent
+  last reported it. Subscriptions the agent's CLI keeps on its own, such as an artifact's live updates, are not
+  listed.
 - **Handoffs**: a session handed off from another sits under it, as on the desktop's rail, or says where it came
   from when its source is in another folder or gone; a session that handed off others says how many and how many
   are done. "Handoff" in a session's menu shows where it came from, the handoff's note, its latest report and the
@@ -51,7 +52,8 @@ access turned on.
 - **New sessions**: start an agent session in any of the desktop's folders, quietly, and continue in its
   conversation on the phone.
 - **Conversations**: an agent session's messages, thinking, tool calls and results — a tool call shown with its
-  result, and a run of calls summarized in one line that opens to each; a dormant session can be woken. Agent text is Markdown that loads nothing from the network.
+  result, and a run of calls summarized in one line that opens to each; a dormant session can be woken. Agent text is Markdown that loads nothing from the network. Your messages and the
+  agent's text show when they were written, and the conversation is divided by day ("Today", "Yesterday", the date).
 - **Replies**: free text to the agent while it waits or works, with photos (HEIC converted to JPEG), PDF or
   text files attached, shown as unconfirmed until it appears in the conversation.
 - **Prompts**: a permission request, the agent's questions or a plan to approve is shown as plain text and,
