@@ -1,6 +1,12 @@
 package com.spekterm.android.ui
 
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.core.app.ActivityOptionsCompat
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -44,10 +50,21 @@ class SkillsSheetTest {
     @Test
     fun choosingASkillStartsTheReplyAndKeepsTheDraft() {
         val c = Conversation("s1", watch = Watch.Watching, draft = "fix it", skills = Skills.Known(listOf(Skill("simplify", "Review the changed code"), Skill("android-log"))))
-        compose.setContent { English { Composer("s1", c, connected = true, paused = false, answerable = false, canAttach = false) } }
+        // The composer's pickers need a registry; nothing is launched here.
+        val pickers = object : ActivityResultRegistryOwner {
+            override val activityResultRegistry = object : ActivityResultRegistry() {
+                override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) = Unit
+            }
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides pickers) {
+                English { Composer("s1", c, connected = true, paused = false, answerable = false, canAttach = false) }
+            }
+        }
         compose.onNodeWithContentDescription("Skills").performClick()
         // Sorted by name.
-        val rows = compose.onAllNodesWithText("/", substring = true).fetchSemanticsNodes().map { n -> n.config[SemanticsProperties.Text].joinToString("") { it.text } }
+        // A row merges its name and description; the name comes first.
+        val rows = compose.onAllNodesWithText("/", substring = true).fetchSemanticsNodes().map { n -> n.config[SemanticsProperties.Text].first().text }
         assertEquals(listOf("/android-log", "/simplify"), rows.filter { it.startsWith("/") && " " !in it })
         compose.onNodeWithText("/simplify").performClick()
         val field = compose.onNode(hasSetTextAction())

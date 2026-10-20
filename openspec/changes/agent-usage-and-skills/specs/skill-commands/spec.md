@@ -30,7 +30,8 @@ than spekterm 0.2.15 — SHALL leave the screen as it was before the feature.
 While the app watches an agent session and holds a skill event for it, the composer SHALL offer the session's skills.
 The list SHALL show each skill's name as a slash command and its description, both as plain text, never as a link or
 markup, sorted by name; it SHALL filter by text found in the name or the description, ignoring case; it SHALL say
-when nothing matches, when the session has no skills, and that built-in commands are not listed. Choosing a skill
+when nothing matches, when the session has no skills, that built-in commands are not listed, and that a few listed
+skills only the agent may use, to be asked for in words. Choosing a skill
 SHALL put `/name` and a separator at the start of the reply field and the cursor after the separator: an empty field,
 or one holding a bare slash, becomes `/name `, a field whose first word is a command name — a slash and a name with no
 other slash — has that name replaced and the rest, its separator first, kept, and any other text, a path among it, is kept after `/name ` as its arguments. The field SHALL keep the result
@@ -77,8 +78,8 @@ is sent as any reply is (`conversation-reply`).
 A reply whose text starts with `/` followed by a character that is not white space is a slash command. When such a
 reply is sent to a desktop that shows a command in the conversation as the line typed — one that sent a usage event
 for the watch before the reply was sent (spekterm 0.2.15 or later) — and it is then marked as not in the conversation,
-after the waits `conversation-reply` sets, the mark SHALL also say that a command the agent's CLI does not know, or
-one that opened something on the desktop, never appears in the conversation; it SHALL still point to the desktop, and
+after the waits `conversation-reply` sets, the mark SHALL also say that a command the agent's CLI does not know, a skill only
+the agent may use, or a command that opened something on the desktop, never appears in the conversation as sent; it SHALL still point to the desktop, and
 its other marks, its timing and how it is confirmed SHALL be unchanged. A slash-command reply sent to an older desktop
 SHALL keep the marks of any reply. While the reply field holds a slash command whose line, as the desktop will write
 it with its attachments named, is longer than the agent's CLI runs as a command (800 characters, measured with its

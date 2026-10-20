@@ -138,7 +138,7 @@
     <string name="conversation_reply_not_yet_confirmed">尚未確認</string>
     <string name="conversation_reply_waiting_for_agent">等 agent 接收</string>
     <string name="conversation_reply_not_in_conversation_yet">還沒出現在對話裡 —— 請到桌機確認</string>
-    <string name="conversation_reply_command_not_shown">沒有出現在對話裡 —— agent 的 CLI 不認得的指令，或在桌機開了畫面的指令，都不會出現在對話裡；請到桌機確認</string>
+    <string name="conversation_reply_command_not_shown">沒有照送出的樣子出現在對話裡 —— agent 的 CLI 不認得的指令、只有 agent 能用的 skill，或在桌機開了畫面的指令，都不會；請到桌機確認</string>
     <string name="conversation_reply_not_shown_after_work">在 agent 處理中時送出 —— 沒有出現在對話裡；請到桌機確認</string>
     <string name="conversation_reply_may_not_have_been_sent">可能沒有送出 —— 請到桌機確認</string>
     <string name="conversation_reply_not_submitted">已輸入到 agent 的輸入框但沒有送出 —— agent 的狀態變了（例如出現了選項）。請到桌機上完成。</string>
@@ -576,10 +576,10 @@
     <string name="usage_footnote">這是 agent 最後一次回報給桌機的數值。額度是整個帳號的，不是這個 session 的。</string>
     <string name="skills_title">Skill</string>
     <string name="skills_search">搜尋 skill</string>
-    <string name="skills_unknown">agent 會在這個 session 的第一則訊息時列出它的 skill，/clear 之後也會重新列。先送一則訊息，再回來看。</string>
+    <string name="skills_unknown">agent 會在這個 session 的第一則訊息時列出它的 skill，/⁠clear 之後也會重新列。先送一則訊息，再回來看。</string>
     <string name="skills_none">這個 session 沒有 skill。</string>
     <string name="skills_no_match">沒有符合的 skill。</string>
-    <string name="skills_builtin_note">/compact 這類內建指令不在清單裡，可以直接輸入。</string>
+    <string name="skills_builtin_note">/compact 這類內建指令不在清單裡，可以直接輸入。少數 skill 只有 agent 能用，要用的話請直接用文字請它做。</string>
     <string name="conversation_skills">Skill</string>
     <string name="conversation_long_command">這麼長的指令會被當成一般訊息送出，不會當成指令執行。</string>
 </resources>

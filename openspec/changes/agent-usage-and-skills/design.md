@@ -126,7 +126,11 @@ paused, not closed). It opens a `ModalBottomSheet`:
   `Text` (obligation 15; never linkified); no match → "No skill matches"; an empty list → "No skills in this session";
 - `Unknown`: "The agent lists its skills with the session's first message, and again after /clear. Send a message,
   then look again." — never an empty list;
-- a footnote: built-in commands such as /compact are not listed and can be typed.
+- a footnote: built-in commands such as /compact are not listed and can be typed; a few skills only the agent may use,
+  to be asked for in words. Measured on the emulator against the dev desktop (CLI 2.1.304): the agent's listing, and so
+  the desktop's, includes skills the user may not invoke (`keybindings-help`); sent as `/keybindings-help reply only
+  with ok`, the CLI records `/keybindings-help` without its arguments and answers "This skill can only be invoked by
+  Claude, not directly by users". Nothing in the event tells such a skill apart, so the phone lists it and says so.
 
 Choosing a skill closes the sheet, applies `SkillInsert.insert(draft, name)` to the reply field, **writes the result
 with `Desktop.setDraft`** (a value set by the program never passes `onValueChange`, the only caller today, so without
@@ -163,8 +167,10 @@ per D6.
   live, because a dropped connection clears `usage` and the mark would flip back.
 - `Reply.label` returns a new `Label.COMMAND_NOT_SHOWN` (settled) where it would return `NOT_IN_CONVERSATION_YET` or
   `NOT_SHOWN_AFTER_WORK`, for a reply with `commandsShown` that is a command and not a pasted command. Its text keeps
-  what those labels say and adds why a command may never appear: "Not in the conversation — a command the agent's CLI
-  does not know, or one that opened something on the desktop, never appears; check the desktop". Every other state,
+  what those labels say and adds why a command may never appear as sent: "Not in the conversation as sent — a command
+  the agent's CLI doesn't know, a skill only the agent may use, or a command that opened something on the desktop
+  never is; check the desktop" (D4: a skill only the agent may use is recorded without its arguments, so the reply
+  never matches). Every other state,
   the timing and the matching are unchanged (`conversation-reply`).
 - The composer, while the draft is a pasted command, shows a note above the field (as the blocked text is shown, not
   blocking): "This long, it will arrive as a plain message, not run as a command". Sending stays allowed: a long plain

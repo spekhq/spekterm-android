@@ -133,7 +133,7 @@
     <string name="conversation_reply_not_yet_confirmed">Not yet confirmed</string>
     <string name="conversation_reply_waiting_for_agent">Waiting for the agent to take it</string>
     <string name="conversation_reply_not_in_conversation_yet">Not in the conversation yet — check the desktop</string>
-    <string name="conversation_reply_command_not_shown">Not in the conversation — a command the agent\'s CLI doesn\'t know, or one that opened something on the desktop, never appears; check the desktop</string>
+    <string name="conversation_reply_command_not_shown">Not in the conversation as sent — a command the agent\'s CLI doesn\'t know, a skill only the agent may use, or a command that opened something on the desktop never is; check the desktop</string>
     <string name="conversation_reply_not_shown_after_work">Sent while the agent worked — not in the conversation; check the desktop</string>
     <string name="conversation_reply_may_not_have_been_sent">May not have been sent — check the desktop</string>
     <string name="conversation_reply_not_submitted">Typed into the agent\'s input but not sent — the agent\'s state changed (for example, a choice appeared). Finish it on the desktop.</string>
@@ -592,7 +592,7 @@
     <string name="skills_unknown">The agent lists its skills with the session\'s first message, and again after /clear. Send a message, then look again.</string>
     <string name="skills_none">No skills in this session.</string>
     <string name="skills_no_match">No skill matches.</string>
-    <string name="skills_builtin_note">Built-in commands such as /compact aren\'t listed; type them.</string>
+    <string name="skills_builtin_note">Built-in commands such as /compact aren\'t listed; type them. A few skills only the agent may use: for those, ask it in words.</string>
     <string name="conversation_skills">Skills</string>
     <string name="conversation_long_command">This long, it will arrive as a plain message, not run as a command.</string>
 </resources>
