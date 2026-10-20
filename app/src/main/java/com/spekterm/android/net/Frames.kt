@@ -271,6 +271,7 @@ data class RemoteError(val code: String, val message: String = "", val detail: J
         const val PREFILL_GONE = "PREFILL_GONE"
         const val PREFILL_EDITED = "PREFILL_EDITED"
         const val PREFILL_PENDING = "PREFILL_PENDING"
+        const val APPROVE_ON_DESKTOP = "APPROVE_ON_DESKTOP"
     }
 }
 

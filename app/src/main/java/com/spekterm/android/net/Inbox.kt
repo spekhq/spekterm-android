@@ -5,6 +5,9 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 
 /**
  * One item of the desktop's inbox (`inbox.list` / `inbox.changed`, `docs/remote-protocol.md` section 5; `inbox` design D1).
@@ -28,8 +31,18 @@ data class InboxItem(
     val unresolved: Unresolved? = null,
     /** Present only while a handoff waits for its time (pending, not opened); a past value is due. */
     val scheduledAt: Long? = null,
+    /** A repeating handoff's schedule (`recurring-handoff` design D1); its role, never [scheduledAt], says what the item is. */
+    val recurrence: Recurrence? = null,
 ) {
     enum class State { PENDING, ACCEPTED, OTHER }
+
+    /**
+     * [repeat] is the cron expression as sent (the desktop's time zone), empty when none came; [until] the end and [next]
+     * a proposal's coming times as of when the list was built, both epoch ms.
+     */
+    data class Recurrence(val role: Role, val repeat: String = "", val until: Long? = null, val next: List<Long> = emptyList()) {
+        enum class Role { PROPOSAL, OCCURRENCE, OTHER }
+    }
 
     enum class Unresolved { NO_MATCH, FOLDER_GONE, OTHER }
 
@@ -72,8 +85,25 @@ data class InboxItem(
                         }
                     },
                     scheduledAt = o.long("scheduledAt"),
+                    recurrence = recurrenceOf(o["recurrence"]),
                 )
             }
+        }
+
+        /** `null` unless an object with a string `role`; its other fields are each read or left out on their own. */
+        private fun recurrenceOf(element: JsonElement?): Recurrence? {
+            val o = element as? JsonObject ?: return null
+            val role = o.string("role") ?: return null
+            return Recurrence(
+                role = when (role) {
+                    "proposal" -> Recurrence.Role.PROPOSAL
+                    "occurrence" -> Recurrence.Role.OCCURRENCE
+                    else -> Recurrence.Role.OTHER
+                },
+                repeat = o.string("repeat").orEmpty(),
+                until = o.long("until"),
+                next = (o["next"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeUnless { p -> p.isString }?.let { p -> p.longOrNull ?: p.doubleOrNull?.toLong() } }.orEmpty(),
+            )
         }
     }
 }

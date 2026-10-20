@@ -118,25 +118,16 @@ fun InboxScreen(
         onOpen((opened.value as ItemAction.Opened).sessionId)
     }
 
-    val scheduled = InboxView.scheduled(inbox.items)
-    val waiting = InboxView.waiting(inbox.items)
-    val opened = InboxView.opened(inbox.items, sessions)
-    val shownKeys = (scheduled + waiting + opened).map { it.key }.toSet()
+    // Sections and their keys in screen order, for the list, the focus and what is shown (`recurring-handoff` design D2).
+    val rows = InboxView.rows(inbox.items, sessions)
+    val shownKeys = rows.filterIsInstance<InboxView.Row.Entry>().map { it.key }.toSet()
     // What happened to an item that is no longer shown: an accept whose item left, opened or not listed yet.
     val orphans = actions.filter { (key, action) -> key !in shownKeys && (action is ItemAction.Opened || action is ItemAction.Unlisted) }
 
     val listState = rememberLazyListState()
     LaunchedEffect(focus, shownKeys.contains(focus)) {
         val key = focus ?: return@LaunchedEffect
-        val keys = buildList {
-            if (scheduled.isNotEmpty()) add("h:scheduled")
-            scheduled.forEach { add(it.key) }
-            if (waiting.isNotEmpty()) add("h:waiting")
-            waiting.forEach { add(it.key) }
-            if (opened.isNotEmpty()) add("h:opened")
-            opened.forEach { add(it.key) }
-        }
-        val index = keys.indexOf(key)
+        val index = rows.indexOfFirst { it.key == key }
         if (index >= 0) {
             listState.scrollToItem(index)
             onFocused()
@@ -178,45 +169,47 @@ fun InboxScreen(
                 }
                 Notice(text, Tone.Info, stringResource(R.string.inbox_open_session), { onOpen(sessionId) }, stringResource(R.string.common_dismiss), { Desktop.dismissInboxAction(key) })
             }
-            if (scheduled.isEmpty() && waiting.isEmpty() && opened.isEmpty()) {
+            if (rows.isEmpty()) {
                 CenteredMessage(SpekIcons.Inbox, stringResource(R.string.inbox_empty))
                 return@Column
             }
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
-                if (scheduled.isNotEmpty()) {
-                    item(key = "h:scheduled") { Heading(stringResource(R.string.inbox_scheduled)) }
-                    items(scheduled, key = { it.key }) { item ->
-                        ScheduledCard(item, list, actions[item.key], gates, onOpen, onRun = { Desktop.inboxAccept(item, item.folderId!!) }, onCancel = { confirming = item })
-                    }
-                }
-                if (waiting.isNotEmpty()) {
-                    item(key = "h:waiting") { Heading(stringResource(R.string.inbox_waiting)) }
-                    items(waiting, key = { it.key }) { item ->
-                        val selection = InboxView.preselect(picks[item.key], item, list)
-                        WaitingCard(
-                            item, list, selection, actions[item.key], gates, onOpen,
-                            onPick = { picks = picks + (item.key to it) },
-                            onAccept = { folderId -> Desktop.inboxAccept(item, folderId) },
-                            onDismiss = { confirming = item },
-                        )
-                    }
-                }
-                if (opened.isNotEmpty()) {
-                    item(key = "h:opened") { Heading(stringResource(R.string.inbox_opened)) }
-                    items(opened, key = { it.key }) { item ->
-                        val session = list?.sessions?.firstOrNull { it.id == item.sessionId }
-                        val prefill = session?.prefill?.takeIf { it.intake.adapter == item.adapter && it.intake.id == item.id }
-                        OpenedCard(
-                            item = item,
-                            folderName = session?.folderId?.let { id -> list.folders.firstOrNull { it.id == id }?.name },
-                            prefill = prefill,
-                            running = session?.running == true,
-                            canSend = com.spekterm.android.net.Operations.SUBMIT_PREFILL in operations,
-                            action = actions[item.key],
-                            enabled = gates.send,
-                            onOpen = { item.sessionId?.let(onOpen) },
-                            onSend = { prefill?.let { Desktop.submitPrefill(item.key, item.sessionId!!, it.id) } },
-                        )
+                items(rows, key = { it.key }) { row ->
+                    when (row) {
+                        is InboxView.Row.Heading -> Heading(stringResource(sectionTitle(row.section)))
+                        is InboxView.Row.Entry -> {
+                            val item = row.item
+                            when (row.section) {
+                                InboxView.Section.PROPOSALS ->
+                                    ProposalCard(item, list, actions[item.key], gates, onOpen, onDecline = { confirming = item })
+                                InboxView.Section.SCHEDULED ->
+                                    ScheduledCard(item, list, actions[item.key], gates, onOpen, onRun = { Desktop.inboxAccept(item, item.folderId!!) }, onCancel = { confirming = item })
+                                InboxView.Section.WAITING -> {
+                                    val selection = InboxView.preselect(picks[item.key], item, list)
+                                    WaitingCard(
+                                        item, list, selection, actions[item.key], gates, onOpen,
+                                        onPick = { picks = picks + (item.key to it) },
+                                        onAccept = { folderId -> Desktop.inboxAccept(item, folderId) },
+                                        onDismiss = { confirming = item },
+                                    )
+                                }
+                                InboxView.Section.OPENED -> {
+                                    val session = list?.sessions?.firstOrNull { it.id == item.sessionId }
+                                    val prefill = session?.prefill?.takeIf { it.intake.adapter == item.adapter && it.intake.id == item.id }
+                                    OpenedCard(
+                                        item = item,
+                                        folderName = session?.folderId?.let { id -> list.folders.firstOrNull { it.id == id }?.name },
+                                        prefill = prefill,
+                                        running = session?.running == true,
+                                        canSend = com.spekterm.android.net.Operations.SUBMIT_PREFILL in operations,
+                                        action = actions[item.key],
+                                        enabled = gates.send,
+                                        onOpen = { item.sessionId?.let(onOpen) },
+                                        onSend = { prefill?.let { Desktop.submitPrefill(item.key, item.sessionId!!, it.id) } },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -228,16 +221,22 @@ fun InboxScreen(
         if (picks.keys.any { it !in keys }) picks = picks.filterKeys { it in keys }
     }
     confirming?.let { item ->
-        val scheduledItem = item.scheduledAt != null
+        // The same kind names the card's button, so a card and its confirmation agree (`recurring-handoff` design D4).
+        val (title, text) = when (InboxView.ignoreKind(item)) {
+            InboxView.IgnoreKind.DECLINE -> R.string.inbox_decline_confirm_title to R.string.inbox_decline_confirm
+            InboxView.IgnoreKind.SKIP -> R.string.inbox_skip_confirm_title to R.string.inbox_skip_confirm
+            InboxView.IgnoreKind.CANCEL -> R.string.inbox_cancel_confirm_title to R.string.inbox_cancel_confirm
+            InboxView.IgnoreKind.DISMISS -> R.string.inbox_dismiss_confirm_title to R.string.inbox_dismiss_confirm
+        }
         AlertDialog(
             onDismissRequest = { confirming = null },
-            title = { Text(stringResource(if (scheduledItem) R.string.inbox_cancel_confirm_title else R.string.inbox_dismiss_confirm_title)) },
-            text = { Text(stringResource(if (scheduledItem) R.string.inbox_cancel_confirm else R.string.inbox_dismiss_confirm)) },
+            title = { Text(stringResource(title)) },
+            text = { Text(stringResource(text)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirming = null
                     Desktop.inboxIgnore(item)
-                }) { Text(stringResource(if (scheduledItem) R.string.inbox_cancel_scheduled else R.string.inbox_dismiss)) }
+                }) { Text(ignoreLabel(item)) }
             },
             dismissButton = { TextButton(onClick = { confirming = null }) { Text(stringResource(R.string.inbox_keep)) } },
         )
@@ -337,7 +336,7 @@ private fun whenText(at: Long): String {
 }
 
 @Composable
-private fun ScheduledCard(
+internal fun ScheduledCard(
     item: InboxItem,
     list: SessionList?,
     action: ItemAction?,
@@ -353,6 +352,9 @@ private fun ScheduledCard(
             if (at <= System.currentTimeMillis()) stringResource(R.string.inbox_due) else stringResource(R.string.inbox_opens_at, whenText(at)),
             style = MaterialTheme.typography.labelLarge,
         )
+        item.recurrence?.takeIf { InboxView.isOccurrence(item) }?.let { recurrence ->
+            scheduleText(recurrence, untilStopped = false)?.let { Meta(it) }
+        }
         Meta(
             listOfNotNull(
                 item.originLabel.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.inbox_from, it) },
@@ -363,14 +365,97 @@ private fun ScheduledCard(
         if (!runnable) InboxView.noFolderReason(item, InboxView.Preselection(null))?.let { Meta(noFolderText(it)) }
         Outcome(action, onOpen)
         Actions(action) {
-            TextButton(onClick = onCancel, enabled = gates.ignore && !busy(action)) { Text(stringResource(R.string.inbox_cancel_scheduled)) }
+            TextButton(onClick = onCancel, enabled = gates.ignore && !busy(action)) { Text(ignoreLabel(item)) }
             Button(onClick = onRun, enabled = gates.accept && runnable && !busy(action)) { Text(stringResource(R.string.inbox_run_now)) }
         }
     }
 }
 
+/**
+ * A repeating handoff waiting for approval (`recurring-handoff` design D3): its schedule, coming times and end, then its
+ * body, where it is approved, and Decline only — never an accept, which the desktop refuses.
+ */
 @Composable
-private fun WaitingCard(
+internal fun ProposalCard(
+    item: InboxItem,
+    list: SessionList?,
+    action: ItemAction?,
+    gates: InboxView.Gates,
+    onOpen: (String) -> Unit,
+    onDecline: () -> Unit,
+    now: Long = System.currentTimeMillis(),
+) {
+    val recurrence = item.recurrence ?: InboxItem.Recurrence(InboxItem.Recurrence.Role.PROPOSAL)
+    val state = InboxView.proposalState(recurrence, now)
+    val expired = InboxView.expired(item)
+    ItemCard {
+        Text(stringResource(R.string.inbox_repeating), style = MaterialTheme.typography.labelLarge)
+        scheduleText(recurrence, untilStopped = true)?.let { Meta(it) }
+        if (state != InboxView.ProposalState.ENDED) {
+            val times = InboxView.upcoming(recurrence.next, now).map { whenText(it) }
+            if (times.isNotEmpty()) Meta(stringResource(R.string.inbox_repeat_next, times.joinToString(" · ")))
+        }
+        Meta(
+            listOfNotNull(
+                item.originLabel.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.inbox_from, it) },
+                folderName(list, item.folderId)?.let { stringResource(R.string.inbox_in_folder, it) },
+            ).joinToString(" · "),
+        )
+        if (expired) Text(stringResource(R.string.inbox_expired), style = MaterialTheme.typography.bodyMedium) else Body(item)
+        Text(
+            stringResource(
+                when (state) {
+                    InboxView.ProposalState.APPROVABLE -> R.string.inbox_approve_on_desktop
+                    InboxView.ProposalState.NO_TIMES -> R.string.inbox_proposal_no_times
+                    InboxView.ProposalState.ENDED -> R.string.inbox_proposal_ended
+                },
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Outcome(action, onOpen)
+        Actions(action) {
+            TextButton(onClick = onDecline, enabled = gates.ignore && !busy(action)) { Text(stringResource(R.string.inbox_decline)) }
+        }
+    }
+}
+
+/**
+ * A recurrence's expression marked as the desktop's time, and its end ("until stopped" for a proposal without one); `null`
+ * when there is nothing to say. An empty expression is left out rather than shown empty.
+ */
+@Composable
+private fun scheduleText(recurrence: InboxItem.Recurrence, untilStopped: Boolean): String? {
+    val until = recurrence.until
+    return listOfNotNull(
+        recurrence.repeat.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.inbox_repeats, it) },
+        when {
+            until != null -> stringResource(R.string.inbox_repeat_until, whenText(until))
+            untilStopped -> stringResource(R.string.inbox_repeat_until_stopped)
+            else -> null
+        },
+    ).joinToString(" · ").ifEmpty { null }
+}
+
+/** The label of the control that ignores [item]: what ignoring does to it (`recurring-handoff` design D4). */
+@Composable
+private fun ignoreLabel(item: InboxItem): String = stringResource(
+    when (InboxView.ignoreKind(item)) {
+        InboxView.IgnoreKind.DECLINE -> R.string.inbox_decline
+        InboxView.IgnoreKind.SKIP -> R.string.inbox_skip
+        InboxView.IgnoreKind.CANCEL -> R.string.inbox_cancel_scheduled
+        InboxView.IgnoreKind.DISMISS -> R.string.inbox_dismiss
+    },
+)
+
+private fun sectionTitle(section: InboxView.Section): Int = when (section) {
+    InboxView.Section.PROPOSALS -> R.string.inbox_proposals
+    InboxView.Section.SCHEDULED -> R.string.inbox_scheduled
+    InboxView.Section.WAITING -> R.string.inbox_waiting
+    InboxView.Section.OPENED -> R.string.inbox_opened
+}
+
+@Composable
+internal fun WaitingCard(
     item: InboxItem,
     list: SessionList?,
     selection: InboxView.Preselection,
@@ -390,6 +475,10 @@ private fun WaitingCard(
                 item.occurredAt.takeIf { it > 0 }?.let { whenText(it) },
             ).joinToString(" · "),
         )
+        // A time of a repeating handoff whose opening failed; nothing said about a next time, which the phone cannot tell.
+        item.recurrence?.takeIf { InboxView.isOccurrence(item) }?.let { recurrence ->
+            Meta(listOfNotNull(stringResource(R.string.inbox_part_of_repeating), scheduleText(recurrence, untilStopped = false)).joinToString(" · "))
+        }
         if (expired) {
             Text(stringResource(R.string.inbox_expired), style = MaterialTheme.typography.bodyMedium)
         } else {
@@ -399,7 +488,7 @@ private fun WaitingCard(
         }
         Outcome(action, onOpen)
         Actions(action) {
-            TextButton(onClick = onDismiss, enabled = gates.ignore && !busy(action)) { Text(stringResource(R.string.inbox_dismiss)) }
+            TextButton(onClick = onDismiss, enabled = gates.ignore && !busy(action)) { Text(ignoreLabel(item)) }
             if (!expired) {
                 Button(onClick = { selection.folderId?.let(onAccept) }, enabled = gates.accept && selection.folderId != null && !busy(action)) {
                     Text(stringResource(R.string.inbox_accept))
@@ -524,6 +613,7 @@ private fun failureText(failure: InboxFailure): String = when (failure.reason) {
     InboxFailure.Reason.PROMPT_GONE -> stringResource(R.string.inbox_fail_prompt_gone)
     InboxFailure.Reason.PROMPT_EDITED -> stringResource(R.string.inbox_prompt_edited)
     InboxFailure.Reason.AGENT_NOT_READY -> stringResource(R.string.inbox_fail_agent_not_ready, failure.message ?: "")
+    InboxFailure.Reason.APPROVE_ON_DESKTOP -> stringResource(R.string.inbox_fail_approve_on_desktop)
     InboxFailure.Reason.FAILED -> stringResource(R.string.inbox_fail_other, failure.code ?: "")
 }
 

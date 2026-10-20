@@ -45,9 +45,11 @@ access turned on.
   sessions handed off from it.
 - **Inbox**: the desktop's inbox, from the session list's top bar, which counts what waits for you. Each item shows its
   whole body as plain text first; choose the folder it opens in (preselected as the desktop does), then accept or
-  dismiss it. Handoffs scheduled for later are listed apart with their time, to run now or cancel. An accepted item's
-  first prompt, filled in on the desktop and not sent, is shown next to its body, to send from the phone or finish at
-  the desktop; meanwhile its session's screen says so and holds replies back, so they are not sent along with it. A new
+  dismiss it. Handoffs scheduled for later are listed apart with their time, to run now or cancel. A repeating handoff an
+  agent proposes is listed apart, waiting for approval, with its schedule, its next times and its end; it is approved on
+  the desktop and can be declined from the phone; each of its times is listed with the schedule, to run now or skip
+  that time only. An accepted item's first prompt, filled in on the desktop and not sent, is shown next to its body, to
+  send from the phone or finish at the desktop; meanwhile its session's screen says so and holds replies back, so they are not sent along with it. A new
   item's notification opens the inbox at it, or the session it already opened.
 - **New sessions**: start an agent session in any of the desktop's folders, quietly, and continue in its
   conversation on the phone.
@@ -74,7 +76,7 @@ access turned on.
 These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
 following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a;
 background work: c79785f, 0.2.11; scheduled handoffs: 445dc24, 0.2.12; sending an accepted item's first prompt: b45c359,
-0.2.13; the agent's model and usage, and the session's skills: 6b6ebfa, 0.2.15); against an older desktop the app shows none of
+0.2.13; the agent's model and usage, and the session's skills: 6b6ebfa, 0.2.15; repeating handoffs: d88a3d1, 0.2.16); against an older desktop the app shows none of
 them, and a ready agent stays "Waiting for you".
 
 Not yet: the terminal view (shell sessions).
@@ -109,7 +111,7 @@ one deliberately, for example once with `./gradlew assembleDebug -Pandroid.build
 
 ### Testing against a desktop
 
-Use spekterm [0.2.15](https://github.com/spekhq/spekterm/releases) or later, which has everything
+Use spekterm [0.2.16](https://github.com/spekhq/spekterm/releases) or later, which has everything
 above, or run it from source — `npm run dev` in a spekterm checkout, which uses its own profile
 `~/.config/spekterm-dev` — for a desktop change not released yet. Then Settings → Remote access → turn on → Pair
 device, and scan the code with the app. The phone must reach the desktop's port (47615 by default) over the LAN,

@@ -6,7 +6,12 @@
 //   node tools/drop-handoff.mjs                                          # list the profile's sessions
 //   node tools/drop-handoff.mjs --from <sessionId> --target <repo or path> [--title <t>] [--body <text> | --body-file <path>]
 //                               [--at <ISO 8601 with an offset>]   # a scheduled handoff (`inbox`, task 3.1)
+//                               [--repeat <cron> [--until <ISO 8601 with an offset>]]   # a repeating proposal
 //   node tools/drop-handoff.mjs --from <sessionId> --report <summary>    # from a handed-off session: done
+//
+// A repeating handoff (`recurring-handoff`, task 3.1): `--repeat` is five cron fields in the desktop's time zone, the
+// minute a single number (at most once an hour); with it `--at` is the start, not a one-off time, and `--until` the end.
+// The desktop holds it as a proposal until approved in its inbox's Schedules tab.
 //
 // Defaults to the dev profile that `npm run dev` in ~/git/spekterm uses (`--profile` to change it).
 // Delivery format: spekterm's `src/main/handoff-delivery.ts` `parseHandoffPayload` ({target, title, body}) and
@@ -66,6 +71,11 @@ if (report !== undefined) {
   // spekterm `scheduled-handoff`: opens at that time (at most 30 days ahead), not on arrival.
   const at = option('at')
   if (at !== undefined) payload.at = at
+  // spekterm `recurring-handoff`: a proposal the user approves on the desktop; `until` only with `repeat`.
+  const repeat = option('repeat')
+  if (repeat !== undefined) payload.repeat = repeat
+  const until = option('until')
+  if (until !== undefined) payload.until = until
 }
 
 const dir = join(outbox, from)

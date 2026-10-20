@@ -848,3 +848,44 @@ build put on with `adb install -r`, the pairing saved first and kept. kewang use
 | A skill sent from the phone: a 9-character reply submitted at 12:49:37, and `/standup` ran in the session at that moment | pass |
 | A session opened for three seconds reported no rate limits (`values=model,effort,context,size,cost`); the line simply left them out | pass |
 | kewang's word: 「可以 操作沒問題」 | pass (maintainer) |
+
+## Repeating handoffs
+
+`openspec/changes/recurring-handoff`: the Inbox shows the desktop's repeating handoffs (spekterm d88a3d1, 0.2.16).
+
+### Build and suites (task 3.4)
+
+| Run | Outcome |
+|---|---|
+| `./gradlew test` (404 tests; new: `InboxItemTest`'s `recurrence` decoding, `InboxTest`'s sections by role, the count, the rows, the ignore kinds, `upcoming`, `proposalState` and `APPROVE_ON_DESKTOP`) and `assembleDebug`, with `StringsTest` and `HardcodedTextTest` | pass |
+| `connectedDebugAndroidTest` on the emulator (AVD `Pixel_9`, Android 16), the only device `adb devices` listed (the Pixel disconnected first): 121 tests, 120 passed, `DesktopRaceTest.droppedAttemptsAreNotCountedAsFailures` skipped by its own assumption. New in `InboxUiTest`: the proposal card (expression, future times only, "until stopped" and an end, the approve-on-desktop line, Decline and no Accept or Run now; stale times; an end passed; an end ahead with no time before it; no expression), a scheduled occurrence's expression and Skip this time against a one-off's Cancel, a failed occurrence's repeating line with Accept and Skip this time, no empty "Repeats" on either card | pass |
+
+### On the emulator (task 3.3)
+
+On the emulator (AVD `Pixel_9`, zone Asia/Taipei like the desktop), 2026-10-20 19:40–19:57 (+08:00), against the dev
+desktop started from source (spekterm `365dbd4`, 0.2.16; port 47616), paired by its pairing link. Proposals and the
+one-off from `tools/drop-handoff.mjs`; approval, and later the cleanup, through the dev desktop's own renderer API
+over CDP (`workspace.intake.approveRecurrence`, `stopRecurrence`, `dismiss`). Each tap only with the app in front.
+Screenshots kept outside the repository.
+
+| What | Outcome |
+|---|---|
+| `--repeat "0 21 * * 3"` and `--repeat "0 9 * * *" --until 2026-11-03T00:00:00+08:00`: receipts `proposed`; a one-off `--at`: `scheduled` | pass |
+| Both proposals raised a notification ("New inbox item", silent after the first), as the desktop announces them | pass |
+| The Inbox: Waiting for approval above Scheduled; "Repeats 0 21 * * 3 (desktop time) · until stopped", "Next: Oct 21, 2026 9:00 PM · Oct 28, 2026 9:00 PM · Nov 4, 2026 9:00 PM", the body, "Approve it on the desktop.", Decline only; the other with "until Nov 3, 2026 12:00 AM" and three mornings at 9:00 | pass |
+| Decline → "Decline this repeating handoff? It will not run." → Decline: the proposal left the phone and the desktop's inbox | pass |
+| Approved on the desktop: the time under Scheduled, "Opens Oct 21, 2026 9:00 PM", "Repeats 0 21 * * 3 (desktop time)", Skip this time and Run now | pass |
+| Skip this time → "Only this time is skipped; skipping does not stop the repeating handoff." → confirmed: Oct 28, 9:00 PM in its place | pass |
+| The one-off handoff beside it: Cancel and Run now as before (not run or cancelled from the phone; dismissed at the cleanup) | pass (looked at) |
+| A failed time: a test folder added to the dev workspace (the dev desktop stopped, `workspace.json` saved and the folder added, started again, with kewang's OK), `--repeat "55 * * * *"` into it approved, the folder removed at 19:49. Before 19:55 the card said the folder is no longer in the workspace with Run now disabled; at 19:55 it moved to Waiting: "Part of a repeating handoff · Repeats 55 * * * * (desktop time)", the folder picker with its reason, Accept disabled, Skip this time | pass |
+| Skip this time on it: 20:55 under Scheduled | pass |
+| 中文（台灣）: 待核准, 週期交接, 「重複 0 21 * * 3（桌機時間） · 直到 2026年12月31日 下午11:59」, 「接下來：…」, 請在桌機核准。, 拒絕, 跳過這次, 「要跳過這次嗎？／只跳過這一次；跳過不會停止這個週期交接。」, 「要拒絕這個週期交接嗎？／它不會執行。」 — the desktop's words (design D4a) | pass |
+| Cleanup: both recurrences stopped, the proposal and the one-off dismissed, nothing scheduled left; the test folder removed and `workspace.json` equal to the saved copy; the app's language back to the system's | done |
+
+Found on the way:
+
+- **After its folder was removed, the next time was routed elsewhere.** Skipping the failed 19:55 time made the
+  desktop schedule 20:55 "in spekterm" — its routing picked another folder for the recurrence's next occurrence
+  instead of keeping the removed one (or none). Desktop behavior, outside this change; reported to spekterm.
+- The waiting card's meta line read "go · go · …": the handoff's actor and origin are both the source folder's name.
+  As before this change.

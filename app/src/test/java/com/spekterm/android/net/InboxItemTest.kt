@@ -101,4 +101,49 @@ class InboxItemTest {
     fun theSubmitFrameCarriesExactlyItsParams() {
         assertEquals("""{"sessionId":"s","prefillId":"p1"}""", Frames.sessionsSubmitPrefill("s", "p1").toString())
     }
+
+    // ---- recurring-handoff 1.1: `recurrence` (design D1) ----
+
+    private val proposal = InboxItem.Recurrence.Role.PROPOSAL
+
+    @Test
+    fun aProposalIsReadWithItsScheduleEndAndTimes() {
+        val item = one(""","state":"pending","recurrence":{"role":"proposal","repeat":"0 21 * * 3","until":500,"next":[100,200,300]}""")
+        assertEquals(InboxItem.Recurrence(proposal, "0 21 * * 3", 500, listOf(100, 200, 300)), item.recurrence)
+    }
+
+    @Test
+    fun anOccurrenceWithoutEndOrTimes() {
+        val item = one(""","scheduledAt":20,"recurrence":{"role":"occurrence","repeat":"0 9 * * *"}""")
+        assertEquals(InboxItem.Recurrence(InboxItem.Recurrence.Role.OCCURRENCE, "0 9 * * *"), item.recurrence)
+        assertEquals(20L, item.scheduledAt)
+    }
+
+    @Test
+    fun anUnknownRoleIsOtherAndAProposalNeedsNoExpression() {
+        assertEquals(InboxItem.Recurrence.Role.OTHER, one(""","recurrence":{"role":"weekly","repeat":"x"}""").recurrence?.role)
+        assertEquals(InboxItem.Recurrence(proposal), one(""","recurrence":{"role":"proposal"}""").recurrence)
+        assertEquals(InboxItem.Recurrence(proposal), one(""","recurrence":{"role":"proposal","repeat":5}""").recurrence)
+    }
+
+    @Test
+    fun aMalformedRecurrenceIsIgnoredAndTheItemKept() {
+        for (value in listOf("\"weekly\"", "[]", "{}", """{"repeat":"0 21 * * 3"}""", """{"role":1,"repeat":"0 21 * * 3"}""", "null")) {
+            val item = one(""","state":"pending","recurrence":$value""")
+            assertEquals(value, "a/i", item.key)
+            assertNull(value, item.recurrence)
+        }
+    }
+
+    @Test
+    fun mistypedEndAndTimesAreLeftOut() {
+        assertNull(one(""","recurrence":{"role":"proposal","until":"soon"}""").recurrence!!.until)
+        assertEquals(listOf(1L, 2L), one(""","recurrence":{"role":"proposal","next":[1,"x",null,true,2]}""").recurrence!!.next)
+        assertEquals(emptyList<Long>(), one(""","recurrence":{"role":"proposal","next":"1"}""").recurrence!!.next)
+    }
+
+    @Test
+    fun anItemWithoutTheFieldHasNoRecurrence() {
+        assertNull(one(""","state":"pending","scheduledAt":20""").recurrence)
+    }
 }

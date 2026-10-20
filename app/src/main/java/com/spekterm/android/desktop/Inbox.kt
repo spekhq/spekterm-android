@@ -33,7 +33,7 @@ enum class InboxOp(val wire: String) {
 data class InboxFailure(val reason: Reason, val message: String? = null, val code: String? = null) {
     enum class Reason {
         CHOOSE_FOLDER, COULD_NOT_OPEN, NO_LONGER_IN_INBOX, NO_WINDOW, TIMEOUT, NOT_CONNECTED,
-        SESSION_NOT_RUNNING, PROMPT_GONE, PROMPT_EDITED, AGENT_NOT_READY, FAILED,
+        SESSION_NOT_RUNNING, PROMPT_GONE, PROMPT_EDITED, AGENT_NOT_READY, APPROVE_ON_DESKTOP, FAILED,
     }
 
     companion object {
@@ -59,6 +59,8 @@ data class InboxFailure(val reason: Reason, val message: String? = null, val cod
                 RemoteError.PREFILL_GONE -> InboxFailure(Reason.PROMPT_GONE)
                 RemoteError.PREFILL_EDITED -> InboxFailure(Reason.PROMPT_EDITED)
                 RemoteError.WAIT_STATE -> InboxFailure(Reason.AGENT_NOT_READY, error.detailString("state"))
+                // An accept of what the desktop holds as a repeating proposal (`recurring-handoff` design D5).
+                RemoteError.APPROVE_ON_DESKTOP -> InboxFailure(Reason.APPROVE_ON_DESKTOP)
                 else -> InboxFailure(Reason.FAILED, code = error.code)
             }
         }
@@ -142,15 +144,84 @@ object OpeningTracker {
     private fun holds(list: SessionList, sessionId: String): Boolean = list.window && list.sessions.any { it.id == sessionId }
 }
 
-/** How the Inbox shows the held items (`inbox` design D4). Pure. */
+/** How the Inbox shows the held items (`inbox` design D4, `recurring-handoff` D2). Pure. */
 object InboxView {
+    /** A repeating handoff waiting for approval on the desktop — by its role, whether or not `scheduledAt` came with it. */
+    fun isProposal(item: InboxItem): Boolean =
+        item.state == InboxItem.State.PENDING && item.recurrence?.role == InboxItem.Recurrence.Role.PROPOSAL
+
+    fun isOccurrence(item: InboxItem): Boolean = item.recurrence?.role == InboxItem.Recurrence.Role.OCCURRENCE
+
+    /** Repeating handoffs waiting for approval, in the desktop's order. */
+    fun proposals(items: List<InboxItem>): List<InboxItem> = items.filter(::isProposal)
+
     /** Pending handoffs waiting for their time, earliest first. */
     fun scheduled(items: List<InboxItem>): List<InboxItem> =
-        items.filter { it.state == InboxItem.State.PENDING && it.scheduledAt != null }.sortedBy { it.scheduledAt }
+        items.filter { it.state == InboxItem.State.PENDING && it.scheduledAt != null && !isProposal(it) }.sortedBy { it.scheduledAt }
 
-    /** Pending items waiting for the user, in the desktop's order: what the entry counts. */
+    /** Pending items waiting for the user, in the desktop's order. */
     fun waiting(items: List<InboxItem>): List<InboxItem> =
-        items.filter { it.state == InboxItem.State.PENDING && it.scheduledAt == null }
+        items.filter { it.state == InboxItem.State.PENDING && it.scheduledAt == null && !isProposal(it) }
+
+    /** What the entry counts (`session-list`): pending without `scheduledAt` — the desktop's badge, proposals included. */
+    fun count(items: List<InboxItem>): Int = items.count { it.state == InboxItem.State.PENDING && it.scheduledAt == null }
+
+    enum class Section { PROPOSALS, SCHEDULED, WAITING, OPENED }
+
+    /** One row of the Inbox's list: a section's heading, or an item in it. */
+    sealed interface Row {
+        val key: String
+
+        data class Heading(val section: Section) : Row {
+            override val key: String get() = "h:${section.name.lowercase()}"
+        }
+
+        data class Entry(val section: Section, val item: InboxItem) : Row {
+            override val key: String get() = item.key
+        }
+    }
+
+    /** The Inbox's rows in screen order: Waiting for approval, Scheduled, Waiting, Already opened; no heading for an empty one. */
+    fun rows(items: List<InboxItem>, sessions: SessionsState): List<Row> = buildList {
+        for ((section, list) in listOf(
+            Section.PROPOSALS to proposals(items),
+            Section.SCHEDULED to scheduled(items),
+            Section.WAITING to waiting(items),
+            Section.OPENED to opened(items, sessions),
+        )) {
+            if (list.isEmpty()) continue
+            add(Row.Heading(section))
+            list.forEach { add(Row.Entry(section, it)) }
+        }
+    }
+
+    /** What ignoring [item] does, which names its button and its confirmation (`recurring-handoff` design D4). */
+    enum class IgnoreKind { DECLINE, SKIP, CANCEL, DISMISS }
+
+    fun ignoreKind(item: InboxItem): IgnoreKind = when {
+        isProposal(item) -> IgnoreKind.DECLINE
+        isOccurrence(item) -> IgnoreKind.SKIP
+        item.scheduledAt != null -> IgnoreKind.CANCEL
+        else -> IgnoreKind.DISMISS
+    }
+
+    /** A proposal's times still ahead: the desktop's were computed when its list was built. */
+    fun upcoming(next: List<Long>, now: Long): List<Long> = next.filter { it > now }
+
+    enum class ProposalState { APPROVABLE, NO_TIMES, ENDED }
+
+    /**
+     * What a proposal's card says about approving it (`recurring-handoff` design D3): ended once its end passed, or when the
+     * desktop found no time before the end (it refuses the approval); no times when the ones sent went stale.
+     */
+    fun proposalState(recurrence: InboxItem.Recurrence, now: Long): ProposalState {
+        val until = recurrence.until
+        return when {
+            until != null && (until <= now || recurrence.next.isEmpty()) -> ProposalState.ENDED
+            upcoming(recurrence.next, now).isEmpty() -> ProposalState.NO_TIMES
+            else -> ProposalState.APPROVABLE
+        }
+    }
 
     /**
      * Accepted items whose session the current list holds in one of its folders (the desktop's rule); with no current

@@ -158,7 +158,7 @@ fun SessionsScreen(
     SpekScaffold(
         topBar = { scroll ->
             TopBar(desktopName, scroll) {
-                InboxButton(InboxView.waiting(inbox.items).size, Operations.INBOX_LIST in operations || inbox.items.isNotEmpty(), onInbox)
+                InboxButton(InboxView.count(inbox.items), Operations.INBOX_LIST in operations || inbox.items.isNotEmpty(), onInbox)
                 Box {
                     MoreButton({ menu = true })
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

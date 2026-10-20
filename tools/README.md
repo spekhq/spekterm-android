@@ -44,8 +44,13 @@ node tools/drop-handoff.mjs                                              # list 
 node tools/drop-handoff.mjs --from <sessionId> --target spekterm-android # hand off to a folder (name or absolute path)
 node tools/drop-handoff.mjs --from <childId> --report "Done: …"          # a handed-off session reports done
 node tools/drop-handoff.mjs --from <sessionId> --target spekterm-android --at 2026-10-20T09:00:00+08:00   # scheduled
+node tools/drop-handoff.mjs --from <sessionId> --target spekterm-android --repeat "0 21 * * 3"           # repeating proposal
+node tools/drop-handoff.mjs --from <sessionId> --target spekterm-android --repeat "0 9 * * *" --until 2026-11-30T00:00:00+08:00
 ```
 
 - The desktop opens the new session in the target folder, or holds the handoff in its inbox when its routing does
   not accept it on its own; accept it there.
+- `--repeat <cron>` makes it a repeating handoff (spekterm 0.2.16): five fields in the desktop's time zone, the
+  minute a single number (at most once an hour). The desktop holds it as a proposal until it is approved in the
+  inbox's Schedules tab. With `--repeat`, `--at` is when the recurrence starts and `--until` when it ends.
 - `--title` and `--body` set the handoff's title and note; `--profile` points at another profile.

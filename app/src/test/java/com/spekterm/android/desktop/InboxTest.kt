@@ -242,4 +242,91 @@ class InboxTest {
         val opened = mapOf("a/x" to ItemAction.Opened("s1", true), "a/y" to ItemAction.InFlight(InboxOp.IGNORE))
         assertEquals(mapOf("a/x" to ItemAction.Opened("s1", false), "a/y" to ItemAction.InFlight(InboxOp.IGNORE)), OpeningTracker.leftInbox(opened))
     }
+
+    // ---- recurring-handoff 1.2: sections, count, rows, ignore and proposal state (design D2–D5) ----
+
+    private fun rec(role: InboxItem.Recurrence.Role, until: Long? = null, next: List<Long> = emptyList()) =
+        InboxItem.Recurrence(role, "0 21 * * 3", until, next)
+
+    private val proposalRec = rec(InboxItem.Recurrence.Role.PROPOSAL, next = listOf(100))
+    private val occurrenceRec = rec(InboxItem.Recurrence.Role.OCCURRENCE)
+
+    @Test
+    fun theRoleNotScheduledAtDecidesTheSection() {
+        val items = listOf(
+            item("p").copy(recurrence = proposalRec),
+            item("pAt", scheduledAt = 5).copy(recurrence = proposalRec),
+            item("oWait", scheduledAt = 7).copy(recurrence = occurrenceRec),
+            item("oFail").copy(recurrence = occurrenceRec),
+            item("other", scheduledAt = 9).copy(recurrence = rec(InboxItem.Recurrence.Role.OTHER)),
+            item("otherW").copy(recurrence = rec(InboxItem.Recurrence.Role.OTHER)),
+            item("acc", state = InboxItem.State.ACCEPTED, sessionId = "s").copy(recurrence = proposalRec),
+            item("plain"),
+        )
+        assertEquals(listOf("p", "pAt"), InboxView.proposals(items).map { it.id })
+        assertEquals(listOf("oWait", "other"), InboxView.scheduled(items).map { it.id })
+        assertEquals(listOf("oFail", "otherW", "plain"), InboxView.waiting(items).map { it.id })
+    }
+
+    @Test
+    fun theCountIsPendingWithoutScheduledAt() {
+        val items = listOf(
+            item("p").copy(recurrence = proposalRec),
+            item("oFail").copy(recurrence = occurrenceRec),
+            item("plain"),
+            item("sched", scheduledAt = 5),
+            item("pAt", scheduledAt = 5).copy(recurrence = proposalRec),
+            item("acc", state = InboxItem.State.ACCEPTED, sessionId = "s"),
+        )
+        assertEquals(3, InboxView.count(items))
+    }
+
+    @Test
+    fun rowsPutProposalsFirstAndSkipEmptySections() {
+        val items = listOf(
+            item("w"),
+            item("s", scheduledAt = 5),
+            item("p").copy(recurrence = proposalRec),
+            item("o", state = InboxItem.State.ACCEPTED, sessionId = "s1"),
+        )
+        val rows = InboxView.rows(items, current(list(agent("s1"))))
+        assertEquals(listOf("h:proposals", "a/p", "h:scheduled", "a/s", "h:waiting", "a/w", "h:opened", "a/o"), rows.map { it.key })
+        assertEquals(1, rows.indexOfFirst { it.key == "a/p" })
+        assertEquals(listOf("h:waiting", "a/w"), InboxView.rows(listOf(item("w")), current(list())).map { it.key })
+        assertEquals(emptyList<String>(), InboxView.rows(emptyList(), current(list())).map { it.key })
+    }
+
+    @Test
+    fun ignoringNamesWhatItDoes() {
+        assertEquals(InboxView.IgnoreKind.DECLINE, InboxView.ignoreKind(item("p").copy(recurrence = proposalRec)))
+        assertEquals(InboxView.IgnoreKind.SKIP, InboxView.ignoreKind(item("o", scheduledAt = 5).copy(recurrence = occurrenceRec)))
+        assertEquals(InboxView.IgnoreKind.SKIP, InboxView.ignoreKind(item("o").copy(recurrence = occurrenceRec)))
+        assertEquals(InboxView.IgnoreKind.CANCEL, InboxView.ignoreKind(item("s", scheduledAt = 5)))
+        assertEquals(InboxView.IgnoreKind.DISMISS, InboxView.ignoreKind(item("w")))
+    }
+
+    @Test
+    fun upcomingKeepsOnlyLaterTimesInOrder() {
+        assertEquals(listOf(30L, 20L), InboxView.upcoming(listOf(5, 10, 30, 20), now = 10))
+    }
+
+    @Test
+    fun aProposalsStateFollowsItsEndAndTimes() {
+        val p = InboxItem.Recurrence.Role.PROPOSAL
+        fun state(until: Long?, next: List<Long>) = InboxView.proposalState(rec(p, until, next), now = 100)
+        assertEquals(InboxView.ProposalState.ENDED, state(until = 100, next = listOf(200)))
+        assertEquals(InboxView.ProposalState.ENDED, state(until = 50, next = emptyList()))
+        assertEquals(InboxView.ProposalState.ENDED, state(until = 500, next = emptyList()))
+        assertEquals(InboxView.ProposalState.NO_TIMES, state(until = 500, next = listOf(50, 90)))
+        assertEquals(InboxView.ProposalState.NO_TIMES, state(until = null, next = listOf(50)))
+        assertEquals(InboxView.ProposalState.NO_TIMES, state(until = null, next = emptyList()))
+        assertEquals(InboxView.ProposalState.APPROVABLE, state(until = 500, next = listOf(50, 200)))
+        assertEquals(InboxView.ProposalState.APPROVABLE, state(until = null, next = listOf(200)))
+    }
+
+    @Test
+    fun approveOnDesktopHasItsOwnReason() {
+        val failure = InboxFailure.of(InboxOp.ACCEPT, RemoteError(RemoteError.APPROVE_ON_DESKTOP, "approve on the desktop"), itemStillHeld = true)
+        assertEquals(InboxFailure(InboxFailure.Reason.APPROVE_ON_DESKTOP), failure)
+    }
 }

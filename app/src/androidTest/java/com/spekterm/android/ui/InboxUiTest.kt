@@ -22,8 +22,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.spekterm.android.desktop.InboxView
 import com.spekterm.android.net.InboxItem
 import com.spekterm.android.net.ItemRef
+import com.spekterm.android.net.Folder
 import com.spekterm.android.net.Prefill
+import com.spekterm.android.net.SessionList
 import kotlinx.serialization.Serializable
+import java.text.DateFormat
+import java.util.Date
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -152,5 +157,121 @@ class InboxUiTest {
         compose.runOnIdle {
             assertEquals(1, nav.currentBackStack.value.count { it.destination.route?.contains("InboxRoute") == true })
         }
+    }
+
+    // ---- recurring-handoff 2.2: proposals and occurrences ----
+
+    private val now = 1_800_000_000_000L
+    private val day = 86_400_000L
+    private val gates = InboxView.Gates(accept = true, ignore = true, send = true)
+    private val folders = SessionList(true, listOf(Folder("f1", "spekterm")), emptyList())
+    private val pending = InboxItem("r1", "handoff", InboxItem.State.PENDING, originLabel = "spekterm", body = "Weekly report", bodyLength = 13, receivedAt = 1, folderId = "f1")
+
+    private fun at(time: Long) = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.getDefault()).format(Date(time))
+
+    private fun proposal(repeat: String = "0 21 * * 3", until: Long? = null, next: List<Long>) {
+        val item = pending.copy(recurrence = InboxItem.Recurrence(InboxItem.Recurrence.Role.PROPOSAL, repeat, until, next))
+        compose.setContent { ProposalCard(item, folders, null, gates, {}, {}, now = now) }
+    }
+
+    private fun noAccept() {
+        compose.onAllNodesWithText("Accept").assertCountEquals(0)
+        compose.onAllNodesWithText("Run now").assertCountEquals(0)
+    }
+
+    @Test
+    fun aProposalShowsItsScheduleFutureTimesBodyAndOnlyDecline() {
+        proposal(next = listOf(now - 3_600_000, now + day, now + 8 * day))
+        compose.onNodeWithText("Repeats 0 21 * * 3 (desktop time) · until stopped").assertIsDisplayed()
+        compose.onNodeWithText("Next: ${at(now + day)} · ${at(now + 8 * day)}").assertIsDisplayed()
+        compose.onAllNodesWithText(at(now - 3_600_000), substring = true).assertCountEquals(0)
+        compose.onNodeWithText("Weekly report").assertIsDisplayed()
+        compose.onNodeWithText("Approve it on the desktop.").assertIsDisplayed()
+        compose.onNodeWithText("Decline").assertIsDisplayed()
+        noAccept()
+    }
+
+    @Test
+    fun aProposalWithAnEndShowsIt() {
+        proposal(until = now + 14 * day, next = listOf(now + day))
+        compose.onNodeWithText("Repeats 0 21 * * 3 (desktop time) · until ${at(now + 14 * day)}").assertIsDisplayed()
+    }
+
+    @Test
+    fun staleTimesSendToTheDesktop() {
+        proposal(next = listOf(now - day))
+        compose.onNodeWithText("The next times are shown on the desktop. Approve it there.").assertIsDisplayed()
+        compose.onAllNodesWithText("Next:", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun aProposalPastItsEndCannotBeApproved() {
+        proposal(until = now - day, next = listOf(now + day))
+        compose.onNodeWithText("Its end time has passed, so it can no longer be approved.").assertIsDisplayed()
+        compose.onAllNodesWithText("Next:", substring = true).assertCountEquals(0)
+        compose.onNodeWithText("Decline").assertIsDisplayed()
+    }
+
+    @Test
+    fun noTimeBeforeTheEndCannotBeApprovedEither() {
+        proposal(until = now + day, next = emptyList())
+        compose.onNodeWithText("Its end time has passed, so it can no longer be approved.").assertIsDisplayed()
+        compose.onAllNodesWithText("Next:", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun aProposalWithoutItsExpressionStillOffersNoAccept() {
+        proposal(repeat = "", next = listOf(now + day))
+        compose.onAllNodesWithText("Repeats", substring = true).assertCountEquals(0)
+        compose.onNodeWithText("until stopped").assertIsDisplayed()
+        noAccept()
+    }
+
+    private fun scheduled(item: InboxItem) {
+        compose.setContent { ScheduledCard(item, folders, null, gates, {}, {}, {}) }
+    }
+
+    @Test
+    fun aScheduledOccurrenceShowsItsScheduleAndSkips() {
+        scheduled(pending.copy(scheduledAt = now + day, recurrence = InboxItem.Recurrence(InboxItem.Recurrence.Role.OCCURRENCE, "0 21 * * 3")))
+        compose.onNodeWithText("Repeats 0 21 * * 3 (desktop time)").assertIsDisplayed()
+        compose.onNodeWithText("Skip this time").assertIsDisplayed()
+        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
+    }
+
+    @Test
+    fun aOneOffScheduledItemStillCancels() {
+        scheduled(pending.copy(scheduledAt = now + day))
+        compose.onNodeWithText("Cancel").assertIsDisplayed()
+        compose.onAllNodesWithText("Skip this time").assertCountEquals(0)
+        compose.onAllNodesWithText("Repeats", substring = true).assertCountEquals(0)
+    }
+
+    private fun waiting(item: InboxItem) {
+        compose.setContent { WaitingCard(item, folders, InboxView.Preselection("f1"), null, gates, {}, {}, {}, {}) }
+    }
+
+    @Test
+    fun aFailedOccurrenceIsAnOrdinaryItemMarkedAsRepeating() {
+        waiting(pending.copy(recurrence = InboxItem.Recurrence(InboxItem.Recurrence.Role.OCCURRENCE, "0 21 * * 3")))
+        compose.onNodeWithText("Part of a repeating handoff · Repeats 0 21 * * 3 (desktop time)").assertIsDisplayed()
+        compose.onNodeWithText("Accept").assertIsDisplayed()
+        compose.onNodeWithText("Skip this time").assertIsDisplayed()
+        compose.onAllNodesWithText("Dismiss").assertCountEquals(0)
+    }
+
+    @Test
+    fun anOccurrenceWithoutItsExpressionShowsNoEmptySchedule() {
+        val occurrence = InboxItem.Recurrence(InboxItem.Recurrence.Role.OCCURRENCE, "")
+        waiting(pending.copy(recurrence = occurrence))
+        compose.onNodeWithText("Part of a repeating handoff").assertIsDisplayed()
+        compose.onAllNodesWithText("Repeats", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun aScheduledOccurrenceWithoutItsExpressionShowsNoEmptySchedule() {
+        scheduled(pending.copy(scheduledAt = now + day, recurrence = InboxItem.Recurrence(InboxItem.Recurrence.Role.OCCURRENCE, "")))
+        compose.onAllNodesWithText("Repeats", substring = true).assertCountEquals(0)
+        compose.onNodeWithText("Skip this time").assertIsDisplayed()
     }
 }
