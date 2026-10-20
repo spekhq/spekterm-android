@@ -54,8 +54,13 @@ access turned on.
 - **Conversations**: an agent session's messages, thinking, tool calls and results — a tool call shown with its
   result, and a run of calls summarized in one line that opens to each; a dormant session can be woken. Agent text is Markdown that loads nothing from the network. Your messages and the
   agent's text show when they were written, and the conversation is divided by day ("Today", "Yesterday", the date).
+  A line under the title shows what the agent last reported: its model and effort, how full its context is, the
+  session's cost, and the account's rate limits when they are close to full; tapping it shows them all, with when the
+  limits reset.
 - **Replies**: free text to the agent while it waits or works, with photos (HEIC converted to JPEG), PDF or
-  text files attached, shown as unconfirmed until it appears in the conversation.
+  text files attached, shown as unconfirmed until it appears in the conversation. The session's skills are a tap
+  away: search them, and choosing one starts the reply with it as a slash command. A command that never appears says
+  why it may not have, and one too long to run as a command says so before it is sent.
 - **Prompts**: a permission request, the agent's questions or a plan to approve is shown as plain text and,
   when the desktop says it can be, answered from the phone — allow once or deny, the questions' options or
   declining, approve or keep planning. "Tell Claude what to change" and a question's free-text answer are not
@@ -69,7 +74,7 @@ access turned on.
 These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
 following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a;
 background work: c79785f, 0.2.11; scheduled handoffs: 445dc24, 0.2.12; sending an accepted item's first prompt: b45c359,
-0.2.13); against an older desktop the app shows none of
+0.2.13; the agent's model and usage, and the session's skills: 6b6ebfa, 0.2.15); against an older desktop the app shows none of
 them, and a ready agent stays "Waiting for you".
 
 Not yet: the terminal view (shell sessions).
@@ -104,7 +109,7 @@ one deliberately, for example once with `./gradlew assembleDebug -Pandroid.build
 
 ### Testing against a desktop
 
-Use spekterm [0.2.14](https://github.com/spekhq/spekterm/releases/tag/v0.2.14) or later, which has everything
+Use spekterm [0.2.15](https://github.com/spekhq/spekterm/releases) or later, which has everything
 above, or run it from source — `npm run dev` in a spekterm checkout, which uses its own profile
 `~/.config/spekterm-dev` — for a desktop change not released yet. Then Settings → Remote access → turn on → Pair
 device, and scan the code with the app. The phone must reach the desktop's port (47615 by default) over the LAN,

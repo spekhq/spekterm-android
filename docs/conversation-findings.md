@@ -781,3 +781,54 @@ On the emulator, 2026-10-20 09:59–10:00 (+08:00), against the dev desktop rest
 | Scrolled up to yesterday's first message: 「昨天」 back in its own place, 「今天」 further down before today's first message | pass |
 | Dark mode: the pinned pill readable over the text | pass |
 | Times under messages in the larger size; `./gradlew test assembleDebug` | pass |
+
+## Usage and skills
+
+The `agent-usage-and-skills` change: the line with the agent's model and usage, its details, the skills sheet, and the
+marks for slash-command replies.
+
+### Build and suites (task 3.3)
+
+| What | Outcome |
+|---|---|
+| `./gradlew test assembleDebug`: 391 unit tests, among them `UsageAndSkillsTest` (7: decoding field by field, `1e400`, clamping, not-known lists), `UsageLineTest` (6: parts, the 80% rule on the rounded percent, a past reset, sizes, cost in en-US / zh-TW / ja-JP, the next change, log fields), `SkillsTest` (5: filter, sort, insertion with paths, a bare slash, newlines, U+3000), the slash-command additions to `RepliesTest`, `ConversationReducerTest`'s clearing, `StringsTest` and `HardcodedTextTest` | pass |
+| `connectedDebugAndroidTest` on the emulator (AVD `Pixel_9`, Android 16), the only device `adb devices` listed (the Pixel disconnected first): 110 tests, 109 passed, `DesktopRaceTest.droppedAttemptsAreNotCountedAsFailures` skipped by its own assumption. New: `DesktopTest`'s usage and skills before the watch's answer and after a reconnect, `UsageLineTest` (the line in en-US, a limit leaving it when its reset passes), `SkillsSheetTest` (choosing a skill with text typed, the cursor and `Desktop`'s draft; a description with links as plain text; a list not known) | pass |
+
+The suite uninstalls the app, and with it the Keystore key the emulator's pairing was sealed with; a saved
+`pairing.bin` put back could not be read, so the emulator was paired with the dev desktop again by a link
+(`startPairing` over CDP, opened in the app and confirmed).
+
+### On the emulator (task 3.2)
+
+On the emulator (AVD `Pixel_9`), 2026-10-20 10:50–11:10 (+08:00), against the dev desktop started from source
+(spekterm `8d8bfeb`, after 0.2.15's `6b6ebfa`; port 47616), agent CLI 2.1.304. A new session `go-0800` was started from
+the phone in `go`; driven over adb, each tap and text only with the app in front. Screenshots kept outside the
+repository.
+
+| What | Outcome |
+|---|---|
+| The new session before its first message: "Opus 5.5 (high) · Context 0% of 1M · $0.00" under the title; the skills sheet says the agent lists its skills with the first message, with no list and no search field | pass |
+| After "Reply with the word ok": the sheet lists 56 skills by name, descriptions as plain text (one in Chinese), three lines at most; "KEYBIND" in the search leaves `/keybindings-help` alone | pass |
+| "reply only with ok" typed, then `/keybindings-help` chosen: the field reads "/keybindings-help reply only with ok"; the screen left and opened again, the field still reads so | pass |
+| `/update-config change nothing, reply only with ok` chosen and sent: it ran, the agent answered "ok", the reply was confirmed by the conversation's same line; the line's context and cost rose (14%, $1.03) | pass |
+| The line and the details against the desktop's own payload for the session (`agent-status/<id>.json`): model "Opus 5.5", effort "high", 14% of 1,000,000, $1.0314, five-hour 12% resetting 12:40, seven-day 31% resetting Sun Oct 25 00:00 — the phone showed each | pass |
+| `/no-such-skill` sent: "Not yet confirmed", then after 30 s the command mark ("Not in the conversation as sent — a command the agent's CLI doesn't know, …") | pass |
+| A command of 672 characters: no note; extended to 872: "This long, it will arrive as a plain message, not run as a command." with the send button enabled | pass |
+| The payload's rate limits rewritten (saved first, written to a temporary name and moved into place, nothing typed into the session meanwhile): five-hour 85% resetting in two minutes, seven-day 90% reset an hour before — the line ends with "5-hour limit 85%" in the warning color and leaves the seven-day out; the details say "85% · resets 11:01 AM" and "Reset at 9:59 AM — not reported since" | pass |
+| The five-hour reset passing with the file untouched (its modification time unchanged, so no new report): at 11:03 the line had dropped the limit by itself. The saved payload was put back afterwards | pass |
+| 中文（台灣）: 「Opus 5.5（high） · Context 14%（共 1M） · US$1.03」 — Android's form of US dollars in zh-TW is "US$", as the JVM test expects; the details, the sheet and the command mark in Chinese | pass |
+| `/clear` typed and sent: confirmed by the new transcript's "/clear" line; the usage went back to 0% and $0.00; the sheet said the list is not known; after one message it listed 56 skills again | pass |
+| Dark mode, both languages: the line, the sheet and the details readable | pass |
+
+Found on the way:
+
+- **The list holds skills the user may not invoke.** `/keybindings-help reply only with ok` was answered by the CLI
+  with "This skill can only be invoked by Claude, not directly by users", recorded as a user line `/keybindings-help`
+  without its arguments, so the reply never matched. The agent's listing does not tell such skills apart, so neither
+  can the desktop's event. The sheet's footnote now says a few skills only the agent may use, to be asked for in
+  words, and the command mark names that case (design D4, D5).
+- The CLI's refusal arrives as a user message (`meta` false), so it is shown as the user's own bubble. The desktop
+  could mark it as not typed; left as it is here.
+- Gboard follows the app's language: after switching the app to 中文（台灣）, `adb shell input text` went into
+  Zhuyin composition until the keyboard was switched back.
+- In the zh-TW text "…，/clear 之後…" the line broke between "/" and "clear"; a word joiner keeps it together (checked on the emulator afterwards).
