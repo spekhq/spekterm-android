@@ -159,3 +159,8 @@ needs a data connection after a long time offline. Sockets owned by the app's UI
 `/proc/net/tcp*` and `udp*` from 13:14:02 to 13:19:42 (295 samples), across two force-stops and restarts at 13:17:54 and
 13:18:10: one remote address throughout, `192.168.0.199:47615`, the desktop. A connection shorter than a second could
 fall between samples, and the Play Store app's own connections are under its UID, not the app's.
+
+Play Console warns that the bundle has native code without debug symbols. All 16 `.so` in it come stripped from their
+libraries (zxing-cpp's Android wrapper, CameraX's two JNI helpers, `androidx.graphics.path`; `file` says "stripped", no
+`.symtab`), so `ndk.debugSymbolLevel` has nothing to extract and the app has no native code of its own; the warning
+stays, and a native crash in those libraries reads as addresses. No NDK is installed here either.
