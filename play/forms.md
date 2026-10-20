@@ -8,7 +8,7 @@ matched to the question as the Console shows it. `docs/play-release.md` says whe
 
 - **App category**: Productivity.
 - **Contact details**: the developer account's contact email (kewang chooses; it is shown on the listing and in the privacy
-  policy's contact line). Website: `https://github.com/spekhq/spekterm-android`.
+  policy's contact line). Website: `https://spekterm.com`.
 - **Privacy policy URL**: `https://spekterm.com/android/privacy/` (Traditional Chinese: `https://spekterm.com/zh-tw/android/privacy/`;
   Play takes one URL).
 
