@@ -751,3 +751,17 @@ both put back afterwards. Screenshots kept outside the repository.
 
 The second reply's text arrived garbled (the emulator's keyboard was in Chinese when `adb shell input text` typed);
 not the app's doing.
+
+### On the Pixel (task 4.1)
+
+On the Pixel 7, 2026-10-20 09:33–09:38 (+08:00), with kewang's OK: the debug build put on with `adb install -r` (data
+and the pairing with the installed spekterm kept); driven over adb only while the app was in front. Dark theme,
+中文（台灣）, 24-hour.
+
+| What | Outcome |
+|---|---|
+| This session (`spekterm-android-33fa`), against its transcript's `timestamp`s converted to +08:00: the user's 08:11 and 09:33 messages, the agent's 08:22, 08:48 and 09:34 texts — the phone showed each of those times | pass |
+| 「今天」 before the session's first message, no other heading in it; tool-call runs and 「由 agent 插入」 with no time | pass |
+| The row's background work: 「背景執行中：1 個」, the dev desktop's shell; no artifact monitor listed | pass |
+| A session from an earlier day: every one on the installed desktop was dormant, and waking one was not done; carried by the emulator run (「昨天」, dates) | carried |
+| The conversation left open overnight with the screen off, read the next morning | pending (kewang) |
