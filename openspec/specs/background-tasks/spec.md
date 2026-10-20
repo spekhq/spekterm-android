@@ -1,8 +1,8 @@
 # background-tasks Specification
 
 ## Purpose
-Shows on the phone the background work a running agent session still has — background subagents, shells and
-monitors — as of its agent's last report, so that a session whose turn ended is not mistaken for one doing nothing.
+Shows on the phone the background work a running agent session still has — background subagents and
+shells — as of its agent's last report, so that a session whose turn ended is not mistaken for one doing nothing.
 
 ## Requirements
 
@@ -15,7 +15,9 @@ have a kind — an agent, a shell, a monitor, or other — and a label or none. 
 or with no kind, SHALL be shown as other. A malformed task SHALL be left out without affecting the session or the
 other tasks, and a malformed background field SHALL read as no background work, never dropping the session. A session
 the desktop sends without background work — including every session of a desktop older than the feature — SHALL
-show none.
+show none. A monitor — a subscription the agent's CLI keeps on its own, such as an artifact's live updates — is
+not work the agent does, and the app SHALL NOT show it: a session whose only background tasks are monitors shows
+none.
 
 #### Scenario: Work that ends
 
@@ -32,6 +34,11 @@ show none.
 - **WHEN** a session's background work holds a task whose kind is "workflow"
 - **THEN** it is shown as other, with its label
 
+#### Scenario: An artifact's live updates
+
+- **WHEN** a session's background work holds a monitor labelled "live updates for artifact https://claude.ai/artifact/abc" and one shell
+- **THEN** its row and its screen show the shell alone, and a session with only that monitor shows no background work
+
 #### Scenario: A malformed entry
 
 - **WHEN** a session's background work holds one task with no id and one valid shell
@@ -40,7 +47,7 @@ show none.
 ### Requirement: Show background work on the session list
 
 A running agent session's row SHALL show, when it has background work, how much it has by kind, in the order
-subagent (the protocol's agent kind), shell, monitor, other, with the language's plural forms. The row SHALL keep showing its wait state, its close offer and
+subagent (the protocol's agent kind), shell, other, with the language's plural forms. The row SHALL keep showing its wait state, its close offer and
 its handoff lines as before; background work SHALL NOT change the wait state shown, the counts of a collapsed group's
 heading, or any notification.
 
@@ -72,7 +79,7 @@ follow every new list while the screen is open.
 
 #### Scenario: A task without a label
 
-- **WHEN** a session's background work holds a monitor with no label
+- **WHEN** a session's background work holds a task of a kind the app does not know, with no label
 - **THEN** the expanded item lists it by its kind alone
 
 #### Scenario: Many tasks
@@ -92,5 +99,5 @@ URL or a path in it, SHALL NOT render it as markdown, and SHALL NOT record it in
 
 #### Scenario: A label with a URL
 
-- **WHEN** a monitor's label is "live updates for artifact https://claude.ai/artifact/abc"
+- **WHEN** a background subagent's label is "check https://claude.ai/artifact/abc"
 - **THEN** the text is shown as written and tapping the URL does nothing

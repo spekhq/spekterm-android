@@ -256,6 +256,14 @@ class SessionsViewTest {
     }
 
     @Test
+    fun aMonitorIsNotShownAsBackgroundWork() {
+        val shell = BackgroundTask("t1", BackgroundTask.Kind.SHELL, "npm run dev")
+        val monitor = BackgroundTask("m1", BackgroundTask.Kind.MONITOR, "live updates for artifact https://claude.ai/artifact/abc")
+        assertEquals(listOf(shell), SessionsView.background(Session("a", null, "claude", running = true, wait = "ready", background = listOf(monitor, shell))))
+        assertEquals(emptyList<BackgroundTask>(), SessionsView.background(Session("b", null, "claude", running = true, wait = "ready", background = listOf(monitor))))
+    }
+
+    @Test
     fun backgroundCountsInAFixedOrderAndTheirLine() {
 
         val tasks = listOf(BackgroundTask.Kind.SHELL, BackgroundTask.Kind.AGENT, BackgroundTask.Kind.SHELL, BackgroundTask.Kind.OTHER).mapIndexed { i, kind -> BackgroundTask("t$i", kind) }

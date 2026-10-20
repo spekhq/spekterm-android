@@ -104,9 +104,12 @@ object SessionsView {
     fun canCreate(connected: Boolean, paused: Boolean, sessions: SessionsState, creation: Creation?): Boolean =
         connected && !paused && sessions.current && sessions.list?.window == true && creation !is Creation.Starting
 
-    /** The background work a session shows: only a running agent's (`background-tasks` D2). */
+    /**
+     * The background work a session shows: only a running agent's (`background-tasks` D2), and no monitor — a
+     * monitor is a subscription the agent's CLI keeps on its own, such as an artifact's live updates, not work.
+     */
     fun background(session: Session): List<BackgroundTask> =
-        if (session.running && session.isAgent) session.background else emptyList()
+        if (session.running && session.isAgent) session.background.filter { it.kind != BackgroundTask.Kind.MONITOR } else emptyList()
 
     /** How many tasks of each kind, in a fixed order and never a zero count (D2). */
     fun backgroundCounts(tasks: List<BackgroundTask>): List<Pair<BackgroundTask.Kind, Int>> =
