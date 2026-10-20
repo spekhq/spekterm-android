@@ -832,3 +832,19 @@ Found on the way:
 - Gboard follows the app's language: after switching the app to 中文（台灣）, `adb shell input text` went into
   Zhuyin composition until the keyboard was switched back.
 - In the zh-TW text "…，/clear 之後…" the line broke between "/" and "clear"; a word joiner keeps it together (checked on the emulator afterwards).
+
+### On the Pixel (task 4.1)
+
+On the Pixel 7, 2026-10-20 12:47–12:50 (+08:00), with kewang's OK: the installed spekterm restarted by kewang at 12:44
+(its `app.asar` says 0.2.15, byte for byte the `release/Spekterm-0.2.15.AppImage` built from `a8e72df`); the debug
+build put on with `adb install -r`, the pairing saved first and kept. kewang used it for real in this session
+(`spekterm-android-df12`); nothing was driven over adb. Dark theme, 中文（台灣）. The build held the change committed since as `8cecbb5`
+(the usage line formatted in the app's own language, not the system's).
+
+| What | Outcome |
+|---|---|
+| The log on opening this session: `skills count=58`, then `status values=model,effort,context,size,cost,fiveHour,sevenDay`, both right around the watch's answer | pass |
+| The line, screenshot at 12:50 with the app in front: 「Opus 5.5（high） · Context 11%（共 1M） · US$22.51」; the desktop's payload for the session: "Opus 5.5", effort high, 11% of 1,000,000, cost $22.60 when read a minute later (the turn had gone on); five-hour 0% and seven-day 33%, both under 80%, so not on the line | pass |
+| A skill sent from the phone: a 9-character reply submitted at 12:49:37, and `/standup` ran in the session at that moment | pass |
+| A session opened for three seconds reported no rate limits (`values=model,effort,context,size,cost`); the line simply left them out | pass |
+| kewang's word: 「可以 操作沒問題」 | pass (maintainer) |

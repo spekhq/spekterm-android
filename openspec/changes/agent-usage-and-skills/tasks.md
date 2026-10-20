@@ -24,4 +24,4 @@
 
 ## 4. On the phone
 
-- [ ] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop once it runs 0.2.15: `adb install -r` the debug build; kewang uses the usage line and the skills sheet for real in a working session; I compare the line with the desktop's status bar at the same moment and collect the log's status/skills lines and screenshots (only with the app in front). Verify: the comparison, kewang's word and the evidence recorded in the findings section
+- [x] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop once it runs 0.2.15: `adb install -r` the debug build; kewang uses the usage line and the skills sheet for real in a working session; I compare the line with the desktop's status bar at the same moment and collect the log's status/skills lines and screenshots (only with the app in front). Verify: the comparison, kewang's word and the evidence recorded in the findings section
