@@ -10,8 +10,8 @@ you forward — with no relay and no push service in between.
 
 ## Install
 
-Coming to Google Play; until it is live, build it as below. Publishing it is described in
-[`docs/play-release.md`](docs/play-release.md). It pairs with a computer running spekterm
+[Get it on Google Play](https://play.google.com/store/apps/details?id=com.spekterm.android), or build it as below.
+Publishing it is described in [`docs/play-release.md`](docs/play-release.md). It pairs with a computer running spekterm
 [0.2.14](https://github.com/spekhq/spekterm/releases) or later — Linux or an Apple silicon Mac — with Settings → Remote
 access turned on.
 
