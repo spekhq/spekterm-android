@@ -94,21 +94,20 @@ menu still offers Report a problem, which opens the project's issue page (`play-
 Declared type: **Special use** (`FOREGROUND_SERVICE_SPECIAL_USE`, `android:foregroundServiceType="specialUse"` on
 `ConnectionService`). Other types were weighed in `docs/spike-findings.md` §3.
 
-- **Describe the app functionality that uses this permission**:
-
-  > spekterm's companion app keeps a direct, encrypted connection to the user's own computer running spekterm (on the same
-  > network, over Tailscale, or a port the user forwards), and shows a notification when an AI coding agent there waits for
-  > the user's reply, asks for a choice or a permission, finishes a handed-off task, or an inbox item arrives. There is no
-  > server in between, so push messaging cannot deliver these notifications; the held connection is the only way they reach
-  > the phone. An ongoing notification shows the connection's state, and the user can pause it there or in Settings.
-
-- **User impact if the task is deferred or interrupted by the system**:
-
-  > The user is not told that an agent on their computer is blocked waiting for them; the agent stays idle until the user
-  > happens to look. Events missed while disconnected are replayed when the connection returns, so an interruption delays
-  > the notifications rather than losing them, but a delay of minutes or hours defeats their purpose.
+The Console (2026-10-20) asks which task needs it — **Other** — then for a video link and one description of the use,
+including why the work must start at once and cannot be paused or restarted:
 
 - **Video link**: https://www.youtube.com/watch?v=hX5qdI8e0yg (unlisted), the script below.
+- **Description**, as entered:
+
+  > The app keeps a direct, encrypted connection to the user's own computer running spekterm (same network, Tailscale or a
+  > forwarded port) and notifies the user when an AI coding agent there waits for a reply, a choice or a permission. There
+  > is no server in between, so push messaging cannot deliver these; the held connection is the only way. The work must
+  > start at once and run until the user pauses it: if deferred, the agent sits blocked unseen. An ongoing notification
+  > shows it; the user can pause it there.
+
+  If review asks for more: events missed while disconnected are replayed when the connection returns, so an interruption
+  delays the notifications rather than losing them, but a delay of minutes or hours defeats their purpose.
 
 ### Video script (as recorded on 2026-10-19, on the emulator against a demo desktop, `play-release` D8)
 
