@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -88,7 +89,7 @@ internal fun rememberUsageNow(usage: AgentUsage): Long {
 internal fun UsageRow(usage: AgentUsage, now: Long, onOpen: () -> Unit) {
     val parts = UsageLine.parts(usage, now)
     if (parts.isEmpty()) return
-    val locale = Locale.getDefault()
+    val locale = LocalConfiguration.current.locales[0]
     val words = parts.map { partText(it, locale) }
     val warning = spekColors.attention
     val text = buildAnnotatedString {
@@ -129,7 +130,7 @@ private fun partText(part: Part, locale: Locale): String = when (part) {
 @Composable
 internal fun UsageDialog(usage: AgentUsage, now: Long, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val locale = Locale.getDefault()
+    val locale = LocalConfiguration.current.locales[0]
     val rows = buildList {
         usage.model?.let { add(R.string.usage_row_model to it) }
         usage.effort?.let { add(R.string.usage_row_effort to it) }

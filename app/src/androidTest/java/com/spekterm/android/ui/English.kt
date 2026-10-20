@@ -11,6 +11,6 @@ import java.util.Locale
 @Composable
 fun English(content: @Composable () -> Unit) {
     val base = LocalContext.current
-    val config = Configuration(base.resources.configuration).apply { setLocale(Locale.US) }
+    val config = Configuration(LocalConfiguration.current).apply { setLocale(Locale.US) }
     CompositionLocalProvider(LocalContext provides base.createConfigurationContext(config), LocalConfiguration provides config, content = content)
 }
