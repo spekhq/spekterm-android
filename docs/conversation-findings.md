@@ -882,10 +882,31 @@ Screenshots kept outside the repository.
 | 中文（台灣）: 待核准, 週期交接, 「重複 0 21 * * 3（桌機時間） · 直到 2026年12月31日 下午11:59」, 「接下來：…」, 請在桌機核准。, 拒絕, 跳過這次, 「要跳過這次嗎？／只跳過這一次；跳過不會停止這個週期交接。」, 「要拒絕這個週期交接嗎？／它不會執行。」 — the desktop's words (design D4a) | pass |
 | Cleanup: both recurrences stopped, the proposal and the one-off dismissed, nothing scheduled left; the test folder removed and `workspace.json` equal to the saved copy; the app's language back to the system's | done |
 
+### On the Pixel (task 4.1)
+
+The Pixel 7 (Android 16), 2026-10-20 21:55–22:08 (+08:00), the debug build of `8cbca61` installed with `adb install`
+over the Play build kewang uninstalled first (the Play build is signed differently and is not debuggable), paired with
+the same dev desktop over Tailscale, the app in 中文（台灣）. The installed spekterm was not used: it is older than 0.2.16.
+kewang tapped and confirmed on the phone; the evidence is the app's `connection.log`, `logcat`, `dumpsys
+notification` and the dev desktop's inbox (the notification shade itself is not captured, as it holds other apps'
+notifications).
+
+| What | Outcome |
+|---|---|
+| Two proposals `--repeat "0 21 * * 3"` ("Pixel weekly", and "Pixel weekly 2" after the phone left the Wi-Fi): a notification for each (`intake:handoff:…` in `dumpsys notification`), while the phone reached the desktop only over Tailscale | pass |
+| The notification's tap opened the Inbox (`START … act=com.spekterm.android.OPEN_INTAKE` at 22:03:57) and its notification was cancelled; the card with "重複 0 21 * * 3（桌機時間）", three Wednesdays 21:00 and only 拒絕 | pass (maintainer) |
+| 拒絕 on "Pixel weekly" (`inbox op=ignore outcome=ignored` at 22:04:25): gone from the desktop's inbox | pass |
+| "Pixel weekly 2" approved on the desktop: Oct 21 21:00 under 已排程; 跳過這次 (`op=ignore outcome=ignored` at 22:06:04): the desktop's next time Oct 28 21:00, and the phone's card "2026年10月28日 21:00 開啟 · 重複 0 21 * * 3（桌機時間）" with 跳過這次 and 立即執行 (screenshot) | pass |
+| A one-off `--at 2026-10-21T10:00:00+08:00`: 立即執行 (`op=accept outcome=accepted` at 22:07:41) opened its session in the target folder at once, whose agent read the body and reported | pass |
+| Cleanup: the recurrence stopped, nothing scheduled or proposed left on the dev desktop | done |
+
+The Pixel stays on the debug build paired with the dev desktop until kewang puts the Play build back and pairs it
+with the installed desktop again; no saved pairing exists to restore (the Play build's data cannot be read).
+
 Found on the way:
 
 - **After its folder was removed, the next time was routed elsewhere.** Skipping the failed 19:55 time made the
   desktop schedule 20:55 "in spekterm" — its routing picked another folder for the recurrence's next occurrence
-  instead of keeping the removed one (or none). Desktop behavior, outside this change; reported to spekterm.
+  instead of keeping the removed one (or none). Desktop behavior, outside this change; reported to the spekterm session that handed this change off.
 - The waiting card's meta line read "go · go · …": the handoff's actor and origin are both the source folder's name.
   As before this change.
