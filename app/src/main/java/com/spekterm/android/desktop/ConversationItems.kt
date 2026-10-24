@@ -1,6 +1,7 @@
 package com.spekterm.android.desktop
 
 import com.spekterm.android.net.Entry
+import com.spekterm.android.net.Origin
 
 /**
  * What the conversation screen shows for its entries: a tool call with its result, runs of tool calls summarized,
@@ -15,7 +16,7 @@ object ConversationItems {
         val anchorsAfter: List<String>
     }
 
-    /** A part of a [Run]: a call or the thinking between two calls. */
+    /** A part of a [Run]: a call, or the thinking or a background task's notice between two calls. */
     sealed interface Part {
         val key: String
     }
@@ -25,6 +26,9 @@ object ConversationItems {
     }
 
     data class Thinking(override val key: String, val entry: Entry.Thinking) : Part
+
+    /** A background task's notice that arrived between two calls (`tool-call-display` D8). */
+    data class Notice(override val key: String, val entry: Entry.User) : Part
 
     data class LoneResult(override val key: String, val result: Entry.Result, override val anchorsAfter: List<String> = emptyList()) : Shown
 
@@ -47,7 +51,8 @@ object ConversationItems {
         val consumed = results.values.toSet()
         val out = mutableListOf<Shown>()
         var forming: MutableList<Part>? = null
-        val held = mutableListOf<Thinking>()
+        // Thinking and task notices after a call: joined to the run when another call follows, else shown on their own.
+        val held = mutableListOf<Part>()
 
         fun emit(item: Shown) {
             out += item
@@ -59,7 +64,13 @@ object ConversationItems {
                 emit(if (parts.size == 1) first else Run(first.key, parts.toList()))
             }
             forming = null
-            held.forEach { emit(Plain(it.key, it.entry)) }
+            held.forEach {
+                when (it) {
+                    is Thinking -> emit(Plain(it.key, it.entry))
+                    is Notice -> emit(Plain(it.key, it.entry))
+                    is Call -> Unit
+                }
+            }
             held.clear()
         }
 
@@ -78,6 +89,7 @@ object ConversationItems {
                     }
                 }
                 entry is Entry.Thinking && forming != null -> held += Thinking(key, entry)
+                entry is Entry.User && entry.origin == Origin.TaskNotice && forming != null -> held += Notice(key, entry)
                 entry is Entry.Result && i in consumed -> Unit
                 entry is Entry.Result -> {
                     close()

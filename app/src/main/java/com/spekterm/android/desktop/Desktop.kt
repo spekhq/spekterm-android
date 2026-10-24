@@ -1,6 +1,7 @@
 package com.spekterm.android.desktop
 
 import com.spekterm.android.log.ConnectionLog.Kind
+import com.spekterm.android.net.FileChunk
 import com.spekterm.android.net.AgentUsage
 import com.spekterm.android.net.AnswerResult
 import com.spekterm.android.net.ConnectionClosedException
@@ -329,6 +330,26 @@ object Desktop {
         val error = answer?.error ?: if (answer == null) RemoteError(NOT_CONNECTED) else null
         log(Kind.BRIEF, "error" to error?.code, "hasBody" to (brief?.body != null), "hasReport" to (brief?.report != null))
         BriefAnswer(brief, error)
+    }
+
+    /**
+     * Reads file [index] of the SendUserFile call [toolUseId] in [sessionId] into [sink], in chunks (`tool-call-display`
+     * D6). Each chunk waits as long as an attachment's does; the log gets the outcome and size, never a name or byte.
+     */
+    suspend fun readSentFile(sessionId: String, toolUseId: String, index: Int, limit: Long, sink: SentFileRead.Sink, progress: (Long, Long) -> Unit = { _, _ -> }): SentFileRead.Outcome {
+        val outcome = SentFileRead.read(limit, sink, progress) { offset, version ->
+            withContext(dispatcher) {
+                val a = attached ?: return@withContext null
+                val answer = a.scope.async { request(a, Operations.FILES_READ, Frames.filesRead(sessionId, toolUseId, index, offset, SentFileRead.CHUNK, version), PUT_TIMEOUT_MS) }.await()
+                    ?: return@withContext null
+                SentFileRead.Answer(if (answer.ok) FileChunk.decode(answer.result) else null, answer.error)
+            }
+        }
+        when (outcome) {
+            is SentFileRead.Outcome.Done -> log(Kind.FILES, "outcome" to "done", "size" to outcome.size)
+            is SentFileRead.Outcome.Failed -> log(Kind.FILES, "outcome" to outcome.reason.name.lowercase(), "error" to outcome.code, "size" to outcome.size)
+        }
+        return outcome
     }
 
     /** Hibernates [sessionId] (design D9); [force] only after a busy refusal the user agreed to override. */

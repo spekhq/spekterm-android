@@ -85,6 +85,8 @@ class ConnectionLog(
         SEEN,
         // `inbox`: inbox reads and actions (operation, outcome, error code, count; never a title, body, prompt or folder).
         INBOX,
+        // `tool-call-display`: reading a file the agent sent (outcome, error code, size; never a name, path or byte).
+        FILES,
     }
 
     companion object {

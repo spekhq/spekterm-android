@@ -24,6 +24,8 @@ class HardcodedTextTest {
         "pairing/PairingLink.kt" to "the link's format and redacted toString",
         "ui/QrScanner.kt" to "a debug log line",
         "ui/Icons.kt" to "vector names, never shown",
+        "desktop/ToolView.kt" to "the agent CLI's tool names and result markers, matched, never shown",
+        "desktop/PeerText.kt" to "the agent CLI's wrapper lines, matched and removed, never shown",
     )
 
     /** Literals that are not text for people wherever they appear. */

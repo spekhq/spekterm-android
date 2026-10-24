@@ -642,6 +642,9 @@ private fun RunItem(run: ConversationItems.Run, expanded: Boolean, toggle: () ->
                     val partToggle = { open[key] = !partOpen }
                     when (part) {
                         is ConversationItems.Call -> CallLine(part, partOpen, partToggle, Modifier.fillMaxWidth())
+                        is ConversationItems.Notice -> Muted(stringResource(R.string.conversation_injected), partOpen, partToggle) {
+                            Text(part.entry.text, style = MaterialTheme.typography.bodySmall)
+                        }
                         is ConversationItems.Thinking -> Muted(stringResource(R.string.conversation_thinking), partOpen, partToggle) {
                             Text(part.entry.text, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic, color = colors.onSurfaceVariant)
                         }

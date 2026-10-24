@@ -131,6 +131,16 @@ object Frames {
 
     fun handoffsBrief(sessionId: String): JsonObject = buildJsonObject { put("sessionId", sessionId) }
 
+    /** One chunk of a file the agent sent (`tool-call-display` D6); [version] from the first answer on every later one. */
+    fun filesRead(sessionId: String, toolUseId: String, index: Int, offset: Long, length: Int, version: String?): JsonObject = buildJsonObject {
+        put("sessionId", sessionId)
+        put("toolUseId", toolUseId)
+        put("index", index)
+        put("offset", offset)
+        put("length", length)
+        version?.let { put("version", it) }
+    }
+
     /** Accepts an inbox item into the folder the user chose (`inbox` design D6); a scheduled one opens now. */
     fun inboxAccept(adapter: String, id: String, folderId: String): JsonObject = buildJsonObject {
         put("adapter", adapter)
@@ -272,6 +282,9 @@ data class RemoteError(val code: String, val message: String = "", val detail: J
         const val PREFILL_EDITED = "PREFILL_EDITED"
         const val PREFILL_PENDING = "PREFILL_PENDING"
         const val APPROVE_ON_DESKTOP = "APPROVE_ON_DESKTOP"
+        const val FILE_NOT_SENT = "FILE_NOT_SENT"
+        const val FILE_GONE = "FILE_GONE"
+        const val FILE_CHANGED = "FILE_CHANGED"
     }
 }
 
@@ -295,6 +308,7 @@ object Operations {
     const val INBOX_ACCEPT = "inbox.accept"
     const val INBOX_IGNORE = "inbox.ignore"
     const val SUBMIT_PREFILL = "sessions.submitPrefill"
+    const val FILES_READ = "files.read"
 }
 
 @Serializable

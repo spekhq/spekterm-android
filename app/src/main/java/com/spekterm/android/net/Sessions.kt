@@ -118,6 +118,9 @@ data class Session(
     /** A filled-in first prompt from the inbox that nobody has sent (`inbox` design D3). */
     @Serializable(with = LenientPrefill::class)
     val prefill: Prefill? = null,
+    /** The name its agent is messaged by (`tool-call-display` D1); `null` for a shell and from an older desktop. */
+    @Serializable(with = NonEmptyString::class)
+    val peerName: String? = null,
 ) {
     val isAgent: Boolean get() = target == CLAUDE
 
@@ -154,6 +157,20 @@ object LenientBackground : KSerializer<List<BackgroundTask>> {
         (encoder as JsonEncoder).encodeJsonElement(
             JsonArray(value.map { JsonObject(mapOf("id" to JsonPrimitive(it.id), "kind" to JsonPrimitive(it.kind.wire), "label" to (it.label?.let(::JsonPrimitive) ?: JsonNull))) }),
         )
+    }
+}
+
+/** A non-empty JSON string; any other value is `null`, so it never drops the session that carries it (obligation 7). */
+object NonEmptyString : KSerializer<String?> {
+    override val descriptor = JsonElement.serializer().descriptor
+
+    override fun deserialize(decoder: Decoder): String? {
+        val e = (decoder as? JsonDecoder)?.decodeJsonElement() ?: return decoder.decodeString()
+        return (e as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotEmpty() }
+    }
+
+    override fun serialize(encoder: Encoder, value: String?) {
+        (encoder as JsonEncoder).encodeJsonElement(value?.let(::JsonPrimitive) ?: JsonNull)
     }
 }
 
@@ -237,14 +254,26 @@ sealed interface Entry {
     val uuid: String
     val at: Long
 
-    data class User(override val uuid: String, override val at: Long, val text: String, val meta: Boolean) : Entry
+    /** [origin]: where a message the user did not type came from, when the desktop says (`tool-call-display` D1). */
+    data class User(override val uuid: String, override val at: Long, val text: String, val meta: Boolean, val origin: Origin? = null) : Entry
 
     data class Text(override val uuid: String, override val at: Long, val text: String) : Entry
 
     data class Thinking(override val uuid: String, override val at: Long, val text: String) : Entry
 
-    /** A tool call: its [name] and its single identifying argument. */
-    data class Tool(override val uuid: String, override val at: Long, val id: String, val name: String, val arg: String?) : Entry
+    /**
+     * A tool call: its [name], its single identifying argument, and the [input] fields the desktop selected for its
+     * tool; [cut] names the fields the desktop shortened, with their original length or item count.
+     */
+    data class Tool(
+        override val uuid: String,
+        override val at: Long,
+        val id: String,
+        val name: String,
+        val arg: String?,
+        val input: ToolInput = ToolInput.EMPTY,
+        val cut: Map<String, Long> = emptyMap(),
+    ) : Entry
 
     data class Result(override val uuid: String, override val at: Long, val id: String, val text: String, val error: Boolean) : Entry
 
@@ -255,11 +284,40 @@ sealed interface Entry {
             val uuid = o.string("uuid") ?: ""
             val at = (o["at"] as? JsonPrimitive)?.let { it.longOrNull ?: it.doubleOrNull?.toLong() } ?: 0L
             return when (o.string("kind")) {
-                "user" -> User(uuid, at, o.string("text") ?: return null, o.bool("meta"))
+                "user" -> User(uuid, at, o.string("text") ?: return null, o.bool("meta"), Origin.decode(o["origin"]))
                 "text" -> Text(uuid, at, o.string("text") ?: return null)
                 "thinking" -> Thinking(uuid, at, o.string("text") ?: return null)
-                "tool" -> Tool(uuid, at, o.string("id") ?: "", o.string("name") ?: return null, o.string("arg"))
+                "tool" -> Tool(uuid, at, o.string("id") ?: "", o.string("name") ?: return null, o.string("arg"), ToolInput.of(o["input"]), ToolInput.cut(o["inputTruncated"]))
                 "result" -> Result(uuid, at, o.string("id") ?: "", o.string("text") ?: "", o.bool("error"))
+                else -> null
+            }
+        }
+    }
+}
+
+/** Where a message the user did not type came from (`origin`, `tool-call-display` D1). */
+sealed interface Origin {
+    /** Another session, a subagent, or another sender; [name] is the session's messaging name or the subagent's type. */
+    data class Peer(val sender: Sender, val name: String?) : Origin
+
+    data object TaskNotice : Origin
+
+    enum class Sender { SESSION, SUBAGENT, OTHER }
+
+    companion object {
+        /** An unknown `sender` reads [Sender.OTHER]; an unknown `kind` or a malformed origin is none. */
+        fun decode(element: JsonElement?): Origin? {
+            val o = element as? JsonObject ?: return null
+            return when (o.string("kind")) {
+                "peer" -> Peer(
+                    when (o.string("sender")) {
+                        "session" -> Sender.SESSION
+                        "subagent" -> Sender.SUBAGENT
+                        else -> Sender.OTHER
+                    },
+                    o.string("name")?.takeIf { it.isNotBlank() },
+                )
+                "task-notification" -> TaskNotice
                 else -> null
             }
         }

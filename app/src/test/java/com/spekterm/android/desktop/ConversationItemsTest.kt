@@ -6,7 +6,9 @@ import com.spekterm.android.desktop.ConversationItems.Plain
 import com.spekterm.android.desktop.ConversationItems.Run
 import com.spekterm.android.desktop.ConversationItems.Shown
 import com.spekterm.android.desktop.ConversationItems.Thinking
+import com.spekterm.android.desktop.ConversationItems.Notice
 import com.spekterm.android.net.Entry
+import com.spekterm.android.net.Origin
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -19,6 +21,8 @@ class ConversationItemsTest {
     private fun thinking(name: String) = Entry.Thinking(name, 0, "hmm")
     private fun text(name: String) = Entry.Text(name, 0, "said")
     private fun user(name: String) = Entry.User(name, 0, "asked", meta = false)
+    private fun notice(name: String) = Entry.User(name, 0, "<task-notification>…", meta = true, origin = Origin.TaskNotice)
+    private fun peer(name: String) = Entry.User(name, 0, "hi", meta = true, origin = Origin.Peer(Origin.Sender.SESSION, "x"))
 
     private fun group(vararg entries: Entry, anchors: Set<String> = emptySet()): List<Shown> {
         val list = entries.toList()
@@ -29,7 +33,13 @@ class ConversationItemsTest {
     private fun shape(items: List<Shown>): String = items.joinToString(" ") { item ->
         val body = when (item) {
             is Call -> "C(${item.tool.uuid})"
-            is Run -> "R(" + item.parts.joinToString(",") { if (it is Call) it.tool.uuid else "t:" + (it as Thinking).entry.uuid } + ")"
+            is Run -> "R(" + item.parts.joinToString(",") {
+                when (it) {
+                    is Call -> it.tool.uuid
+                    is Thinking -> "t:" + it.entry.uuid
+                    is Notice -> "n:" + it.entry.uuid
+                }
+            } + ")"
             is Plain -> "P(${item.entry.uuid})"
             is LoneResult -> "L(${item.result.uuid})"
         }
@@ -169,5 +179,37 @@ class ConversationItemsTest {
         }
         assertEquals(entries.toSet(), shown.toSet())
         assertTrue(shown.size == entries.size)
+    }
+
+    @Test
+    fun aNoticeBetweenCallsJoinsTheRun() {
+        val items = group(call("c1"), notice("n"), call("c2"))
+        assertEquals("R(c1,n:n,c2)", shape(items))
+        assertEquals(2, (items.single() as Run).calls.size)
+    }
+
+    @Test
+    fun aNoticeBeforeAPeerMessageStaysOutsideTheRun() {
+        assertEquals("R(c1,c2) P(n) P(p) R(c3,c4)", shape(group(call("c1"), call("c2"), notice("n"), peer("p"), call("c3"), call("c4"))))
+    }
+
+    @Test
+    fun aNoticeAfterOneCallMakesNoRunOfOne() {
+        assertEquals("C(c1) P(n) P(t)", shape(group(call("c1"), notice("n"), text("t"))))
+        assertEquals("P(n) C(c1)", shape(group(notice("n"), call("c1"))))
+    }
+
+    @Test
+    fun aPeerMessageEndsARun() {
+        assertEquals("C(c1) P(p) C(c2)", shape(group(call("c1"), peer("p"), call("c2"))))
+    }
+
+    @Test
+    fun aRunWithANoticeKeepsItsKeyAsItGrows() {
+        val before = group(call("c1"), notice("n"), call("c2")).single() as Run
+        val after = group(call("c1"), notice("n"), call("c2"), call("c3")).single() as Run
+        assertEquals(before.key, after.key)
+        assertEquals(3, after.calls.size)
+        assertEquals(0, after.failed)
     }
 }
