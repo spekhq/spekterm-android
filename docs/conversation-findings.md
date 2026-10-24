@@ -925,8 +925,7 @@ Found on the way:
 
 ### On the emulator against the dev desktop (task 3.2)
 
-Not run yet: it needs a dev desktop running spekterm's `remote-tool-detail` (uncommitted on spekterm master on
-2026-10-24) paired with the emulator.
+Waived: kewang checked the same screens on the Pixel against the desktop carrying `remote-tool-detail` (below).
 
 ### On the Pixel (task 4.1)
 
@@ -956,5 +955,8 @@ bubbles. Then one SendUserFile of `small.png` (6,942 B), `large.jpg` (12,101,458
 - `cache/sent/<id>/clip.mp4` present while the conversation stays open: the video handed to another app, its copy
   kept until the conversation is left.
 
-kewang: "不錯". Emulator screenshots in both languages and themes are not taken yet.
+kewang: "不錯".
+
+The emulator screenshots of tasks 3.2 and 5.3 were not taken: kewang looked at every screen on the Pixel and waived
+them ("不用特別截圖了，我人都看過了", 2026-10-24).
 
