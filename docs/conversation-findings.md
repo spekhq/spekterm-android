@@ -941,5 +941,20 @@ passed (spekterm 13d8ee7, archived in 14d6787). From the phone's connection log 
 - every `files` line carries only the outcome, error code and size — no name, path or content;
 - `cache/` holds no `sent/` directory afterwards: nothing handed to another app was left behind.
 
-kewang's own word on the phone's screens is still to be recorded here.
+kewang, on the phone: "app 測試功能都算正常" (functions fine; layout feedback taken as D11).
+
+### Messages as chat on the Pixel (task 5.3)
+
+2026-10-24, debug build of 7b72c66 on the Pixel, against the installed desktop updated to the release carrying
+`remote-tool-detail`. In this session I sent `spekterm-6bdb` a message and it replied; kewang saw both as message
+bubbles. Then one SendUserFile of `small.png` (6,942 B), `large.jpg` (12,101,458 B), `notes.md` (142 B) and
+`clip.mp4` (15,234 B). The phone's log at 14:20 UTC:
+
+- `files outcome=done size=6942` and `files outcome=too_large size=12101458` 19 ms apart: the two pictures read by
+  themselves on screen — the small one drawn, the large one stopped after its first chunk (over 2 MB);
+- `done size=6942`, `done size=12101458` (about 8 s), `done size=142`, `done size=15234`: kewang opening each;
+- `cache/sent/<id>/clip.mp4` present while the conversation stays open: the video handed to another app, its copy
+  kept until the conversation is left.
+
+kewang: "不錯". Emulator screenshots in both languages and themes are not taken yet.
 

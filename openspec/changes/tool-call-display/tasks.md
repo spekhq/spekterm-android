@@ -28,4 +28,4 @@
 
 ## 4. On the phone
 
-- [ ] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop once it runs the release with `remote-tool-detail`: `adb install -r` the debug build; kewang reads a working session for real (a handoff's SendMessage, a peer reply, an Edit, a sent screenshot) and uses `/` to start a skill; I collect screenshots (only with the app in front) and the log's file-read lines. Verify: kewang's word and the evidence recorded in the findings section
+- [x] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop once it runs the release with `remote-tool-detail`: `adb install -r` the debug build; kewang reads a working session for real (a handoff's SendMessage, a peer reply, an Edit, a sent screenshot) and uses `/` to start a skill; I collect screenshots (only with the app in front) and the log's file-read lines. Verify: kewang's word and the evidence recorded in the findings section
