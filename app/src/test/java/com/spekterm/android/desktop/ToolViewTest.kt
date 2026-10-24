@@ -6,6 +6,7 @@ import com.spekterm.android.desktop.ToolView.Part
 import com.spekterm.android.desktop.ToolView.Recipient
 import com.spekterm.android.desktop.ToolView.Role
 import com.spekterm.android.net.Entry
+import com.spekterm.android.net.ResultImage
 import com.spekterm.android.net.Session
 import com.spekterm.android.net.SessionList
 import com.spekterm.android.net.ToolInput
@@ -158,5 +159,51 @@ class ToolViewTest {
     fun aMissingFieldFallsBackToTheArgument() {
         assertEquals("ls", view("Bash", """{"run_in_background":true}""", arg = "ls").line)
         assertEquals("x.md", view("Edit", """{"old_string":"a","new_string":"b"}""", arg = "x.md").line)
+    }
+
+    private val png = ResultImage("image/png", 400000)
+
+    private fun withPictures(text: String, error: Boolean = false, vararg images: ResultImage) = Entry.Result("r", 0, "t", text, error, images.toList())
+
+    private fun readable(name: String, input: String?, result: Entry.Result?, arg: String? = "arg", imagesReadable: Boolean = true) =
+        ToolView.of(call(name, input, arg), result, null, imagesReadable)
+
+    @Test
+    fun aReadPictureShowsThePictureAndNoOutput() {
+        val v = readable("Read", """{"file_path":"/x/sp.png"}""", withPictures("", false, png))
+        assertEquals(listOf(png), v.pictures)
+        assertEquals(listOf(Part.Path("/x/sp.png")), v.parts)
+    }
+
+    @Test
+    fun aFailedReadShowsNoPicture() {
+        val v = readable("Read", """{"file_path":"/x/sp.png"}""", withPictures("boom", true, png))
+        assertTrue(v.pictures.isEmpty())
+        assertEquals(listOf(Part.Block(Label.ERROR, "boom", Role.ERROR)), blocks(v))
+    }
+
+    @Test
+    fun anMcpScreenshotShowsItsTextAndItsPicture() {
+        val v = readable("mcp__claude-in-chrome__computer", null, withPictures("Took a screenshot", false, png), arg = "screenshot")
+        assertEquals(listOf(png), v.pictures)
+        assertEquals(Part.Block(Label.OUTPUT, "Took a screenshot", Role.OUTPUT), blocks(v).last())
+    }
+
+    @Test
+    fun anOlderDesktopShowsNoPictureAndSaysWhy() {
+        val png = readable("Read", """{"file_path":"/x/sp.png"}""", withPictures("", false, png), imagesReadable = false)
+        assertTrue(png.pictures.isEmpty())
+        assertEquals(listOf(Part.Path("/x/sp.png"), Part.Notice(Note.PICTURES_NEED_DESKTOP)), png.parts)
+        val md = readable("Read", """{"file_path":"/x/notes.md"}""", ok(""), imagesReadable = false)
+        assertTrue(md.parts.none { it is Part.Notice })
+        val newer = readable("Read", """{"file_path":"/x/sp.png"}""", ok(""))
+        assertTrue(newer.parts.none { it is Part.Notice })
+    }
+
+    @Test
+    fun aReadsTextIsMarkedNumbered() {
+        val v = readable("Read", """{"file_path":"/x/a.kt"}""", ok("1\tfun a()"))
+        assertEquals(Part.Block(Label.OUTPUT, "1\tfun a()", Role.OUTPUT, numbered = true), blocks(v).single())
+        assertFalse(blocks(readable("Grep", """{"pattern":"x"}""", ok("a"))).single().numbered)
     }
 }

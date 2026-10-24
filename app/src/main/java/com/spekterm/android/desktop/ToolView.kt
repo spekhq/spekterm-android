@@ -1,6 +1,7 @@
 package com.spekterm.android.desktop
 
 import com.spekterm.android.net.Entry
+import com.spekterm.android.net.ResultImage
 import com.spekterm.android.net.SessionList
 import com.spekterm.android.net.ToolInput
 import kotlinx.serialization.json.Json
@@ -10,9 +11,16 @@ import kotlinx.serialization.json.booleanOrNull
 
 /**
  * What a tool call shows, per tool (`tool-call-display` D2): its [title], one-line summary ([recipient] and [line]),
- * and the [parts] shown when expanded. Pure, so every tool's view is tested on the JVM; the screen supplies the words.
+ * and the [parts] shown when expanded; [pictures] the result held, shown without expanding (`tool-result-content` D3).
+ * Pure, so every tool's view is tested on the JVM; the screen supplies the words.
  */
-data class ToolView(val title: String, val recipient: Recipient?, val line: String?, val parts: List<Part>) {
+data class ToolView(
+    val title: String,
+    val recipient: Recipient?,
+    val line: String?,
+    val parts: List<Part>,
+    val pictures: List<ResultImage> = emptyList(),
+) {
     /** Who a SendMessage went to. */
     sealed interface Recipient {
         /** A session by its label, or a name no listed session has, as given. */
@@ -27,11 +35,14 @@ data class ToolView(val title: String, val recipient: Recipient?, val line: Stri
 
     enum class Role { INPUT, OUTPUT, ERROR }
 
-    enum class Note { BACKGROUND, SENT, NOT_SENT, IDLE_ONLY, REPLACE_ALL, DELAY_MINUTES }
+    enum class Note { BACKGROUND, SENT, NOT_SENT, IDLE_ONLY, REPLACE_ALL, DELAY_MINUTES, PICTURES_NEED_DESKTOP }
 
     sealed interface Part {
-        /** A labeled text; [cut] is the original length when the desktop shortened it. */
-        data class Block(val label: Label, val text: String, val role: Role, val cut: Long? = null) : Part
+        /**
+         * A labeled text; [cut] is the original length when the desktop shortened it. [numbered]: a Read's result,
+         * shown by [ReadLines] when it has the CLI's line numbers (`tool-result-content` D4).
+         */
+        data class Block(val label: Label, val text: String, val role: Role, val cut: Long? = null, val numbered: Boolean = false) : Part
 
         /** A file's path, shown muted. */
         data class Path(val path: String) : Part
@@ -67,10 +78,12 @@ data class ToolView(val title: String, val recipient: Recipient?, val line: Stri
 
         private fun firstLine(s: String?): String? = s?.lineSequence()?.map { it.trim() }?.firstOrNull { it.isNotEmpty() }
 
-        fun of(tool: Entry.Tool, result: Entry.Result?, list: SessionList? = null): ToolView {
+        /** [imagesReadable]: the desktop offers `images.read`; without it no picture is shown (`tool-result-content` D3). */
+        fun of(tool: Entry.Tool, result: Entry.Result?, list: SessionList? = null, imagesReadable: Boolean = false): ToolView {
+            val pictures = pictures(result, imagesReadable)
             val title = title(tool.name)
             val input = tool.input
-            if (input.isEmpty) return fallback(title, tool, result)
+            if (input.isEmpty) return fallback(title, tool, result).copy(pictures = pictures)
             val cut = tool.cut
             fun block(label: Label, key: String, role: Role = Role.INPUT) =
                 input.string(key)?.takeIf { it.isNotEmpty() }?.let { Part.Block(label, it, role, cut[key]) }
@@ -99,7 +112,16 @@ data class ToolView(val title: String, val recipient: Recipient?, val line: Stri
                         failedOnly,
                 )
                 "Write" -> ToolView(title, null, path?.let(::fileName), listOfNotNull(path?.let(Part::Path), block(Label.CONTENT, "content")) + failedOnly)
-                "Read" -> ToolView(title, null, path?.let { fileName(it) + lines(input) }, listOfNotNull(path?.let(Part::Path)) + output())
+                "Read" -> {
+                    val content = output().map { if (it is Part.Block && it.label == Label.OUTPUT) it.copy(numbered = true) else it }
+                    // An older desktop sends a picture's result as no text at all (design D6).
+                    val older = !imagesReadable && path != null && SentFiles.kind(path) == SentFiles.Kind.IMAGE &&
+                        result != null && !result.error && result.text.isBlank()
+                    ToolView(
+                        title, null, path?.let { fileName(it) + lines(input) },
+                        listOfNotNull(path?.let(Part::Path), Part.Notice(Note.PICTURES_NEED_DESKTOP).takeIf { older }) + content,
+                    )
+                }
                 "Grep", "Glob" -> ToolView(title, null, input.text("pattern"), listOfNotNull(input.text("path")?.let(Part::Path)) + output())
                 "Agent", "Task" -> ToolView(
                     title, null,
@@ -143,11 +165,18 @@ data class ToolView(val title: String, val recipient: Recipient?, val line: Stri
                     output(),
                 )
                 "ExitPlanMode" -> ToolView(title, null, firstLine(input.string("plan")), listOfNotNull(block(Label.PLAN, "plan")) + output())
-                else -> return fallback(title, tool, result)
+                else -> return fallback(title, tool, result).copy(pictures = pictures)
             }
             // A field missing from the input falls back to the identifying argument for the line.
-            return if (view.line == null && view.recipient == null) view.copy(line = tool.arg) else view
+            return (if (view.line == null && view.recipient == null) view.copy(line = tool.arg) else view).copy(pictures = pictures)
         }
+
+        /** The file a Read's picture is, which names it (`tool-result-content` D2); none for another tool. */
+        fun pictureFile(tool: Entry.Tool): String? = tool.input.text("file_path")?.takeIf { tool.name == "Read" }?.let(::fileName)
+
+        /** A result's pictures, when they can be read and the result is not an error. */
+        fun pictures(result: Entry.Result?, imagesReadable: Boolean): List<ResultImage> =
+            if (imagesReadable && result != null && !result.error) result.images else emptyList()
 
         /** No input: the name, the identifying argument and the result, as before this change. */
         private fun fallback(title: String, tool: Entry.Tool, result: Entry.Result?): ToolView {

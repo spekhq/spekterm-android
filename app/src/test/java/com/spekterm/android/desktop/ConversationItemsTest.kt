@@ -242,4 +242,24 @@ class ConversationItemsTest {
         assertEquals(3, after.calls.size)
         assertEquals(0, after.failed)
     }
+
+    private fun note(name: String, text: String = "[Image: original 1080x2400, displayed at 900x2000. Multiply coordinates by 1.20 to map to original image.]", meta: Boolean = true) =
+        Entry.User(name, 0, text, meta = meta)
+
+    @Test
+    fun theClisPictureNoteIsSkippedInsideARun() {
+        assertEquals("R(c1,c2,c3)", shape(group(call("c1"), result("r1", "c1"), note("n"), call("c2"), call("c3"))))
+        assertEquals("C(c1) P(n) R(c2,c3)", shape(group(call("c1"), result("r1", "c1"), note("n", meta = false), call("c2"), call("c3"))))
+        assertEquals("C(c1) P(n) C(c2)", shape(group(call("c1"), note("n", "[Image: something else]"), call("c2"))))
+        for (scale in listOf("1.2", "2")) {
+            val text = "[Image: original 1080x2400, displayed at 540x1200. Multiply coordinates by $scale to map to original image.]"
+            assertEquals(scale, "R(c1,c2)", shape(group(call("c1"), note("n", text), call("c2"))))
+        }
+    }
+
+    @Test
+    fun aReplyAnchoredAtThePictureNoteClosesTheRun() {
+        val items = group(call("c0"), call("c1"), result("r1", "c1"), note("n"), call("c2"), call("c3"), anchors = setOf("n"))
+        assertEquals("R(c0,c1)<n R(c2,c3)", shape(items))
+    }
 }

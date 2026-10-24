@@ -108,6 +108,7 @@ import com.spekterm.android.desktop.AttachmentState
 import com.spekterm.android.desktop.Answers
 import com.spekterm.android.desktop.Blocked
 import com.spekterm.android.desktop.ConversationItems
+import com.spekterm.android.desktop.PictureCache
 import com.spekterm.android.desktop.ConversationTimes
 import com.spekterm.android.desktop.ConversationTimes.DayWord
 import com.spekterm.android.desktop.ConversationTimes.Line
@@ -177,6 +178,8 @@ fun ConversationScreen(
     var viewing by remember(sessionId) { mutableStateOf<SentFileRef?>(null) }
     // Sent pictures read on this screen, in memory only, so scrolling away and back reads nothing again (D11).
     val thumbs = remember(sessionId) { mutableStateMapOf<String, Thumb>() }
+    // Pictures in tool results, bounded and pinned while shown (`tool-result-content` D3).
+    val pictures = remember(sessionId) { PictureCache<Thumb>(entries = mutableStateMapOf()) }
     // Bumped when the skills appear above the field, so a list that follows the newest keeps it in view (D10).
     var panelShows by remember { mutableIntStateOf(0) }
     // Held here, not in the item, so it survives the work ending and coming back (`background-tasks` D4).
@@ -260,7 +263,10 @@ fun ConversationScreen(
                         val background = session?.let { SessionsView.background(it) }.orEmpty()
                         if (background.isNotEmpty()) BackgroundTasks(background, backgroundOpen, { backgroundOpen = !backgroundOpen }, backgroundMax)
                         CompositionLocalProvider(
-                            LocalToolContext provides ToolContext(sessions.list, Operations.FILES_READ in operations, sessionId, session?.label, thumbs) { viewing = it },
+                            LocalToolContext provides ToolContext(
+                                sessions.list, Operations.FILES_READ in operations, sessionId, session?.label, thumbs,
+                                imagesReadable = Operations.IMAGES_READ in operations, pictures = pictures,
+                            ) { viewing = it },
                         ) {
                             Entries(c, Modifier.weight(1f), panelShows)
                         }
@@ -407,18 +413,23 @@ private fun Entries(c: Conversation?, modifier: Modifier, panelShows: Int = 0) {
     val lastReply = c.replies.lastOrNull()?.id
     // An offset past the end is clamped, so an expanded run taller than the screen still shows its newest call.
     suspend fun toNewest() = state.scrollToItem(count - 1, Int.MAX_VALUE)
-    LaunchedEffect(lastEntry, lastReply, working, panelShows) { if (follow && count > 0) toNewest() }
+    // A picture that finishes decoding makes its item taller: follow it too (`tool-result-content` D3).
+    var picturesDrawn by remember { mutableIntStateOf(0) }
+    LaunchedEffect(lastEntry, lastReply, working, panelShows, picturesDrawn) { if (follow && count > 0) toNewest() }
+    val pictureDrawn: () -> Unit = remember { { picturesDrawn++ } }
     Box(modifier.fillMaxWidth()) {
-        LazyColumn(Modifier.fillMaxSize(), state = state) {
-            for (item in list) {
-                when (item) {
-                    // A day's heading stays pinned at the top while its items scroll under it (D5).
-                    is Line.Day -> stickyHeader(key = item.key) { DayHeading(ConversationTimes.dayWord(item.date, clock.today)) }
-                    is Line.Of -> item(key = item.key) { ShownRow(item.shown, open, ConversationTimes.timeOf(item.shown)?.let { timeFormat.format(Date(it)) }) }
-                    is Line.Mine -> item(key = item.key) { ReplyRow(item.reply, now) }
+        CompositionLocalProvider(LocalPictureDrawn provides pictureDrawn) {
+            LazyColumn(Modifier.fillMaxSize(), state = state) {
+                for (item in list) {
+                    when (item) {
+                        // A day's heading stays pinned at the top while its items scroll under it (D5).
+                        is Line.Day -> stickyHeader(key = item.key) { DayHeading(ConversationTimes.dayWord(item.date, clock.today)) }
+                        is Line.Of -> item(key = item.key) { ShownRow(item.shown, open, ConversationTimes.timeOf(item.shown)?.let { timeFormat.format(Date(it)) }) }
+                        is Line.Mine -> item(key = item.key) { ReplyRow(item.reply, now) }
+                    }
                 }
+                if (working) item(key = "working") { WorkingRow() }
             }
-            if (working) item(key = "working") { WorkingRow() }
         }
         if (!follow) {
             SmallFloatingActionButton(
@@ -444,7 +455,7 @@ internal fun Modifier.toggles(open: Boolean, onToggle: () -> Unit): Modifier {
 }
 
 @Composable
-private fun ShownRow(shown: Shown, open: MutableMap<String, Boolean>, time: String?) {
+internal fun ShownRow(shown: Shown, open: MutableMap<String, Boolean>, time: String?) {
     val expanded = open[shown.key] == true
     val toggle = { open[shown.key] = !expanded }
     when (shown) {
@@ -589,9 +600,10 @@ private fun CallMark(call: ConversationItems.Call) {
 
 @Composable
 private fun CallLine(call: ConversationItems.Call, expanded: Boolean, toggle: () -> Unit, modifier: Modifier) {
-    val list = LocalToolContext.current.list
+    val ctx = LocalToolContext.current
+    val list = ctx.list
     // What the call did, by its tool (`tool-call-display` D2).
-    val view = remember(call.tool, call.result, list) { ToolView.of(call.tool, call.result, list) }
+    val view = remember(call.tool, call.result, list, ctx.imagesReadable) { ToolView.of(call.tool, call.result, list, ctx.imagesReadable) }
     Column(modifier) {
         Row(
             Modifier.fillMaxWidth().toggles(expanded, toggle).padding(vertical = 5.dp),
@@ -612,6 +624,8 @@ private fun CallLine(call: ConversationItems.Call, expanded: Boolean, toggle: ()
                 )
             }
         }
+        // The pictures it brought back, without expanding (`tool-result-content` D3).
+        ResultPictures(picturesOf(call.tool, view), Modifier.padding(start = 26.dp, bottom = 4.dp))
         if (expanded) Box(Modifier.padding(start = 26.dp, bottom = 4.dp)) { ToolParts(view, call.tool.id) }
     }
 }
@@ -628,7 +642,10 @@ private fun ResultLine(result: Entry.Result, expanded: Boolean, toggle: () -> Un
                 color = if (result.error) spek.danger else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (expanded) Box(Modifier.padding(start = 22.dp, bottom = 4.dp)) { Mono(result.text, result.error) }
+        val pictures = picturesOf(result, LocalToolContext.current.imagesReadable)
+        ResultPictures(pictures, Modifier.padding(start = 22.dp, bottom = 4.dp))
+        // Beside pictures, a blank text is not shown.
+        if (expanded && (pictures.isEmpty() || result.text.isNotBlank())) Box(Modifier.padding(start = 22.dp, bottom = 4.dp)) { Mono(result.text, result.error) }
     }
 }
 
@@ -669,8 +686,9 @@ private fun RunItem(run: ConversationItems.Run, expanded: Boolean, toggle: () ->
                     }
                 }
                 if (!expanded) {
-                    val list = LocalToolContext.current.list
-                    val latest = remember(run.latest.tool, run.latest.result, list) { ToolView.of(run.latest.tool, run.latest.result, list) }
+                    val ctx = LocalToolContext.current
+                    val list = ctx.list
+                    val latest = remember(run.latest.tool, run.latest.result, list, ctx.imagesReadable) { ToolView.of(run.latest.tool, run.latest.result, list, ctx.imagesReadable) }
                     Text(
                         listOfNotNull(latest.title, summaryOf(latest)).joinToString(" "),
                         style = MaterialTheme.typography.bodySmall,
@@ -682,6 +700,7 @@ private fun RunItem(run: ConversationItems.Run, expanded: Boolean, toggle: () ->
                 }
             }
         }
+        if (!expanded) RunStrip(run, toggle)
         if (expanded) {
             Column(Modifier.padding(start = 16.dp)) {
                 for (part in run.parts) {
@@ -701,6 +720,19 @@ private fun RunItem(run: ConversationItems.Run, expanded: Boolean, toggle: () ->
             }
         }
     }
+}
+
+/** A collapsed run's pictures, the latest call's first, as a strip under its line (`tool-result-content` D3). */
+@Composable
+private fun RunStrip(run: ConversationItems.Run, expand: () -> Unit) {
+    val ctx = LocalToolContext.current
+    if (!ctx.imagesReadable) return
+    val views = remember(run.calls, ctx.list) {
+        run.calls.asReversed().filter { ToolView.pictures(it.result, true).isNotEmpty() }.map { it.tool to ToolView.of(it.tool, it.result, ctx.list, true) }
+    }
+    if (views.isEmpty()) return
+    val pictures = views.flatMap { (tool, view) -> picturesOf(tool, view) }
+    PictureStrip(pictures, expand, Modifier.padding(start = 22.dp, top = 2.dp, bottom = 4.dp))
 }
 
 /** The agent works, from the wait state only: nothing here says how far a message got (`conversation-view`). */

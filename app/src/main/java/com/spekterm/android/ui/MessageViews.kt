@@ -214,7 +214,7 @@ private fun Picture(ref: SentFileRef) {
     when (thumb) {
         is Thumb.Picture -> Image(
             thumb.image,
-            ToolView.fileName(ref.path),
+            ref.name,
             Modifier
                 .widthIn(max = 298.dp)
                 .fillMaxWidth()
@@ -233,7 +233,7 @@ private fun Picture(ref: SentFileRef) {
 
 private suspend fun loadThumb(ctx: ToolContext, ref: SentFileRef): Thumb {
     val sink = MemorySink()
-    return when (val outcome = ctx.read(ctx.sessionId, ref, THUMB_LIMIT, sink)) {
+    return when (val outcome = ctx.read(ctx.sessionId, ref, THUMB_LIMIT, sink) { _, _ -> }) {
         is SentFileRead.Outcome.Done -> withContext(Dispatchers.Default) { decode(sink.bytes(), THUMB_PIXELS) }?.let { Thumb.Picture(it) } ?: Thumb.Failed
         is SentFileRead.Outcome.Failed -> if (outcome.reason == SentFileRead.Reason.TOO_LARGE && outcome.size != null) Thumb.Large(outcome.size) else Thumb.Failed
     }.also { sink.reset() }
@@ -263,7 +263,7 @@ private fun FileCard(ref: SentFileRef, kind: SentFiles.Kind, subtitle: String?, 
     ) {
         Icon(if (kind == SentFiles.Kind.IMAGE) SpekIcons.Image else SpekIcons.File, null, Modifier.size(22.dp), tint = colors.primary)
         Column(Modifier.weight(1f)) {
-            Text(ToolView.fileName(ref.path), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
+            Text(ref.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
             if (ctx.canReadFiles) Text(line, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
         }
     }

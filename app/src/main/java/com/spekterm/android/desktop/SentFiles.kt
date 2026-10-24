@@ -23,6 +23,11 @@ object SentFiles {
         Kind.OTHER -> 32L * 1024 * 1024
     }
 
+    /** The picture types the app decodes itself; any other result picture is not shown (`tool-result-content` D2). */
+    private val DECODABLE = setOf("image/png", "image/jpeg", "image/gif", "image/webp")
+
+    fun decodable(mediaType: String): Boolean = mediaType.substringBefore(';').trim().lowercase() in DECODABLE
+
     fun kind(name: String): Kind {
         val base = ToolView.fileName(name)
         val dot = base.lastIndexOf('.')
@@ -57,13 +62,16 @@ object SentFiles {
     }
 }
 
-/** Reading one sent file in chunks (`tool-call-display` D6). */
+/** Reading one sent file, or one picture in a tool result, in chunks (`tool-call-display` D6, `tool-result-content` D1). */
 object SentFileRead {
-    /** The phone's chunk: the same as `attachments.put`'s, whose timeout it shares. */
+    /** The phone's chunk for a sent file: the same as `attachments.put`'s, whose timeout it shares. */
     const val CHUNK = 64 * 1024
 
-    /** Why a file could not be read. */
-    enum class Reason { NOT_SENT, GONE, CHANGED, TOO_LARGE, NOT_CONNECTED, SESSION_GONE, OTHER }
+    /** The chunk for a picture in a tool result: the desktop parses the whole record per chunk, so few and large. */
+    const val PICTURE_CHUNK = 512 * 1024
+
+    /** Why a file could not be read. [NO_IMAGE]: a result picture no longer in the conversation. */
+    enum class Reason { NOT_SENT, GONE, CHANGED, TOO_LARGE, NOT_CONNECTED, SESSION_GONE, NO_IMAGE, OTHER }
 
     sealed interface Outcome {
         data class Done(val name: String, val mediaType: String, val size: Long) : Outcome
@@ -85,9 +93,16 @@ object SentFileRead {
 
     /**
      * Reads from offset 0 until the chunk that completes the file. After the first answer a size over [limit] stops
-     * the read. `FILE_CHANGED` starts again from 0 once. [request] is given the offset and the version to name.
+     * the read. `FILE_CHANGED` starts again from 0 once. [request] is given the offset, the length to ask ([chunk]) and
+     * the version to name.
      */
-    suspend fun read(limit: Long, sink: Sink, progress: (Long, Long) -> Unit = { _, _ -> }, request: suspend (offset: Long, version: String?) -> Answer?): Outcome {
+    suspend fun read(
+        limit: Long,
+        sink: Sink,
+        progress: (Long, Long) -> Unit = { _, _ -> },
+        chunk: Int = CHUNK,
+        request: suspend (offset: Long, length: Int, version: String?) -> Answer?,
+    ): Outcome {
         var restarts = 0
         while (true) {
             sink.reset()
@@ -95,7 +110,7 @@ object SentFileRead {
             var version: String? = null
             var size = -1L
             while (true) {
-                val answer = request(offset, version) ?: return failed(sink, Reason.NOT_CONNECTED)
+                val answer = request(offset, chunk, version) ?: return failed(sink, Reason.NOT_CONNECTED)
                 val error = answer.error
                 if (error != null) {
                     if (error.code == RemoteError.FILE_CHANGED && restarts++ == 0) break
@@ -133,6 +148,7 @@ object SentFileRead {
         RemoteError.FILE_CHANGED -> Reason.CHANGED
         RemoteError.TOO_LARGE -> Reason.TOO_LARGE
         RemoteError.NOT_FOUND -> Reason.SESSION_GONE
+        RemoteError.NO_IMAGE -> Reason.NO_IMAGE
         else -> Reason.OTHER
     }
 }

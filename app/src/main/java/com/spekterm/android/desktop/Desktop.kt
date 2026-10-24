@@ -339,19 +339,35 @@ object Desktop {
      * Reads file [index] of the SendUserFile call [toolUseId] in [sessionId] into [sink], in chunks (`tool-call-display`
      * D6). Each chunk waits as long as an attachment's does; the log gets the outcome and size, never a name or byte.
      */
-    suspend fun readSentFile(sessionId: String, toolUseId: String, index: Int, limit: Long, sink: SentFileRead.Sink, progress: (Long, Long) -> Unit = { _, _ -> }): SentFileRead.Outcome {
-        val outcome = SentFileRead.read(limit, sink, progress) { offset, version ->
+    suspend fun readSentFile(sessionId: String, toolUseId: String, index: Int, limit: Long, sink: SentFileRead.Sink, progress: (Long, Long) -> Unit = { _, _ -> }): SentFileRead.Outcome =
+        readChunks(FileLog.Source.SENT, Operations.FILES_READ, SentFileRead.CHUNK, limit, sink, progress) { offset, length, version ->
+            Frames.filesRead(sessionId, toolUseId, index, offset, length, version)
+        }
+
+    /** Reads picture [index] of the result of the call [toolUseId] into [sink], as [readSentFile] (`tool-result-content` D1). */
+    suspend fun readResultImage(sessionId: String, toolUseId: String, index: Int, limit: Long, sink: SentFileRead.Sink, progress: (Long, Long) -> Unit = { _, _ -> }): SentFileRead.Outcome =
+        readChunks(FileLog.Source.RESULT, Operations.IMAGES_READ, SentFileRead.PICTURE_CHUNK, limit, sink, progress) { offset, length, version ->
+            Frames.imagesRead(sessionId, toolUseId, index, offset, length, version)
+        }
+
+    private suspend fun readChunks(
+        source: FileLog.Source,
+        operation: String,
+        chunk: Int,
+        limit: Long,
+        sink: SentFileRead.Sink,
+        progress: (Long, Long) -> Unit,
+        frame: (offset: Long, length: Int, version: String?) -> kotlinx.serialization.json.JsonObject,
+    ): SentFileRead.Outcome {
+        val outcome = SentFileRead.read(limit, sink, progress, chunk) { offset, length, version ->
             withContext(dispatcher) {
                 val a = attached ?: return@withContext null
-                val answer = a.scope.async { request(a, Operations.FILES_READ, Frames.filesRead(sessionId, toolUseId, index, offset, SentFileRead.CHUNK, version), PUT_TIMEOUT_MS) }.await()
+                val answer = a.scope.async { request(a, operation, frame(offset, length, version), PUT_TIMEOUT_MS) }.await()
                     ?: return@withContext null
                 SentFileRead.Answer(if (answer.ok) FileChunk.decode(answer.result) else null, answer.error)
             }
         }
-        when (outcome) {
-            is SentFileRead.Outcome.Done -> log(Kind.FILES, "outcome" to "done", "size" to outcome.size)
-            is SentFileRead.Outcome.Failed -> log(Kind.FILES, "outcome" to outcome.reason.name.lowercase(), "error" to outcome.code, "size" to outcome.size)
-        }
+        log(Kind.FILES, *FileLog.fields(source, outcome).toTypedArray())
         return outcome
     }
 

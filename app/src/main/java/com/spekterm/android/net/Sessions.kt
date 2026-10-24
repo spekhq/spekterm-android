@@ -275,7 +275,15 @@ sealed interface Entry {
         val cut: Map<String, Long> = emptyMap(),
     ) : Entry
 
-    data class Result(override val uuid: String, override val at: Long, val id: String, val text: String, val error: Boolean) : Entry
+    /** [images]: the pictures the result held, in order, when the desktop lists them (`tool-result-content` D1). */
+    data class Result(
+        override val uuid: String,
+        override val at: Long,
+        val id: String,
+        val text: String,
+        val error: Boolean,
+        val images: List<ResultImage> = emptyList(),
+    ) : Entry
 
     companion object {
         /** An entry, or `null` for an unknown kind or a malformed one. */
@@ -288,10 +296,32 @@ sealed interface Entry {
                 "text" -> Text(uuid, at, o.string("text") ?: return null)
                 "thinking" -> Thinking(uuid, at, o.string("text") ?: return null)
                 "tool" -> Tool(uuid, at, o.string("id") ?: "", o.string("name") ?: return null, o.string("arg"), ToolInput.of(o["input"]), ToolInput.cut(o["inputTruncated"]))
-                "result" -> Result(uuid, at, o.string("id") ?: "", o.string("text") ?: "", o.bool("error"))
+                "result" -> Result(uuid, at, o.string("id") ?: "", o.string("text") ?: "", o.bool("error"), ResultImage.list(o["images"]))
                 else -> null
             }
         }
+    }
+}
+
+/** A picture in a tool result: its media type and its decoded [size] in bytes; read with `images.read` by its position. */
+data class ResultImage(val mediaType: String, val size: Long) {
+    companion object {
+        /**
+         * The pictures of `images`; none when it is absent or not an array. One malformed element drops the whole list:
+         * the positions after it would shift, and a wrong picture is worse than none.
+         */
+        fun list(element: JsonElement?): List<ResultImage> {
+            val array = element as? JsonArray ?: return emptyList()
+            return array.map { decode(it) ?: return emptyList() }
+        }
+
+        private fun decode(element: JsonElement): ResultImage? {
+            val o = element as? JsonObject ?: return null
+            val size = (o["size"] as? JsonPrimitive)?.takeUnless { it.isString }?.content?.takeIf { INTEGER.matches(it) }?.toLongOrNull()
+            return ResultImage(o.string("mediaType") ?: return null, size ?: return null)
+        }
+
+        private val INTEGER = Regex("""(0|[1-9][0-9]*)""")
     }
 }
 

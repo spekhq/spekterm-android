@@ -53,7 +53,6 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
 import com.spekterm.android.R
 import com.spekterm.android.desktop.CacheSink
-import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.desktop.MemorySink
 import com.spekterm.android.desktop.SentFileRead
 import com.spekterm.android.desktop.SentFiles
@@ -81,9 +80,12 @@ sealed interface ViewerState {
     /** Plain text in pieces of at most [SentFileViewer.PIECE] characters, one lazy item each. */
     data class Lines(val pieces: List<String>) : ViewerState
 
-    data class Failed(val reason: SentFileRead.Reason, val size: Long? = null, val code: String? = null) : ViewerState
+    /** [picture]: a tool result's picture, worded as one (`tool-result-content` D1). */
+    data class Failed(val reason: SentFileRead.Reason, val size: Long? = null, val code: String? = null, val picture: Boolean = false) : ViewerState
 
     data object CannotShow : ViewerState
+
+    data object PictureCannotShow : ViewerState
 
     data object NoApp : ViewerState
 }
@@ -105,23 +107,31 @@ object SentFileViewer {
 
 /**
  * A sent file over the conversation, not a route, so the conversation keeps what is expanded and where it is (design
- * D6). Its bytes live only while it is open; a kind the app does not show is handed to another app (D9).
+ * D6). Its bytes live only while it is open; a kind the app does not show is handed to another app (D9). A picture in
+ * a tool result is always read into memory and shown here, never handed to another app (`tool-result-content` D2).
  */
 @Composable
 fun SentFileDialog(sessionId: String, ref: SentFileRef, onClose: () -> Unit) {
     val context = LocalContext.current
+    val ctx = LocalToolContext.current
     val longest = with(LocalDensity.current) { maxOf(LocalConfiguration.current.screenWidthDp, LocalConfiguration.current.screenHeightDp).dp.roundToPx() }
-    val name = ToolView.fileName(ref.path)
-    val kind = SentFiles.kind(ref.path)
+    val name = ref.name
+    val picture = ref.source == SentFileRef.Source.RESULT
+    val kind = if (picture) SentFiles.Kind.IMAGE else SentFiles.kind(ref.path ?: "")
     var state by remember(ref) { mutableStateOf<ViewerState>(ViewerState.Loading(0, -1)) }
     LaunchedEffect(ref) {
-        val sink = if (kind == SentFiles.Kind.OTHER) CacheSink(SentFileCache.dir(context), name) else MemorySink()
+        val sink = if (!picture && kind == SentFiles.Kind.OTHER) CacheSink(SentFileCache.dir(context), name) else MemorySink()
         var done = false
         try {
-            val outcome = Desktop.readSentFile(sessionId, ref.toolUseId, ref.index, SentFiles.limit(kind), sink) { d, s -> state = ViewerState.Loading(d, s) }
-            state = when (outcome) {
-                is SentFileRead.Outcome.Failed -> ViewerState.Failed(outcome.reason, outcome.size, outcome.code)
-                is SentFileRead.Outcome.Done -> when (SentFiles.view(outcome.mediaType, kind)) {
+            val outcome = ctx.read(sessionId, ref, SentFiles.limit(kind), sink) { d, s -> state = ViewerState.Loading(d, s) }
+            state = when {
+                outcome is SentFileRead.Outcome.Failed -> ViewerState.Failed(outcome.reason, outcome.size, outcome.code, picture)
+                picture -> {
+                    val type = (outcome as SentFileRead.Outcome.Done).mediaType
+                    val image = if (SentFiles.decodable(type)) withContext(Dispatchers.Default) { decode((sink as MemorySink).bytes(), longest) } else null
+                    image?.let { ViewerState.Picture(it) } ?: ViewerState.PictureCannotShow
+                }
+                outcome is SentFileRead.Outcome.Done -> when (SentFiles.view(outcome.mediaType, kind)) {
                     SentFiles.View.HAND_OFF -> {
                         val cache = sink as? CacheSink ?: CacheSink(SentFileCache.dir(context), name).also { it.write((sink as MemorySink).bytes()) }
                         cache.close()
@@ -137,6 +147,7 @@ fun SentFileDialog(sessionId: String, ref: SentFileRef, onClose: () -> Unit) {
                     SentFiles.View.MARKDOWN -> ViewerState.Markdown((sink as MemorySink).bytes().decodeToString())
                     SentFiles.View.TEXT -> ViewerState.Lines(withContext(Dispatchers.Default) { SentFileViewer.pieces((sink as MemorySink).bytes().decodeToString()) })
                 }
+                else -> ViewerState.CannotShow
             }
             if (sink is MemorySink) sink.reset()
             done = true
@@ -174,19 +185,31 @@ internal fun ViewerBody(state: ViewerState) {
         }
         is ViewerState.Failed -> CenteredMessage(SpekIcons.Info, failedText(state))
         ViewerState.CannotShow -> CenteredMessage(SpekIcons.Info, stringResource(R.string.file_cannot_show))
+        ViewerState.PictureCannotShow -> CenteredMessage(SpekIcons.Info, stringResource(R.string.picture_cannot_show))
         ViewerState.NoApp -> CenteredMessage(SpekIcons.Info, stringResource(R.string.file_no_app))
     }
 }
 
 @Composable
-private fun failedText(f: ViewerState.Failed): String = when (f.reason) {
+private fun failedText(f: ViewerState.Failed): String = if (f.picture) pictureFailedText(f) else when (f.reason) {
     SentFileRead.Reason.NOT_SENT -> stringResource(R.string.file_not_sent)
     SentFileRead.Reason.GONE -> stringResource(R.string.file_gone)
     SentFileRead.Reason.CHANGED -> stringResource(R.string.file_changed)
     SentFileRead.Reason.TOO_LARGE -> f.size?.let { stringResource(R.string.file_too_large, formatBytes(it)) } ?: stringResource(R.string.conversation_upload_too_large)
     SentFileRead.Reason.NOT_CONNECTED -> stringResource(R.string.file_not_connected)
     SentFileRead.Reason.SESSION_GONE -> stringResource(R.string.file_session_gone)
-    SentFileRead.Reason.OTHER -> stringResource(R.string.file_other, f.code ?: "?")
+    SentFileRead.Reason.NO_IMAGE, SentFileRead.Reason.OTHER -> stringResource(R.string.file_other, f.code ?: "?")
+}
+
+/** A result picture's failure, never in a sent file's words (`tool-result-content` D1). */
+@Composable
+private fun pictureFailedText(f: ViewerState.Failed): String = when (f.reason) {
+    SentFileRead.Reason.NO_IMAGE -> stringResource(R.string.picture_no_image)
+    SentFileRead.Reason.CHANGED -> stringResource(R.string.picture_changed)
+    SentFileRead.Reason.TOO_LARGE -> f.size?.let { stringResource(R.string.picture_too_large, formatBytes(it)) } ?: stringResource(R.string.picture_other, f.code ?: "?")
+    SentFileRead.Reason.NOT_CONNECTED -> stringResource(R.string.file_not_connected)
+    SentFileRead.Reason.SESSION_GONE -> stringResource(R.string.file_session_gone)
+    SentFileRead.Reason.NOT_SENT, SentFileRead.Reason.GONE, SentFileRead.Reason.OTHER -> stringResource(R.string.picture_other, f.code ?: "?")
 }
 
 @Composable

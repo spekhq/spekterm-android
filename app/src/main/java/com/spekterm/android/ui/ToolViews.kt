@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.spekterm.android.R
 import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.desktop.EditDiff
+import com.spekterm.android.desktop.PictureCache
 import com.spekterm.android.desktop.SentFileRead
 import com.spekterm.android.desktop.SentFiles
 import com.spekterm.android.desktop.ToolView
@@ -48,8 +49,16 @@ import com.spekterm.android.net.SessionList
 import com.spekterm.android.ui.theme.spekColors
 import java.text.NumberFormat
 
-/** A sent file the user asked to open: the SendUserFile call, the file's position in it, and its path. */
-data class SentFileRef(val toolUseId: String, val index: Int, val path: String)
+/**
+ * A file the user asked to open: a sent file (the SendUserFile call, its position, its [path]), or a picture in a tool
+ * result (the call, its position, no path, and the [title] it is shown by; `tool-result-content` D2).
+ */
+data class SentFileRef(val toolUseId: String, val index: Int, val path: String?, val source: Source = Source.SENT, val title: String? = null) {
+    enum class Source { SENT, RESULT }
+
+    /** What the viewer's title and a screen reader name it by. */
+    val name: String get() = title ?: path?.let(ToolView::fileName) ?: ""
+}
 
 /**
  * What a tool call needs from its screen (`tool-call-display`): the session list, to name a session by its label;
@@ -63,9 +72,16 @@ data class ToolContext(
     val self: String? = null,
     /** Sent pictures read so far on this screen, in memory only (D11). */
     val thumbs: SnapshotStateMap<String, Thumb> = SnapshotStateMap(),
-    /** Reads a sent file into a sink; the desktop's, replaced in tests. */
-    val read: suspend (sessionId: String, ref: SentFileRef, limit: Long, sink: SentFileRead.Sink) -> SentFileRead.Outcome = { s, r, l, k ->
-        Desktop.readSentFile(s, r.toolUseId, r.index, l, k)
+    /** Whether the desktop sends the pictures in tool results (`tool-result-content` D3). */
+    val imagesReadable: Boolean = false,
+    /** Result pictures read so far on this screen, in memory only, bounded (`tool-result-content` D3). */
+    val pictures: PictureCache<Thumb> = PictureCache(),
+    /** Reads a sent file or a result picture into a sink; the desktop's, replaced in tests. */
+    val read: suspend (sessionId: String, ref: SentFileRef, limit: Long, sink: SentFileRead.Sink, progress: (Long, Long) -> Unit) -> SentFileRead.Outcome = { s, r, l, k, p ->
+        when (r.source) {
+            SentFileRef.Source.SENT -> Desktop.readSentFile(s, r.toolUseId, r.index, l, k, p)
+            SentFileRef.Source.RESULT -> Desktop.readResultImage(s, r.toolUseId, r.index, l, k, p)
+        }
     },
     val open: (SentFileRef) -> Unit,
 )
@@ -109,7 +125,11 @@ internal fun ToolParts(view: ToolView, callId: String) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (part in view.parts) {
             when (part) {
-                is Part.Block -> PartBlock(labelText(part.label), part.text, part.role, part.cut, dollar = part.label == Label.COMMAND)
+                is Part.Block -> if (part.numbered) {
+                    ReadContent(part.text) { PartBlock(labelText(part.label), part.text, part.role, part.cut, dollar = false) }
+                } else {
+                    PartBlock(labelText(part.label), part.text, part.role, part.cut, dollar = part.label == Label.COMMAND)
+                }
                 is Part.Path -> PathLine(part.path)
                 is Part.Diff -> DiffBlock(part)
                 is Part.Files -> FileRows(part, callId)
@@ -265,6 +285,7 @@ private fun NoteLine(part: Part.Notice) {
         Note.NOT_SENT -> part.value?.takeIf { it.isNotBlank() }?.let { stringResource(R.string.tool_note_not_sent_because, it) } ?: stringResource(R.string.tool_note_not_sent)
         Note.IDLE_ONLY -> stringResource(R.string.tool_note_idle_only)
         Note.REPLACE_ALL -> stringResource(R.string.tool_note_replace_all)
+        Note.PICTURES_NEED_DESKTOP -> stringResource(R.string.tool_note_pictures_need_desktop)
         Note.DELAY_MINUTES -> part.value?.toIntOrNull()?.let { pluralStringResource(R.plurals.tool_note_delay, it, it) } ?: ""
     }
     if (text.isEmpty()) return

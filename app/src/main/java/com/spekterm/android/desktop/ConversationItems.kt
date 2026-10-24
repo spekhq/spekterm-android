@@ -141,6 +141,8 @@ object ConversationItems {
                 entry is Entry.Thinking && forming != null -> held += Thinking(key, entry)
                 entry is Entry.User && entry.origin == Origin.TaskNotice && forming != null -> held += Notice(key, entry)
                 entry is Entry.Result && i in consumed -> Unit
+                // The CLI's note to the model about a picture it scaled: not shown, and the run goes on (`tool-result-content` D5).
+                entry is Entry.User && isPictureNote(entry) -> Unit
                 entry is Entry.Result -> {
                     close()
                     emit(LoneResult(key, entry))
@@ -158,6 +160,11 @@ object ConversationItems {
         close()
         return out
     }
+
+    private val PICTURE_NOTE =
+        Regex("""^\[Image: original \d+x\d+, displayed at \d+x\d+\. Multiply coordinates by [\d.]+ to map to original image\.]$""")
+
+    fun isPictureNote(entry: Entry.User): Boolean = entry.meta && entry.origin == null && PICTURE_NOTE.matches(entry.text)
 
     /** Call index → result index: each result with the earliest earlier call of its id still without one. */
     private fun pair(entries: List<Entry>): Map<Int, Int> {

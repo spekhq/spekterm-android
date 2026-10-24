@@ -119,7 +119,7 @@ class MessageViewsTest {
         val png = ByteArrayOutputStream().also { Bitmap.createBitmap(800, 600, Bitmap.Config.RGB_565).compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
         val reads = mutableListOf<Int>()
         val thumbs = mutableStateMapOf<String, Thumb>()
-        val ctx = ToolContext(list, true, "s1", "A", thumbs, read = { _, ref, limit, sink ->
+        val ctx = ToolContext(list, true, "s1", "A", thumbs, read = { _, ref, limit, sink, _ ->
             reads += ref.index
             if (ref.index == 1) {
                 SentFileRead.Outcome.Failed(SentFileRead.Reason.TOO_LARGE, 6_400_000)

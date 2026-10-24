@@ -3,8 +3,10 @@ package com.spekterm.android.ui
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -12,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.spekterm.android.desktop.CacheSink
 import com.spekterm.android.desktop.SentFileRead
+import com.spekterm.android.net.RemoteError
 import java.io.ByteArrayOutputStream
 import java.io.File
 import mockwebserver3.MockWebServer
@@ -110,5 +113,64 @@ class SentFileViewerTest {
         assertTrue(context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY).isEmpty())
         SentFileCache.clear(context)
         assertFalse(SentFileCache.dir(context).exists())
+    }
+
+    private fun png(): ByteArray {
+        val bitmap = Bitmap.createBitmap(40, 30, Bitmap.Config.RGB_565)
+        return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+    }
+
+    /** The viewer opened on a result picture, read by a fake that answers [bytes] as [mediaType], or fails with [code]. */
+    private fun openResult(ref: SentFileRef, bytes: ByteArray = png(), mediaType: String = "image/png", code: String? = null) {
+        val ctx = ToolContext(null, true, "s1", read = { _, _, _, sink, _ ->
+            if (code != null) {
+                SentFileRead.Outcome.Failed(SentFileRead.reasonOf(code), code = code)
+            } else {
+                sink.write(bytes)
+                SentFileRead.Outcome.Done("", mediaType, bytes.size.toLong())
+            }
+        }) {}
+        compose.setContent { English { CompositionLocalProvider(LocalToolContext provides ctx) { SentFileDialog("s1", ref) {} } } }
+    }
+
+    private val screenshot = SentFileRef("toolu_1", 0, null, SentFileRef.Source.RESULT, "claude-in-chrome · computer · picture 1")
+
+    @Test
+    fun aResultPictureWithNoPathOpens() {
+        openResult(screenshot)
+        compose.onNodeWithText("claude-in-chrome · computer · picture 1").assertIsDisplayed()
+        compose.waitForIdle()
+        compose.onAllNodesWithText("can't be shown", substring = true).fetchSemanticsNodes().let { assertTrue(it.isEmpty()) }
+    }
+
+    @Test
+    fun aReadPictureIsTitledByItsFile() {
+        openResult(SentFileRef("toolu_2", 0, null, SentFileRef.Source.RESULT, "sp.png"))
+        compose.onNodeWithText("sp.png").assertIsDisplayed()
+    }
+
+    @Test
+    fun anSvgOrUndecodableBytesAreNotShownAndNotHandedOff() {
+        openResult(screenshot, "<svg/>".toByteArray(), "image/svg+xml")
+        compose.onNodeWithText("This picture can't be shown", substring = true).assertIsDisplayed()
+        assertFalse(SentFileCache.dir(context).exists())
+    }
+
+    @Test
+    fun undecodablePngBytes() {
+        openResult(screenshot, "not a png".toByteArray())
+        compose.onNodeWithText("This picture can't be shown", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun aPicturesFailuresInPictureWords() {
+        openResult(screenshot, code = RemoteError.NO_IMAGE)
+        compose.onNodeWithText("This picture is no longer in the conversation", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun anUnknownCodeForAPicture() {
+        openResult(screenshot, code = "LATER")
+        compose.onNodeWithText("The desktop could not send this picture (LATER)", substring = true).assertIsDisplayed()
     }
 }

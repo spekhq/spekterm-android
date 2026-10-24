@@ -25,12 +25,14 @@ class SentFilesTest {
     /** A desktop serving [content] in chunks of the requested length; [version] may change between requests. */
     private class Fake(val content: ByteArray, val mediaType: String = "text/plain", var version: () -> String = { "v1" }) {
         val requests = mutableListOf<Pair<Long, String?>>()
+        val lengths = mutableListOf<Int>()
 
-        fun answer(offset: Long, named: String?): Answer {
+        fun answer(offset: Long, named: String?, length: Int = SentFileRead.CHUNK): Answer {
             requests += offset to named
+            lengths += length
             val current = version()
             if (named != null && named != current) return Answer(null, RemoteError(RemoteError.FILE_CHANGED))
-            val end = minOf(content.size.toLong(), offset + SentFileRead.CHUNK).toInt()
+            val end = minOf(content.size.toLong(), offset + length).toInt()
             val bytes = content.copyOfRange(offset.toInt(), end)
             return Answer(FileChunk("f", content.size.toLong(), mediaType, current, offset, bytes, end == content.size), null)
         }
@@ -45,7 +47,7 @@ class SentFilesTest {
         val fake = Fake(content)
         val sink = MemorySink()
         var last = 0L
-        val outcome = SentFileRead.read(SentFiles.limit(SentFiles.Kind.TEXT) * 2, sink, { done, _ -> last = done }) { o, v -> fake.answer(o, v) }
+        val outcome = SentFileRead.read(SentFiles.limit(SentFiles.Kind.TEXT) * 2, sink, { done, _ -> last = done }) { o, _, v -> fake.answer(o, v) }
         assertEquals(Outcome.Done("f", "text/plain", content.size.toLong()), outcome)
         assertArrayEquals(content, sink.bytes())
         assertEquals(19, fake.requests.size)
@@ -58,7 +60,7 @@ class SentFilesTest {
     fun tooLargeForItsKindStopsAfterTheFirstChunk() = runBlocking {
         for ((kind, size) in listOf(SentFiles.Kind.MARKDOWN to 300 * 1024, SentFiles.Kind.TEXT to 2 * 1024 * 1024)) {
             val fake = Fake(ByteArray(size))
-            val outcome = SentFileRead.read(SentFiles.limit(kind), MemorySink()) { o, v -> fake.answer(o, v) }
+            val outcome = SentFileRead.read(SentFiles.limit(kind), MemorySink()) { o, _, v -> fake.answer(o, v) }
             assertEquals(Outcome.Failed(Reason.TOO_LARGE, size.toLong()), outcome)
             assertEquals(1, fake.requests.size)
         }
@@ -69,16 +71,16 @@ class SentFilesTest {
         var n = 0
         val once = Fake(ByteArray(200_000)) { if (n++ < 2) "v1" else "v2" }
         val sink = MemorySink()
-        assertTrue(SentFileRead.read(1L shl 20, sink) { o, v -> once.answer(o, v) } is Outcome.Done)
+        assertTrue(SentFileRead.read(1L shl 20, sink) { o, _, v -> once.answer(o, v) } is Outcome.Done)
         assertEquals(200_000, sink.bytes().size)
         var m = 0
         val always = Fake(ByteArray(200_000)) { "v${m++}" }
-        assertEquals(Outcome.Failed(Reason.CHANGED, code = RemoteError.FILE_CHANGED), SentFileRead.read(1L shl 20, MemorySink()) { o, v -> always.answer(o, v) })
+        assertEquals(Outcome.Failed(Reason.CHANGED, code = RemoteError.FILE_CHANGED), SentFileRead.read(1L shl 20, MemorySink()) { o, _, v -> always.answer(o, v) })
     }
 
     @Test
     fun errorsMapToTheirReasons() = runBlocking {
-        suspend fun read(answer: Answer?) = SentFileRead.read(1L shl 20, MemorySink()) { _, _ -> answer }
+        suspend fun read(answer: Answer?) = SentFileRead.read(1L shl 20, MemorySink()) { _, _, _ -> answer }
         assertEquals(Outcome.Failed(Reason.NOT_SENT, code = RemoteError.FILE_NOT_SENT), read(error(RemoteError.FILE_NOT_SENT)))
         assertEquals(Outcome.Failed(Reason.GONE, code = RemoteError.FILE_GONE), read(error(RemoteError.FILE_GONE)))
         assertEquals(Outcome.Failed(Reason.TOO_LARGE, 33_554_432, RemoteError.TOO_LARGE), read(error(RemoteError.TOO_LARGE, 33_554_432)))
@@ -93,7 +95,7 @@ class SentFilesTest {
         val fake = Fake(ByteArray(200_000))
         val sink = MemorySink()
         var calls = 0
-        val outcome = SentFileRead.read(1L shl 20, sink) { o, v -> if (calls++ < 2) fake.answer(o, v) else null }
+        val outcome = SentFileRead.read(1L shl 20, sink) { o, _, v -> if (calls++ < 2) fake.answer(o, v) else null }
         assertEquals(Outcome.Failed(Reason.NOT_CONNECTED), outcome)
         assertEquals(0, sink.bytes().size)
     }
@@ -103,7 +105,7 @@ class SentFilesTest {
         val fake = Fake(ByteArray(300_000))
         var calls = 0
         val result = runCatching {
-            SentFileRead.read(1L shl 20, MemorySink()) { o, v -> if (++calls == 2) throw CancellationException("left") else fake.answer(o, v) }
+            SentFileRead.read(1L shl 20, MemorySink()) { o, _, v -> if (++calls == 2) throw CancellationException("left") else fake.answer(o, v) }
         }
         assertTrue(result.exceptionOrNull() is CancellationException)
         assertEquals(2, calls)
@@ -115,7 +117,7 @@ class SentFilesTest {
         val content = ByteArray(1_228_800) { it.toByte() }
         val fake = Fake(content, "video/mp4")
         val sink = CacheSink(root, "../../reel.mp4")
-        assertTrue(SentFileRead.read(SentFiles.limit(SentFiles.Kind.OTHER), sink) { o, v -> fake.answer(o, v) } is Outcome.Done)
+        assertTrue(SentFileRead.read(SentFiles.limit(SentFiles.Kind.OTHER), sink) { o, _, v -> fake.answer(o, v) } is Outcome.Done)
         sink.close()
         assertEquals("reel.mp4", sink.file.name)
         assertEquals(root, sink.file.parentFile!!.parentFile)
@@ -135,5 +137,46 @@ class SentFilesTest {
         assertEquals("a.zip", CacheSink.safeName("C:\\x\\a.zip"))
         assertEquals("env", CacheSink.safeName("/x/.env"))
         assertEquals("file", CacheSink.safeName("/x/"))
+    }
+
+    @Test
+    fun aPictureIsReadInLargeChunksAndASentFileInSmallOnes() = runBlocking {
+        val picture = Fake(ByteArray(1_258_291) { it.toByte() }, "image/png")
+        val sink = MemorySink()
+        val outcome = SentFileRead.read(THUMB, sink, chunk = SentFileRead.PICTURE_CHUNK) { o, l, v -> picture.answer(o, v, l) }
+        assertTrue(outcome is Outcome.Done)
+        assertArrayEquals(picture.content, sink.bytes())
+        assertEquals(3, picture.requests.size)
+        assertTrue(picture.lengths.all { it == 524288 })
+        val sent = Fake(ByteArray(100_000))
+        SentFileRead.read(THUMB, MemorySink()) { o, l, v -> sent.answer(o, v, l) }
+        assertTrue(sent.lengths.all { it == 65536 })
+    }
+
+    @Test
+    fun pictureErrorsMapToTheirReasons() = runBlocking {
+        suspend fun read(answer: Answer?) = SentFileRead.read(THUMB, MemorySink(), chunk = SentFileRead.PICTURE_CHUNK) { _, _, _ -> answer }
+        assertEquals(Outcome.Failed(Reason.NO_IMAGE, code = RemoteError.NO_IMAGE), read(error(RemoteError.NO_IMAGE)))
+        assertEquals(Outcome.Failed(Reason.CHANGED, code = RemoteError.FILE_CHANGED), read(error(RemoteError.FILE_CHANGED)))
+        assertEquals(Outcome.Failed(Reason.TOO_LARGE, 8_388_608, RemoteError.TOO_LARGE), read(error(RemoteError.TOO_LARGE, 8_388_608)))
+        for (code in listOf(RemoteError.NO_CONVERSATION, RemoteError.BAD_PARAMS, "LATER")) assertEquals(Outcome.Failed(Reason.OTHER, code = code), read(error(code)))
+    }
+
+    @Test
+    fun theLogNamesSourceOutcomeCodeAndSizeOnly() {
+        assertEquals(
+            listOf("source" to "result", "outcome" to "done", "size" to 5L),
+            FileLog.fields(FileLog.Source.RESULT, Outcome.Done("secret.png", "image/png", 5)),
+        )
+        assertEquals(
+            listOf("source" to "sent", "outcome" to "no_image", "error" to RemoteError.NO_IMAGE, "size" to null),
+            FileLog.fields(FileLog.Source.SENT, Outcome.Failed(Reason.NO_IMAGE, code = RemoteError.NO_IMAGE)),
+        )
+        val all = FileLog.fields(FileLog.Source.RESULT, Outcome.Failed(Reason.TOO_LARGE, 9, RemoteError.TOO_LARGE)).map { it.second.toString() }
+        assertTrue(all.none { "png" in it || "/" in it })
+    }
+
+    private companion object {
+        const val THUMB = 2L * 1024 * 1024
     }
 }

@@ -151,6 +151,7 @@
     <string name="tool_note_not_sent_because">Not sent: %1$s</string>
     <string name="tool_note_idle_only">Asked to be told when that session is idle</string>
     <string name="tool_note_replace_all">Replaces every occurrence</string>
+    <string name="tool_note_pictures_need_desktop">Seeing pictures on the phone needs a newer spekterm on the desktop</string>
     <plurals name="tool_note_delay">
         <item quantity="one">Wakes in %d minute</item>
         <item quantity="other">Wakes in %d minutes</item>
@@ -183,6 +184,20 @@
     <string name="file_other">The desktop could not send this file (%1$s).</string>
     <string name="file_no_app">No app on this phone opens this kind of file.</string>
     <string name="file_close">Close</string>
+    <string name="picture_no_image">This picture is no longer in the conversation.</string>
+    <string name="picture_changed">The picture changed while it was being read.</string>
+    <string name="picture_too_large">Too large to show on the phone (%1$s).</string>
+    <string name="picture_cannot_show">This picture can\'t be shown.</string>
+    <string name="picture_other">The desktop could not send this picture (%1$s).</string>
+    <string name="picture_description">Picture: %1$s</string>
+    <string name="picture_of_call">%1$s · picture %2$d</string>
+    <string name="picture_of_result">Result · picture %1$d</string>
+    <string name="picture_large">Picture · %1$s · tap to load</string>
+    <string name="picture_failed">Picture · tap to open</string>
+    <plurals name="picture_more">
+        <item quantity="one">%1$d more picture, expand</item>
+        <item quantity="other">%1$d more pictures, expand</item>
+    </plurals>
     <!-- tool-call-display D11: exchanged messages shown as chat -->
     <string name="message_from">%1$s</string>
     <string name="message_to">%1$s to %2$s</string>

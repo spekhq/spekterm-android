@@ -141,6 +141,10 @@ object Frames {
         version?.let { put("version", it) }
     }
 
+    /** One chunk of a picture in a tool result (`tool-result-content` D1); [version] as for [filesRead]. */
+    fun imagesRead(sessionId: String, toolUseId: String, index: Int, offset: Long, length: Int, version: String?): JsonObject =
+        filesRead(sessionId, toolUseId, index, offset, length, version)
+
     /** Accepts an inbox item into the folder the user chose (`inbox` design D6); a scheduled one opens now. */
     fun inboxAccept(adapter: String, id: String, folderId: String): JsonObject = buildJsonObject {
         put("adapter", adapter)
@@ -285,6 +289,7 @@ data class RemoteError(val code: String, val message: String = "", val detail: J
         const val FILE_NOT_SENT = "FILE_NOT_SENT"
         const val FILE_GONE = "FILE_GONE"
         const val FILE_CHANGED = "FILE_CHANGED"
+        const val NO_IMAGE = "NO_IMAGE"
     }
 }
 
@@ -309,6 +314,7 @@ object Operations {
     const val INBOX_IGNORE = "inbox.ignore"
     const val SUBMIT_PREFILL = "sessions.submitPrefill"
     const val FILES_READ = "files.read"
+    const val IMAGES_READ = "images.read"
 }
 
 @Serializable

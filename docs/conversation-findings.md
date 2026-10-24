@@ -960,3 +960,32 @@ kewang: "不錯".
 The emulator screenshots of tasks 3.2 and 5.3 were not taken: kewang looked at every screen on the Pixel and waived
 them ("不用特別截圖了，我人都看過了", 2026-10-24).
 
+
+## Tool results (`tool-result-content`)
+
+### The build and the instrumented suites (task 3.2)
+
+2026-10-25, the change applied through task 2.2 (spekterm's `remote-result-images` not shipped yet, so the phone's side
+is written against its draft of 2026-10-25):
+
+- `./gradlew test assembleDebug`: passes (59 JVM suites, `StringsTest` and `HardcodedTextTest` included; new:
+  `ResultImagesTest` 5, `ReadLinesTest` 8, `PictureCacheTest` 4, `PictureLayoutTest` 2, and cases added to
+  `ToolViewTest`, `ConversationItemsTest`, `SentFilesTest`).
+- `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest` on the `Pixel_9` AVD, with only `emulator-5554`
+  attached: every suite passes but two cases. `DesktopRaceTest` is an assumption not met on the emulator (skipped, as
+  before). `AboutTest`'s report dialog looked for wording 94d4259 had changed; fixed in c1c65f3 and passing on its
+  own. New: `ResultPicturesTest` 6; `SentFileViewerTest` 12 (6 new); `MessageViewsTest` 7 and `ToolViewsTest` 5 as
+  before.
+
+### On the emulator with fake pictures (before task 2.3)
+
+A throwaway instrumented test drew a lone Read of a 1080 × 2400 screenshot, a collapsed run of five picture calls
+(Read and claude-in-chrome, one of 6.4 MB) and an expanded memory-file Read, 412 dp wide, light in English and dark in
+中文（台灣）. Looked at:
+
+- the run shows the 6.1 MB tile, two cropped tiles and "+2"; the Read shows its age note muted above "Content", the
+  numbers in a gutter beside the lines; dark and 中文 read correctly;
+- the lone portrait screenshot, uncapped, stood about 530 dp tall — most of the screen. Capped at 360 dp tall (it
+  narrows to about 160 dp); design D3 records it.
+
+Task 2.3 itself, against the dev desktop, waits for spekterm's side.
