@@ -13,7 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.text.font.FontWeight
 import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.NoOpImageTransformerImpl
 import com.mikepenz.markdown.model.markdownAnimations
 import com.mikepenz.markdown.model.rememberMarkdownState
@@ -47,8 +49,23 @@ fun AgentMarkdown(text: String, modifier: Modifier = Modifier) {
             annotator = remember { safeAnnotator(softBreaks = false, inertLinks = false) },
             // Called for every block type the renderer does not know; only HTML blocks are shown.
             components = safeComponents(),
+            // A chat message's headings stand out from its text without dwarfing the conversation: no display sizes.
+            typography = chatTypography(),
         )
     }
+}
+
+@Composable
+private fun chatTypography() = MaterialTheme.typography.let { t ->
+    val h3 = t.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+    markdownTypography(
+        h1 = t.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+        h2 = t.titleMedium.copy(fontSize = t.titleLarge.fontSize * 0.85f, lineHeight = t.titleLarge.lineHeight * 0.85f, fontWeight = FontWeight.SemiBold),
+        h3 = h3,
+        h4 = h3,
+        h5 = h3,
+        h6 = h3,
+    )
 }
 
 /** Opens `http`/`https` links in the browser; ignores every other scheme without throwing. */

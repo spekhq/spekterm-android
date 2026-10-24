@@ -148,4 +148,20 @@ class AgentMarkdownTest {
             assertFalse("no ellipsis", (0 until layout.lineCount).any { layout.isLineEllipsized(it) })
         }
     }
+
+    @Test
+    fun headingsStayNearTheTextSize() {
+        val text = "# 要做的事\n\n## 驗證方式\n\n### 備註\n\n內文 body"
+        compose.setContent { AgentMarkdown(text) }
+        compose.waitForIdle()
+        fun size(s: String): Float {
+            val results = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithText(s, substring = true).fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+            return results.single().layoutInput.style.fontSize.value
+        }
+        val body = size("內文 body")
+        val sizes = listOf("要做的事", "驗證方式", "備註").map(::size)
+        assertTrue("headings go down by level: $sizes", sizes.zipWithNext().all { (a, b) -> a >= b })
+        assertTrue("no heading dwarfs the text: $sizes vs $body", sizes.all { it >= body && it <= body * 1.5f })
+    }
 }
