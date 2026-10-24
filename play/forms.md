@@ -70,7 +70,8 @@ is unreadable by you or anyone other than the sender and recipient" because of e
 intermediary, including the developer" may be able to read it. The app's only connection goes to the user's own computer,
 over TLS pinned to that computer's own certificate (`net/Pinning.kt`) — the phone and the user's computer are the two ends,
 with no server of the developer or anyone in between. The connection log leaves the phone only when the user shares it with
-another app from Settings, which is the user giving a file to an app on the phone, not this app sending it. Even an app that
+another app from Settings, which is the user giving a file to an app on the phone, not this app sending it. Likewise a
+file the agent sent, which the user opens with another app on the phone (0.2.0), reaches only the app the user chooses. Even an app that
 collects nothing must submit the form and a privacy policy URL; both state that nothing is collected or shared.
 
 Fallback, should Play question it: declare **Messages** (other in-app messages: the replies), **Photos**, and **Files and
