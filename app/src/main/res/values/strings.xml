@@ -183,6 +183,24 @@
     <string name="file_other">The desktop could not send this file (%1$s).</string>
     <string name="file_no_app">No app on this phone opens this kind of file.</string>
     <string name="file_close">Close</string>
+    <!-- tool-call-display D11: exchanged messages shown as chat -->
+    <string name="message_from">%1$s</string>
+    <string name="message_to">%1$s to %2$s</string>
+    <string name="message_report">Report from %1$s</string>
+    <plurals name="message_files">
+        <item quantity="one">%2$s sent %1$d file</item>
+        <item quantity="other">%2$s sent %1$d files</item>
+    </plurals>
+    <string name="message_sending">Sending…</string>
+    <string name="message_show_all">Show all</string>
+    <string name="message_show_less">Show less</string>
+    <string name="message_agent" translatable="false">agent</string>
+    <string name="message_another_agent">another agent</string>
+    <string name="file_kind_markdown">Markdown · tap to read</string>
+    <string name="file_kind_text">Text · tap to read</string>
+    <string name="file_kind_other">Opens in another app</string>
+    <string name="file_photo_large">Photo · %1$s · tap to load</string>
+    <string name="file_photo_failed">Photo · tap to try again</string>
     <string name="conversation_sending">Sending…</string>
     <string name="conversation_reply_not_yet_confirmed">Not yet confirmed</string>
     <string name="conversation_reply_waiting_for_agent">Waiting for the agent to take it</string>

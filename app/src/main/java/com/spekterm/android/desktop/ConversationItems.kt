@@ -39,6 +39,47 @@ object ConversationItems {
         val latest: Call get() = calls.last()
     }
 
+    /**
+     * Something exchanged between parties, shown as a chat message (`tool-call-display` D11): a peer's message ([entry]
+     * a user entry), or the agent's SendMessage or SendUserFile ([call] and its [result]). [to] is set for a message
+     * the agent sent; [files] for files it sent.
+     */
+    data class Message(
+        override val key: String,
+        val from: Messages.Who,
+        val to: Messages.Who?,
+        val body: String,
+        val markdown: Boolean,
+        val at: Long,
+        val call: Entry.Tool? = null,
+        val result: Entry.Result? = null,
+        val files: List<String> = emptyList(),
+        override val anchorsAfter: List<String> = emptyList(),
+    ) : Shown {
+        val status: Messages.Status? get() = when {
+            call?.name == SEND_MESSAGE -> Messages.status(result)
+            result?.error == true -> Messages.Status.NotSent(result.text.takeIf { it.isNotBlank() })
+            else -> null
+        }
+    }
+
+    const val SEND_MESSAGE = "SendMessage"
+    const val SEND_FILES = "SendUserFile"
+
+    /** A call shown as a message: SendMessage, and SendUserFile with files, when the desktop sent their input. */
+    private fun message(key: String, tool: Entry.Tool, result: Entry.Result?): Message? = when {
+        tool.input.isEmpty -> null
+        tool.name == SEND_MESSAGE -> Message(
+            key, Messages.Who(Messages.Kind.SELF, null), Messages.recipient(tool.input) ?: Messages.Who(Messages.Kind.SESSION, null),
+            tool.input.string("message") ?: "", markdown = false, at = tool.at, call = tool, result = result,
+        )
+        tool.name == SEND_FILES && !tool.input.strings("files").isNullOrEmpty() -> Message(
+            key, Messages.Who(Messages.Kind.SELF, null), null, tool.input.string("caption") ?: "", markdown = false, at = tool.at,
+            call = tool, result = result, files = tool.input.strings("files")!!,
+        )
+        else -> null
+    }
+
     /** Any other entry: a user or injected message, the agent's text, thinking outside a run. */
     data class Plain(override val key: String, val entry: Entry, override val anchorsAfter: List<String> = emptyList()) : Shown
 
@@ -77,6 +118,15 @@ object ConversationItems {
         entries.forEachIndexed { i, entry ->
             val key = keys[i]
             when {
+                entry is Entry.Tool && message(key, entry, results[i]?.let { entries[it] as Entry.Result }) != null -> {
+                    close()
+                    emit(message(key, entry, results[i]?.let { entries[it] as Entry.Result })!!)
+                }
+                entry is Entry.User && entry.origin is Origin.Peer -> {
+                    close()
+                    val origin = entry.origin as Origin.Peer
+                    emit(Message(key, Messages.sender(origin), null, PeerText.strip(entry.text), markdown = true, at = entry.at))
+                }
                 entry is Entry.Tool -> {
                     val call = Call(key, entry, results[i]?.let { entries[it] as Entry.Result })
                     val parts = forming
@@ -128,5 +178,6 @@ object ConversationItems {
         is LoneResult -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
         is Run -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
         is Plain -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
+        is Message -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
     }
 }

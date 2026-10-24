@@ -176,6 +176,8 @@ fun ConversationScreen(
     var usageOpen by remember { mutableStateOf(false) }
     // A sent file being viewed, over the conversation so it keeps its place (`tool-call-display` D6).
     var viewing by remember(sessionId) { mutableStateOf<SentFileRef?>(null) }
+    // Sent pictures read on this screen, in memory only, so scrolling away and back reads nothing again (D11).
+    val thumbs = remember(sessionId) { mutableStateMapOf<String, Thumb>() }
     // Bumped when the skills appear above the field, so a list that follows the newest keeps it in view (D10).
     var panelShows by remember { mutableIntStateOf(0) }
     // Held here, not in the item, so it survives the work ending and coming back (`background-tasks` D4).
@@ -258,7 +260,9 @@ fun ConversationScreen(
                         // From the last list held, as the close offer is (`background-tasks` D4).
                         val background = session?.let { SessionsView.background(it) }.orEmpty()
                         if (background.isNotEmpty()) BackgroundTasks(background, backgroundOpen, { backgroundOpen = !backgroundOpen }, backgroundMax)
-                        CompositionLocalProvider(LocalToolContext provides ToolContext(sessions.list, Operations.FILES_READ in operations) { viewing = it }) {
+                        CompositionLocalProvider(
+                            LocalToolContext provides ToolContext(sessions.list, Operations.FILES_READ in operations, sessionId, session?.label, thumbs) { viewing = it },
+                        ) {
                             Entries(c, Modifier.weight(1f), panelShows)
                         }
                         c?.let { answerNote(it) }?.let { Notice(it.text(), answerTone(c), stringResource(R.string.common_dismiss), { Desktop.dismissAnswer(sessionId) }) }
@@ -450,6 +454,7 @@ private fun ShownRow(shown: Shown, open: MutableMap<String, Boolean>, time: Stri
         is ConversationItems.Run -> RunItem(shown, expanded, toggle, open)
         is ConversationItems.LoneResult -> ResultLine(shown.result, expanded, toggle, rowPad)
         is ConversationItems.Plain -> PlainRow(shown.entry, expanded, toggle, time)
+        is ConversationItems.Message -> MessageRow(shown, open, time)
     }
 }
 
@@ -457,7 +462,10 @@ private fun ShownRow(shown: Shown, open: MutableMap<String, Boolean>, time: Stri
 private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit, time: String?) {
     val colors = MaterialTheme.colorScheme
     when (entry) {
-        is Entry.User -> if (entry.meta) {
+        // A background task's notice on its own: one short line (`tool-call-display` D11).
+        is Entry.User -> if (entry.origin == Origin.TaskNotice) {
+            NoticeLine(entry.text, expanded, toggle)
+        } else if (entry.meta) {
             // Who sent it, when the desktop says; a peer's body is an agent's text, without the CLI's wrapper (D7).
             Muted(injectedLabel(entry.origin), expanded, toggle) {
                 if (entry.origin is Origin.Peer) {

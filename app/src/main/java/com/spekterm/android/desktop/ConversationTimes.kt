@@ -39,6 +39,7 @@ object ConversationTimes {
 
     /** The time shown under an item: only the user's own message and the agent's text, and only a known one (D1). */
     fun timeOf(shown: Shown): Long? {
+        if (shown is ConversationItems.Message) return shown.at.takeIf { it > 0 }
         val entry = (shown as? ConversationItems.Plain)?.entry ?: return null
         val shows = (entry is Entry.User && !entry.meta) || entry is Entry.Text
         return entry.at.takeIf { shows && it > 0 }
@@ -50,6 +51,7 @@ object ConversationTimes {
         is ConversationItems.Run -> (shown.parts.first() as ConversationItems.Call).tool.at
         is ConversationItems.LoneResult -> shown.result.at
         is ConversationItems.Plain -> shown.entry.at
+        is ConversationItems.Message -> shown.at
     }
 
     /**

@@ -6,9 +6,12 @@ import com.spekterm.android.desktop.ConversationItems.Plain
 import com.spekterm.android.desktop.ConversationItems.Run
 import com.spekterm.android.desktop.ConversationItems.Shown
 import com.spekterm.android.desktop.ConversationItems.Thinking
+import com.spekterm.android.desktop.ConversationItems.Message
 import com.spekterm.android.desktop.ConversationItems.Notice
 import com.spekterm.android.net.Entry
 import com.spekterm.android.net.Origin
+import com.spekterm.android.net.ToolInput
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -22,6 +25,9 @@ class ConversationItemsTest {
     private fun text(name: String) = Entry.Text(name, 0, "said")
     private fun user(name: String) = Entry.User(name, 0, "asked", meta = false)
     private fun notice(name: String) = Entry.User(name, 0, "<task-notification>…", meta = true, origin = Origin.TaskNotice)
+    private fun send(name: String, input: String? = """{"to":"x","message":"hi"}""") =
+        Entry.Tool(name, 0, name, "SendMessage", null, input?.let { ToolInput.of(Json.parseToJsonElement(it)) } ?: ToolInput.EMPTY)
+    private fun files(name: String) = Entry.Tool(name, 0, name, "SendUserFile", null, ToolInput.of(Json.parseToJsonElement("""{"files":["/x/a.png"],"caption":"look"}""")))
     private fun peer(name: String) = Entry.User(name, 0, "hi", meta = true, origin = Origin.Peer(Origin.Sender.SESSION, "x"))
 
     private fun group(vararg entries: Entry, anchors: Set<String> = emptySet()): List<Shown> {
@@ -42,6 +48,7 @@ class ConversationItemsTest {
             } + ")"
             is Plain -> "P(${item.entry.uuid})"
             is LoneResult -> "L(${item.result.uuid})"
+            is Message -> "M(${item.key.removeSuffix("#0")})"
         }
         body + item.anchorsAfter.joinToString("") { "<" + it.removeSuffix("#0") }
     }
@@ -175,6 +182,7 @@ class ConversationItemsTest {
                 is Run -> item.parts.flatMap { if (it is Call) listOfNotNull(it.tool, it.result) else listOf((it as Thinking).entry) }
                 is Plain -> listOf(item.entry)
                 is LoneResult -> listOf(item.result)
+                is Message -> listOfNotNull(item.call, item.result)
             }
         }
         assertEquals(entries.toSet(), shown.toSet())
@@ -190,7 +198,7 @@ class ConversationItemsTest {
 
     @Test
     fun aNoticeBeforeAPeerMessageStaysOutsideTheRun() {
-        assertEquals("R(c1,c2) P(n) P(p) R(c3,c4)", shape(group(call("c1"), call("c2"), notice("n"), peer("p"), call("c3"), call("c4"))))
+        assertEquals("R(c1,c2) P(n) M(p) R(c3,c4)", shape(group(call("c1"), call("c2"), notice("n"), peer("p"), call("c3"), call("c4"))))
     }
 
     @Test
@@ -200,8 +208,30 @@ class ConversationItemsTest {
     }
 
     @Test
-    fun aPeerMessageEndsARun() {
-        assertEquals("C(c1) P(p) C(c2)", shape(group(call("c1"), peer("p"), call("c2"))))
+    fun aPeerMessageEndsARunAsAMessage() {
+        assertEquals("C(c1) M(p) C(c2)", shape(group(call("c1"), peer("p"), call("c2"))))
+        val m = group(peer("p")).single() as Message
+        assertEquals(Messages.Who(Messages.Kind.SESSION, "x"), m.from)
+        assertEquals("hi", m.body)
+        assertTrue(m.markdown)
+    }
+
+    @Test
+    fun theAgentsMessagesAndFilesAreMessages() {
+        assertEquals("C(c1) M(s) C(c2)", shape(group(call("c1"), send("s"), result("rs", "s"), call("c2"))))
+        val m = group(send("s"), Entry.Result("rs", 0, "s", """{"success":true}""", false)).single() as Message
+        assertEquals(Messages.Who(Messages.Kind.SELF, null), m.from)
+        assertEquals(Messages.Who(Messages.Kind.SESSION, "x"), m.to)
+        assertEquals(Messages.Status.Sent, m.status)
+        val f = group(files("f")).single() as Message
+        assertEquals(listOf("/x/a.png"), f.files)
+        assertEquals("look", f.body)
+        assertEquals("R(c1,c2) M(f)", shape(group(call("c1"), call("c2"), files("f"))))
+    }
+
+    @Test
+    fun withoutInputTheyStayCalls() {
+        assertEquals("R(c1,s,c2)", shape(group(call("c1"), send("s", null), call("c2"))))
     }
 
     @Test

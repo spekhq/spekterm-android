@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,7 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.spekterm.android.R
+import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.desktop.EditDiff
+import com.spekterm.android.desktop.SentFileRead
 import com.spekterm.android.desktop.SentFiles
 import com.spekterm.android.desktop.ToolView
 import com.spekterm.android.desktop.ToolView.Label
@@ -52,7 +55,20 @@ data class SentFileRef(val toolUseId: String, val index: Int, val path: String)
  * What a tool call needs from its screen (`tool-call-display`): the session list, to name a session by its label;
  * whether the desktop sends files; and opening one.
  */
-data class ToolContext(val list: SessionList?, val canReadFiles: Boolean, val open: (SentFileRef) -> Unit)
+data class ToolContext(
+    val list: SessionList?,
+    val canReadFiles: Boolean,
+    val sessionId: String = "",
+    /** This session's name, for its agent's messages (`tool-call-display` D11). */
+    val self: String? = null,
+    /** Sent pictures read so far on this screen, in memory only (D11). */
+    val thumbs: SnapshotStateMap<String, Thumb> = SnapshotStateMap(),
+    /** Reads a sent file into a sink; the desktop's, replaced in tests. */
+    val read: suspend (sessionId: String, ref: SentFileRef, limit: Long, sink: SentFileRead.Sink) -> SentFileRead.Outcome = { s, r, l, k ->
+        Desktop.readSentFile(s, r.toolUseId, r.index, l, k)
+    },
+    val open: (SentFileRef) -> Unit,
+)
 
 val LocalToolContext = staticCompositionLocalOf { ToolContext(null, false) {} }
 

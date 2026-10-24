@@ -184,6 +184,22 @@
     <string name="file_other">桌機無法傳送這個檔案（%1$s）。</string>
     <string name="file_no_app">這支手機上沒有 App 能開這種檔案。</string>
     <string name="file_close">關閉</string>
+    <!-- tool-call-display D11: exchanged messages shown as chat -->
+    <string name="message_from">%1$s 傳來</string>
+    <string name="message_to">%1$s 傳給 %2$s</string>
+    <string name="message_report">%1$s 傳來報告</string>
+    <plurals name="message_files">
+        <item quantity="other">%2$s 傳來 %1$d 個檔案</item>
+    </plurals>
+    <string name="message_sending">傳送中…</string>
+    <string name="message_show_all">顯示全部</string>
+    <string name="message_show_less">收合</string>
+    <string name="message_another_agent">另一個 agent</string>
+    <string name="file_kind_markdown">Markdown · 點一下閱讀</string>
+    <string name="file_kind_text">文字檔 · 點一下閱讀</string>
+    <string name="file_kind_other">用其他 App 開啟</string>
+    <string name="file_photo_large">照片 · %1$s · 點一下載入</string>
+    <string name="file_photo_failed">照片 · 點一下重試</string>
     <string name="conversation_sending">送出中…</string>
     <string name="conversation_reply_not_yet_confirmed">尚未確認</string>
     <string name="conversation_reply_waiting_for_agent">等 agent 接收</string>
