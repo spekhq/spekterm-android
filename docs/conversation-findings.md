@@ -910,3 +910,20 @@ Found on the way:
   instead of keeping the removed one (or none). Desktop behavior, outside this change; reported to the spekterm session that handed this change off.
 - The waiting card's meta line read "go · go · …": the handoff's actor and origin are both the source folder's name.
   As before this change.
+
+## Tool calls (`tool-call-display`)
+
+### The build and the instrumented suites (task 3.3)
+
+2026-10-24, at b836c8f plus the README change:
+
+- `./gradlew test assembleDebug`: passes (449 JVM tests, `StringsTest` and `HardcodedTextTest` included).
+- `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest` on the `Pixel_9` AVD, with no other device
+  attached (`adb devices` listed only `emulator-5554`; the Pixel was not connected): 141 tests, gradle exit 0. One
+  `DesktopRaceTest` case is reported as an assumption not met on the emulator's network (skipped, as before this
+  change). The new suites: `SlashSkillsTest` 12, `ToolViewsTest` 5, `SentFileViewerTest` 6, all passing.
+
+### On the emulator against the dev desktop (task 3.2)
+
+Not run yet: it needs a dev desktop running spekterm's `remote-tool-detail` (uncommitted on spekterm master on
+2026-10-24) paired with the emulator.

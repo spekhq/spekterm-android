@@ -54,14 +54,18 @@ access turned on.
 - **New sessions**: start an agent session in any of the desktop's folders, quietly, and continue in its
   conversation on the phone.
 - **Conversations**: an agent session's messages, thinking, tool calls and results — a tool call shown with its
-  result, and a run of calls summarized in one line that opens to each; a dormant session can be woken. Agent text is Markdown that loads nothing from the network. Your messages and the
+  result, and a run of calls summarized in one line that opens to each; a dormant session can be woken. Each call
+  says what it did: a command and its output told apart, a message to another session with that session's name, an
+  edit's removed and added lines, the subagent and its prompt, the skill. A message from another session or a
+  subagent's report says who sent it. A file the agent sends you opens on the phone — images, Markdown and text in
+  the app, anything else handed to another app. Agent text is Markdown that loads nothing from the network. Your messages and the
   agent's text show when they were written, and the conversation is divided by day ("Today", "Yesterday", the date).
   A line under the title shows what the agent last reported: its model and effort, how full its context is, the
   session's cost, and the account's rate limits when they are close to full; tapping it shows them all, with when the
   limits reset.
 - **Replies**: free text to the agent while it waits or works, with photos (HEIC converted to JPEG), PDF or
-  text files attached, shown as unconfirmed until it appears in the conversation. The session's skills are a tap
-  away: search them, and choosing one starts the reply with it as a slash command. A command that never appears says
+  text files attached, shown as unconfirmed until it appears in the conversation. Typing `/` at the start of
+  the reply shows the session's skills, filtered as you type; choosing one fills it in as a slash command. A command that never appears says
   why it may not have, and one too long to run as a command says so before it is sent.
 - **Prompts**: a permission request, the agent's questions or a plan to approve is shown as plain text and,
   when the desktop says it can be, answered from the phone — allow once or deny, the questions' options or
@@ -76,7 +80,8 @@ access turned on.
 These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
 following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a;
 background work: c79785f, 0.2.11; scheduled handoffs: 445dc24, 0.2.12; sending an accepted item's first prompt: b45c359,
-0.2.13; the agent's model and usage, and the session's skills: 6b6ebfa, 0.2.15; repeating handoffs: d88a3d1, 0.2.16); against an older desktop the app shows none of
+0.2.13; the agent's model and usage, and the session's skills: 6b6ebfa, 0.2.15; repeating handoffs: d88a3d1, 0.2.16; what tool calls did, who sent a message and opening sent files:
+spekterm's `remote-tool-detail`, after 0.2.22); against an older desktop the app shows none of
 them, and a ready agent stays "Waiting for you".
 
 Not yet: the terminal view (shell sessions).
