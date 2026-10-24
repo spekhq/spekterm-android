@@ -94,8 +94,8 @@ All **(wording to check in Console)**.
 
 If Play asks whether the app generates content with AI **(wording to check in Console)**: **No**. The app runs no AI
 model and has no server; it shows what the user's own AI coding agent, running on the user's own computer under that
-agent provider's terms, writes, the way a remote desktop or SSH client shows a remote program's output. A conversation's
-menu still offers Report a problem, which opens the project's issue page (`play-release` D11).
+agent provider's terms, writes, the way a remote desktop or SSH client shows a remote program's output. The app's
+settings still offer Report a problem, which opens the project's issue page (`play-release` D11).
 
 ## Foreground service permissions
 

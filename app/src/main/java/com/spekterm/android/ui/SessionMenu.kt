@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.BasicAlertDialog
@@ -23,7 +22,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -130,10 +130,9 @@ fun SessionMenu(
     onDismiss: () -> Unit,
     actions: List<SessionActions.Action>,
     enabled: Boolean,
-    onReport: (() -> Unit)? = null,
     onChoose: (SessionActions.Action) -> Unit,
 ) {
-    DropdownMenu(expanded = expanded && (actions.isNotEmpty() || onReport != null), onDismissRequest = onDismiss) {
+    DropdownMenu(expanded = expanded && actions.isNotEmpty(), onDismissRequest = onDismiss) {
         for (action in actions) {
             DropdownMenuItem(
                 text = {
@@ -151,17 +150,6 @@ fun SessionMenu(
                 onClick = {
                     onDismiss()
                     onChoose(action)
-                },
-            )
-        }
-        // The conversation's menu ends with Report a problem (`play-release` D11).
-        onReport?.let { report ->
-            if (actions.isNotEmpty()) HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.report_problem)) },
-                onClick = {
-                    onDismiss()
-                    report()
                 },
             )
         }
@@ -205,7 +193,7 @@ private fun RenameDialog(sessionId: String, label: String, enabled: Boolean, onC
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<RemoteError?>(null) }
     fun send(name: String) {
-        if (name.isNotEmpty() && Rename.unchanged(name, label)) return onClose()
+        if (Rename.unchanged(name, label)) return onClose()
         working = true
         error = null
         scope.launch {
@@ -214,7 +202,7 @@ private fun RenameDialog(sessionId: String, label: String, enabled: Boolean, onC
             if (e == null) onClose() else error = e
         }
     }
-    // Its own button row: "Clear name" apart at the start, Cancel and Rename at the end (D12).
+    // Clear name is the field's trailing icon and only empties it.
     BasicAlertDialog(onDismissRequest = { if (!working) onClose() }) {
         Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 6.dp) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -227,13 +215,14 @@ private fun RenameDialog(sessionId: String, label: String, enabled: Boolean, onC
                         if (line.codePointCount(0, line.length) <= Rename.MAX_CODE_POINTS) text = line
                     },
                     singleLine = true,
+                    trailingIcon = {
+                        if (text.isNotEmpty()) IconButton(enabled = !working, onClick = { text = "" }) { Icon(SpekIcons.Close, stringResource(R.string.menu_clear_name)) }
+                    },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 error?.let { Text(renameError(it).text(), color = MaterialTheme.colorScheme.error) }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(enabled = enabled && !working, onClick = { send("") }) { Text(stringResource(R.string.menu_clear_name)) }
-                    Spacer(Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                     TextButton(enabled = !working, onClick = onClose) { Text(stringResource(R.string.common_cancel)) }
                     TextButton(enabled = enabled && !working && text.isNotBlank(), onClick = { send(text) }) { Text(if (working) stringResource(R.string.menu_renaming) else stringResource(R.string.menu_rename)) }
                 }

@@ -127,6 +127,20 @@ class DesktopTest {
     }
 
     @Test
+    fun aDraftOutlivesOpeningAnotherSession() = runBlocking<Unit> {
+        val desktop = Scripted().apply { standard() }
+        connect(desktop)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        Desktop.setDraft("s1", "half a reply")
+        until { it.draft == "half a reply" }
+        Desktop.focus("o2", "s2")
+        assertEquals("", until { it.sessionId == "s2" }.draft)
+        Desktop.focus("o3", "s1")
+        assertEquals("half a reply", until { it.sessionId == "s1" }.draft)
+    }
+
+    @Test
     fun usageAndSkillsBeforeTheWatchAnswerAreHeldAndOtherSessionsIgnored() = runBlocking<Unit> {
         val desktop = Scripted().apply {
             standard { req, ws ->

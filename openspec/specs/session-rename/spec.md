@@ -1,8 +1,8 @@
 # session-rename Specification
 
 ## Purpose
-Lets the user rename a session of the paired desktop from the phone, or hand its naming back to the session's
-own title, without changing what the desktop shows or where its keyboard focus is.
+Lets the user rename a session of the paired desktop from the phone, without changing what the desktop shows or
+where its keyboard focus is.
 
 ## Requirements
 
@@ -12,7 +12,8 @@ While the desktop accepts `sessions.rename`, every session the desktop lists —
 dormant — SHALL offer to rename it, in its menu in the session list (`session-list`) and on its screen. Renaming SHALL take a single line of at most 200 characters,
 starting from the session's current name, and SHALL be possible only while the phone is connected, the
 connection is not paused, the shown list is current and the desktop has an open window. Choosing to clear the
-name SHALL ask the desktop to hand naming back, so the session's label follows its own title again. The app
+name SHALL only empty the field, so a new name can be typed; an empty name SHALL NOT be sent, and the phone SHALL
+NOT offer to hand naming back to the session's own title. The app
 SHALL NOT change the session's label itself: the new label SHALL appear when the desktop's list shows it.
 A name that would not change the label SHALL NOT be sent. The desktop renames without changing its selection or
 keyboard focus.
@@ -25,8 +26,8 @@ keyboard focus.
 
 #### Scenario: Clearing the name
 
-- **WHEN** the user clears the name of a session they renamed
-- **THEN** its label follows the agent's own title again
+- **WHEN** the user clears the name in the rename dialog
+- **THEN** the field is empty, the dialog stays open, and Rename is unavailable until a name is typed
 
 #### Scenario: A dormant session
 

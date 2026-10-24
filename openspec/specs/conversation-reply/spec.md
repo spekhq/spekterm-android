@@ -95,13 +95,19 @@ according to the wait state.
 The reply field SHALL accept several lines, and a multi-line reply SHALL reach the agent as exactly one message
 with its line breaks kept. The phone SHALL send the text as typed; the desktop removes control characters other
 than line breaks. Text too long for the desktop to accept SHALL be refused on the phone with a message saying
-so, without sending it. A reply being written SHALL be kept when the user leaves the conversation and comes
-back to it, unless another session's conversation was opened in between.
+so, without sending it. The text of a reply being written SHALL be kept, per session, when the user leaves the conversation and comes
+back to it, also when other sessions' conversations were opened in between, until the session is gone or the
+phone is unpaired; its attachments are kept only while no other session's conversation is opened.
 
 #### Scenario: A multi-line reply
 
 - **WHEN** the user sends a reply of three lines
 - **THEN** the agent's conversation shows exactly one user message holding the three lines
+
+#### Scenario: Switching sessions mid-reply
+
+- **WHEN** the user types half a reply in one session, opens another session, then comes back
+- **THEN** the half-typed text is still in the reply field
 
 ### Requirement: A sent reply is unconfirmed until it appears in the conversation
 

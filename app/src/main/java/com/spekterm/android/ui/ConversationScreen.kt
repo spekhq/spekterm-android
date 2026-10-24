@@ -172,7 +172,6 @@ fun ConversationScreen(
     // Closing the session from its own screen returns to the list (design D9).
     val dialogs = rememberSessionDialogs { if (it.kind == SessionAction.Kind.CLOSE) onBack() }
     var menu by remember { mutableStateOf(false) }
-    var reporting by remember { mutableStateOf(false) }
     var usageOpen by remember { mutableStateOf(false) }
     // A sent file being viewed, over the conversation so it keeps its place (`tool-call-display` D6).
     var viewing by remember(sessionId) { mutableStateOf<SentFileRef?>(null) }
@@ -226,7 +225,7 @@ fun ConversationScreen(
                 val actions = session?.let { SessionActions.of(it, operations, sessions.list) }.orEmpty()
                 Box {
                     MoreButton({ menu = true })
-                    SessionMenu(menu, { menu = false }, actions, actionsEnabled, onReport = { reporting = true }) {
+                    SessionMenu(menu, { menu = false }, actions, actionsEnabled) {
                         if (it == SessionActions.Action.HANDOFF) onHandoff(sessionId) else dialogs.choose(it, session!!)
                     }
                 }
@@ -296,7 +295,6 @@ fun ConversationScreen(
     }
     viewing?.let { SentFileDialog(sessionId, it) { viewing = null } }
     SessionDialogsHost(dialogs, actionsEnabled)
-    if (reporting) ReportProblemDialog { reporting = false }
 }
 
 /** The agent's wait state while watched, for the top bar (D4). */
@@ -777,6 +775,8 @@ internal fun Composer(
     // not a string, so a chosen skill can place the cursor and a typed slash be read at it (`tool-call-display` D10).
     var field by remember(sessionId) { mutableStateOf((c?.draft ?: "").let { TextFieldValue(it, TextRange(it.length)) }) }
     val text = field.text
+    // Coming from another session, the conversation is held a moment after the screen shows: take its kept draft then.
+    LaunchedEffect(sessionId, c != null) { if (c != null && field.text.isEmpty() && c.draft.isNotEmpty()) field = TextFieldValue(c.draft, TextRange(c.draft.length)) }
     LaunchedEffect(c?.draftReturns) { if (c != null && c.draftReturns > 0) field = TextFieldValue(c.draft, TextRange(c.draft.length)) }
     val focus = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }

@@ -158,6 +158,8 @@ object Desktop {
     private var nextCreateId = 0L
     private var nextAttachmentId = 0L
     private var uploadJob: Job? = null
+    /** Drafts typed in sessions other than the held one, kept in memory while the user moves between them. */
+    private val drafts = HashMap<String, String>()
 
     private var tracker = OpenSpecTracker()
     /** In order of last focus, oldest first (design D4). */
@@ -276,9 +278,10 @@ object Desktop {
             visibleSession = sessionId
             val c = mutableConversation.value
             if (c == null || c.sessionId != sessionId) {
-                // Another session: drop what was held for the previous one, after unwatching it.
+                // Another session: drop what was held for the previous one, after unwatching it; its draft stays.
                 if (c != null && c.watch.active) unwatch(c)
-                setHeld(Conversation(sessionId, listedRunning = listedRunning(sessionId)))
+                if (c != null) keepDraft(c)
+                setHeld(Conversation(sessionId, listedRunning = listedRunning(sessionId), draft = drafts.remove(sessionId).orEmpty()))
             }
             reconcile()
         }
@@ -710,6 +713,7 @@ object Desktop {
             mutableHandoffs.value = HandoffsState()
             mutableInbox.value = InboxState()
             mutableInboxActions.value = emptyMap()
+            drafts.clear()
             setHeld(null)
             dropCreation()
             dropOpenspec()
@@ -733,6 +737,7 @@ object Desktop {
         mutableInboxActions.value = emptyMap()
         inboxOnScreen = false
         openWaitMs = 10_000L
+        drafts.clear()
         setHeld(null)
         dropCreation()
         dropOpenspec()
@@ -894,6 +899,7 @@ object Desktop {
         mutableInboxActions.value = OpeningTracker.listed(mutableInboxActions.value, list, a, inboxOnScreen)
         seen.next(list).takeIf { it.isNotEmpty() }?.let { ids -> onSeen?.invoke(ids) }
         track(CreateTracker.listed(trackerState(), list, a, listOnScreen))
+        if (list.window) drafts.keys.retainAll(list.sessions.map { it.id }.toSet())
         mutableConversation.value?.let { held ->
             var next = ConversationReducer.listed(held, list)
             // A list with a window that no longer holds the session: closed, or its process ended (design D10).
@@ -917,6 +923,10 @@ object Desktop {
             uploadJob = null
         }
         dropFilesNotHeld(before?.attachments.orEmpty())
+    }
+
+    private fun keepDraft(c: Conversation) {
+        if (c.draft.isEmpty() || c.closed) drafts.remove(c.sessionId) else drafts[c.sessionId] = c.draft
     }
 
     /** Deletes the files of [candidates] the held conversation no longer holds, in its composer or a reply. */

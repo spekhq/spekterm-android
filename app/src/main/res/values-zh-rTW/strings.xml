@@ -637,7 +637,7 @@
     <string name="licenses_notices">聲明</string>
     <string name="report_problem">回報問題</string>
     <string name="report_title">回報問題</string>
-    <string name="report_text">agent 寫的內容來自你電腦上你自己的 agent，本 app 的開發者看不到。要回報本 app 的問題，請到 GitHub 開 issue；這段對話的任何內容都不會附上。</string>
+    <string name="report_text">agent 寫的內容來自你電腦上你自己的 agent，本 app 的開發者看不到。要回報本 app 的問題，請到 GitHub 開 issue；不會附上任何對話內容。</string>
     <string name="report_open">回報</string>
     <!-- The agent's model and usage, and its skills (agent-usage-and-skills) -->
     <string name="usage_details">用量詳情</string>

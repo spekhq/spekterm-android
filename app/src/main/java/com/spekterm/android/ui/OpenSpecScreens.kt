@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,6 +72,7 @@ import com.spekterm.android.net.Worktree
 import com.spekterm.android.store.Announcements
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.launch
 
 /*
  * A folder's OpenSpec, read-only (`openspec-browse` design D6): the folders that have one, a folder's changes and
@@ -227,12 +231,16 @@ fun OpenSpecFolderScreen(
 ) {
     val sessions by Desktop.sessions.collectAsStateWithLifecycle()
     val folder = sessions.list?.folders?.firstOrNull { it.id == folderId }
-    var tab by rememberSaveable { mutableStateOf(0) }
     val operations by Desktop.operations.collectAsStateWithLifecycle()
     val specsShown = OpenSpecGates.of(operations).specs
-    val target = if (tab == 1 && specsShown) OpenSpecTarget.Specs(folderId) else OpenSpecTarget.Changes(folderId)
+    // Changes and Specs are pages: a tab or a sideways swipe moves between them; the focus follows the settled page.
+    val pager = rememberPagerState { if (specsShown) 2 else 1 }
+    val scope = rememberCoroutineScope()
+    val target = if (pager.settledPage == 1 && specsShown) OpenSpecTarget.Specs(folderId) else OpenSpecTarget.Changes(folderId)
     FocusWhileShown(owner, target)
     val r = reading(target, announcements)
+    val changes = reading(OpenSpecTarget.Changes(folderId), announcements)
+    val specs = reading(OpenSpecTarget.Specs(folderId), announcements)
     SpekScaffold(topBar = { scroll ->
         TopBar(
             folder?.name?.ifEmpty { null } ?: "OpenSpec",
@@ -244,15 +252,17 @@ fun OpenSpecFolderScreen(
     }) {
         Column(Modifier.fillMaxSize()) {
             if (specsShown) {
-                PrimaryTabRow(selectedTabIndex = if (target is OpenSpecTarget.Specs) 1 else 0) {
-                    OsTab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.openspec_tab_changes)) })
-                    OsTab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.openspec_tab_specs)) })
+                PrimaryTabRow(selectedTabIndex = pager.currentPage) {
+                    OsTab(selected = pager.currentPage == 0, onClick = { scope.launch { pager.animateScrollToPage(0) } }, text = { Text(stringResource(R.string.openspec_tab_changes)) })
+                    OsTab(selected = pager.currentPage == 1, onClick = { scope.launch { pager.animateScrollToPage(1) } }, text = { Text(stringResource(R.string.openspec_tab_specs)) })
                 }
             }
             StatusLine(r, target)
-            when (target) {
-                is OpenSpecTarget.Specs -> SpecList(r.loaded?.value as? List<*>, r.gates.openSpec, onOpenSpec)
-                else -> ChangeList(r.loaded?.value as? OsChanges, r.gates.openChange, onOpenChange)
+            HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
+                when (page) {
+                    1 -> SpecList(specs.loaded?.value as? List<*>, specs.gates.openSpec, onOpenSpec)
+                    else -> ChangeList(changes.loaded?.value as? OsChanges, changes.gates.openChange, onOpenChange)
+                }
             }
         }
     }
@@ -390,13 +400,15 @@ fun OpenSpecChangeScreen(
         )
     }) {
         Column(Modifier.fillMaxSize()) {
-            var selected by rememberSaveable { mutableStateOf<String?>(null) }
             val artifacts = detail?.artifacts.orEmpty()
-            val index = artifacts.indexOfFirst { it.id == selected }.takeIf { it >= 0 } ?: 0
+            // The artifacts are pages: a tab or a sideways swipe moves between them.
+            val pager = rememberPagerState { artifacts.size }
+            val scope = rememberCoroutineScope()
+            val index = pager.currentPage.coerceIn(0, (artifacts.size - 1).coerceAtLeast(0))
             if (artifacts.isNotEmpty()) {
                 PrimaryScrollableTabRow(selectedTabIndex = index, edgePadding = 8.dp) {
                     artifacts.forEachIndexed { i, a ->
-                        OsTab(selected = i == index, onClick = { selected = a.id }, text = { Text(a.title, maxLines = 1, overflow = TextOverflow.Ellipsis) })
+                        OsTab(selected = i == index, onClick = { scope.launch { pager.animateScrollToPage(i) } }, text = { Text(a.title, maxLines = 1, overflow = TextOverflow.Ellipsis) })
                     }
                 }
             }
@@ -407,7 +419,7 @@ fun OpenSpecChangeScreen(
             when {
                 detail == null -> Unit
                 artifacts.isEmpty() -> Centered(stringResource(R.string.openspec_no_artifacts))
-                else -> Artifact(artifacts[index])
+                else -> HorizontalPager(pager, Modifier.fillMaxSize(), key = { artifacts[it].id }) { page -> Artifact(artifacts[page]) }
             }
         }
     }
@@ -535,7 +547,9 @@ fun OpenSpecSpecScreen(
     FocusWhileShown(owner, target)
     val r = reading(target, announcements)
     val spec = r.loaded?.value as? OsSpec
-    var tab by rememberSaveable { mutableStateOf(0) }
+    // The spec and its history are pages: a tab or a sideways swipe moves between them.
+    val pager = rememberPagerState { 2 }
+    val scope = rememberCoroutineScope()
     SpekScaffold(topBar = { scroll ->
         TopBar(
             topic,
@@ -549,19 +563,22 @@ fun OpenSpecSpecScreen(
     }) {
         Column(Modifier.fillMaxSize()) {
             if (spec != null) {
-                PrimaryTabRow(selectedTabIndex = tab) {
-                    OsTab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.openspec_tab_spec)) })
-                    OsTab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.openspec_tab_history, spec.history.size)) })
+                PrimaryTabRow(selectedTabIndex = pager.currentPage) {
+                    OsTab(selected = pager.currentPage == 0, onClick = { scope.launch { pager.animateScrollToPage(0) } }, text = { Text(stringResource(R.string.openspec_tab_spec)) })
+                    OsTab(selected = pager.currentPage == 1, onClick = { scope.launch { pager.animateScrollToPage(1) } }, text = { Text(stringResource(R.string.openspec_tab_history, spec.history.size)) })
                 }
             }
             StatusLine(r, target)
-            when {
-                spec == null -> Unit
-                tab == 0 -> when (val c = spec.content) {
-                    is Piece.Present -> RepositoryMarkdown(c.value, lazy = true, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp))
-                    is Piece.Omitted -> Omitted(c.bytes)
+            if (spec != null) {
+                HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
+                    when (page) {
+                        0 -> when (val c = spec.content) {
+                            is Piece.Present -> RepositoryMarkdown(c.value, lazy = true, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp))
+                            is Piece.Omitted -> Omitted(c.bytes)
+                        }
+                        else -> History(spec.history, r.gates.openChange, onOpenChange)
+                    }
                 }
-                else -> History(spec.history, r.gates.openChange, onOpenChange)
             }
         }
     }

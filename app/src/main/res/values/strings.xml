@@ -655,7 +655,7 @@
     <string name="licenses_notices">Notices</string>
     <string name="report_problem">Report a problem</string>
     <string name="report_title">Report a problem</string>
-    <string name="report_text">What the agent writes comes from your own agent on your computer; the app\'s developer never sees it. To report a problem with the app, open an issue on GitHub. Nothing from this conversation is attached.</string>
+    <string name="report_text">What the agent writes comes from your own agent on your computer; the app\'s developer never sees it. To report a problem with the app, open an issue on GitHub. Nothing from your conversations is attached.</string>
     <string name="report_open">Report</string>
     <!-- The agent's model and usage, and its skills (agent-usage-and-skills) -->
     <string name="usage_details">Usage details</string>

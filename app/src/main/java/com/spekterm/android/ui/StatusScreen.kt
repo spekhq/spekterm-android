@@ -80,6 +80,7 @@ fun StatusScreen(
     val colors = MaterialTheme.colorScheme
     val desktop = pairing.desktopName.ifEmpty { "spekterm" }
     var unpairing by remember { mutableStateOf(false) }
+    var reporting by remember { mutableStateOf(false) }
     var allAddresses by remember { mutableStateOf(false) }
 
     // The app's settings: everything it lets the user set already lives here, the connection first (design D4, D10).
@@ -217,11 +218,16 @@ fun StatusScreen(
                 TextButton(onClick = { unpairing = true }) { Text(stringResource(R.string.status_unpair), color = colors.error) }
 
                 Section(stringResource(R.string.status_section_about))
-                OutlinedButton(onClick = onAbout) { Text(stringResource(R.string.about_open)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onAbout) { Text(stringResource(R.string.about_open)) }
+                    // Report a problem lives here, not in every conversation's menu (`play-release` D11).
+                    TextButton(onClick = { reporting = true }) { Text(stringResource(R.string.report_problem)) }
+                }
                 Spacer(Modifier.height(16.dp))
             }
         }
     }
+    if (reporting) ReportProblemDialog { reporting = false }
     if (unpairing) {
         UnpairDialog(desktop, onUnpair = {
             unpairing = false

@@ -3,7 +3,7 @@
 ## Purpose
 Makes the app fit for Google Play: a release bundle signed with the upload key and shrunk by R8, a log that reads the same
 in every build, no connection to anyone but the user's own desktop, an About screen with the privacy policy, source and
-licenses, and a way to report a problem from a conversation.
+licenses, and a way to report a problem from the settings.
 
 ## Requirements
 
@@ -110,13 +110,13 @@ library has no entry.
 - **WHEN** a dependency added to the app brings a library whose group no entry covers
 - **THEN** `./gradlew check` and `./gradlew bundleRelease` fail, naming that library's `group:artifact`
 
-### Requirement: Let the user report a problem from a conversation
+### Requirement: Let the user report a problem from the settings
 
-The conversation screen's menu SHALL offer Report a problem, a channel to the developer outside the app, which explains that what the agent writes comes from the user's
+The settings screen SHALL offer Report a problem, and no conversation's menu SHALL, a channel to the developer outside the app, which explains that what the agent writes comes from the user's
 own agent on the user's computer and is not seen by the app's developer, and offers to open the repository's issue page in the
 browser. Nothing from the conversation SHALL be attached or sent.
 
 #### Scenario: Reporting
 
-- **WHEN** the user chooses Report a problem in a conversation's menu, then Report
+- **WHEN** the user chooses Report a problem in the settings, then Report
 - **THEN** the browser opens the repository's new-issue page, with nothing of the conversation in its address
