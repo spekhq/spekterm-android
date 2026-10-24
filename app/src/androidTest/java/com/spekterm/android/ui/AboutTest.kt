@@ -93,7 +93,7 @@ class AboutTest {
         try {
             compose.setContent { SpektermTheme(false) { ReportProblemDialog(onDismiss = {}) } }
             compose.onNodeWithText("Report a problem").assertIsDisplayed()
-            compose.onNodeWithText("Nothing from this conversation is attached", substring = true).assertIsDisplayed()
+            compose.onNodeWithText("Nothing from your conversations is attached", substring = true).assertIsDisplayed()
             compose.onNodeWithText("Report").performClick()
             compose.waitUntil(5_000) { synchronized(started) { started.isNotEmpty() } }
             assertEquals(listOf("https://github.com/spekhq/spekterm-android/issues/new"), synchronized(started) { started.map { it.dataString } })
