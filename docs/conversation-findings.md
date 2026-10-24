@@ -927,3 +927,19 @@ Found on the way:
 
 Not run yet: it needs a dev desktop running spekterm's `remote-tool-detail` (uncommitted on spekterm master on
 2026-10-24) paired with the emulator.
+
+### On the Pixel (task 4.1)
+
+2026-10-24, debug build of 0be408d installed with `adb install -r` after kewang removed the Play build
+(the two are signed differently), paired again with the desktop at 192.168.0.199 running spekterm's
+`remote-tool-detail` from source. kewang tested on the phone; spekterm's session relayed that all five of its checks
+passed (spekterm 13d8ee7, archived in 14d6787). From the phone's connection log (pulled with `run-as`):
+
+- `files outcome=done size=439102` and `size=121` at 13:26 UTC: a sent image and a small text file read through
+  `files.read`;
+- `files outcome=gone error=FILE_GONE` at 13:27:20, then `done size=439102` again: a deleted file reported as gone;
+- every `files` line carries only the outcome, error code and size — no name, path or content;
+- `cache/` holds no `sent/` directory afterwards: nothing handed to another app was left behind.
+
+kewang's own word on the phone's screens is still to be recorded here.
+
