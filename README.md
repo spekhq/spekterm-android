@@ -81,7 +81,7 @@ These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; 
 following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a;
 background work: c79785f, 0.2.11; scheduled handoffs: 445dc24, 0.2.12; sending an accepted item's first prompt: b45c359,
 0.2.13; the agent's model and usage, and the session's skills: 6b6ebfa, 0.2.15; repeating handoffs: d88a3d1, 0.2.16; what tool calls did, who sent a message and opening sent files:
-spekterm's `remote-tool-detail`, after 0.2.22); against an older desktop the app shows none of
+13d8ee7, 0.2.23); against an older desktop the app shows none of
 them, and a ready agent stays "Waiting for you".
 
 Not yet: the terminal view (shell sessions).
