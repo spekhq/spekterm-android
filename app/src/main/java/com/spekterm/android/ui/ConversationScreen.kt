@@ -20,6 +20,7 @@ import java.util.TimeZone
 import com.spekterm.android.R
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,6 +62,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -90,6 +92,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -121,10 +125,15 @@ import com.spekterm.android.desktop.Reply
 import com.spekterm.android.desktop.Screen
 import com.spekterm.android.desktop.SessionAction
 import com.spekterm.android.desktop.SessionsView
+import com.spekterm.android.desktop.PeerText
+import com.spekterm.android.desktop.SessionNames
 import com.spekterm.android.desktop.SkillInsert
+import com.spekterm.android.desktop.SlashQuery
+import com.spekterm.android.desktop.ToolView
 import com.spekterm.android.desktop.Watch
 import com.spekterm.android.net.Entry
 import com.spekterm.android.net.Operations
+import com.spekterm.android.net.Origin
 import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.WaitState
 import com.spekterm.android.service.Notifications
@@ -165,6 +174,10 @@ fun ConversationScreen(
     var menu by remember { mutableStateOf(false) }
     var reporting by remember { mutableStateOf(false) }
     var usageOpen by remember { mutableStateOf(false) }
+    // A sent file being viewed, over the conversation so it keeps its place (`tool-call-display` D6).
+    var viewing by remember(sessionId) { mutableStateOf<SentFileRef?>(null) }
+    // Bumped when the skills appear above the field, so a list that follows the newest keeps it in view (D10).
+    var panelShows by remember { mutableIntStateOf(0) }
     // Held here, not in the item, so it survives the work ending and coming back (`background-tasks` D4).
     var backgroundOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
     // A first prompt from the inbox waiting in this session (`inbox` design D7).
@@ -190,6 +203,8 @@ fun ConversationScreen(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             Desktop.unfocus(owner)
+            // Files handed to another app go with the conversation (`tool-call-display` D9).
+            SentFileCache.clear(context)
         }
     }
 
@@ -219,6 +234,8 @@ fun ConversationScreen(
         BoxWithConstraints(Modifier.fillMaxSize()) {
             // A quarter of the content's actual height, which shrinks with the keyboard (`background-tasks` D4).
             val backgroundMax = maxHeight / 4
+            // The skills above the field take at most as much, so the field stays in view (`tool-call-display` D10).
+            val panelMax = minOf(240.dp, maxHeight / 4)
             Column(Modifier.fillMaxSize()) {
                 when (screen) {
                     Screen.Paused -> Notice(stringResource(R.string.conversation_paused), Tone.Warning, stringResource(R.string.common_resume), onResume)
@@ -241,7 +258,9 @@ fun ConversationScreen(
                         // From the last list held, as the close offer is (`background-tasks` D4).
                         val background = session?.let { SessionsView.background(it) }.orEmpty()
                         if (background.isNotEmpty()) BackgroundTasks(background, backgroundOpen, { backgroundOpen = !backgroundOpen }, backgroundMax)
-                        Entries(c, Modifier.weight(1f))
+                        CompositionLocalProvider(LocalToolContext provides ToolContext(sessions.list, Operations.FILES_READ in operations) { viewing = it }) {
+                            Entries(c, Modifier.weight(1f), panelShows)
+                        }
                         c?.let { answerNote(it) }?.let { Notice(it.text(), answerTone(c), stringResource(R.string.common_dismiss), { Desktop.dismissAnswer(sessionId) }) }
                         val offer = c?.prompt?.let { Answers.offer(it, operations, connected, announcements.paused, c.watch, c.answer) }
                         if (offer != null) PromptCard(sessionId, c.prompt!!, offer)
@@ -263,12 +282,15 @@ fun ConversationScreen(
                         Composer(
                             sessionId, c, connected, announcements.paused, offer is Offer.Answerable, Operations.ATTACH in operations && session?.isAgent != false,
                             inboxPrompt = InboxView.holdsReplies(linked, replyAnyway),
+                            panelMax = panelMax,
+                            onPanel = { panelShows++ },
                         )
                     }
                 }
             }
         }
     }
+    viewing?.let { SentFileDialog(sessionId, it) { viewing = null } }
     SessionDialogsHost(dialogs, actionsEnabled)
     if (reporting) ReportProblemDialog { reporting = false }
 }
@@ -344,7 +366,7 @@ private fun rememberClock(): Clock {
 }
 
 @Composable
-private fun Entries(c: Conversation?, modifier: Modifier) {
+private fun Entries(c: Conversation?, modifier: Modifier, panelShows: Int = 0) {
     if (c == null || (c.entries.isEmpty() && c.replies.isEmpty())) {
         Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             // Delivered and empty: a new session where nothing has been said yet (design D8).
@@ -383,7 +405,7 @@ private fun Entries(c: Conversation?, modifier: Modifier) {
     val lastReply = c.replies.lastOrNull()?.id
     // An offset past the end is clamped, so an expanded run taller than the screen still shows its newest call.
     suspend fun toNewest() = state.scrollToItem(count - 1, Int.MAX_VALUE)
-    LaunchedEffect(lastEntry, lastReply, working) { if (follow && count > 0) toNewest() }
+    LaunchedEffect(lastEntry, lastReply, working, panelShows) { if (follow && count > 0) toNewest() }
     Box(modifier.fillMaxWidth()) {
         LazyColumn(Modifier.fillMaxSize(), state = state) {
             for (item in list) {
@@ -436,8 +458,13 @@ private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit, time: 
     val colors = MaterialTheme.colorScheme
     when (entry) {
         is Entry.User -> if (entry.meta) {
-            Muted(stringResource(R.string.conversation_injected), expanded, toggle) {
-                SelectionContainer { Text(entry.text, style = MaterialTheme.typography.bodySmall) }
+            // Who sent it, when the desktop says; a peer's body is an agent's text, without the CLI's wrapper (D7).
+            Muted(injectedLabel(entry.origin), expanded, toggle) {
+                if (entry.origin is Origin.Peer) {
+                    SelectionContainer { AgentMarkdown(remember(entry.text) { PeerText.strip(entry.text) }) }
+                } else {
+                    SelectionContainer { Text(entry.text, style = MaterialTheme.typography.bodySmall) }
+                }
             }
         } else {
             // The user's own message: a quiet bubble at the end, said to be theirs for a screen reader (D7).
@@ -504,6 +531,21 @@ internal fun DayHeading(word: DayWord) {
     }
 }
 
+/** What an injected message is, by where the desktop says it came from (`tool-call-display` D7). */
+@Composable
+internal fun injectedLabel(origin: Origin?): String {
+    val list = LocalToolContext.current.list
+    return when (origin) {
+        is Origin.Peer -> when (origin.sender) {
+            Origin.Sender.SESSION -> origin.name?.let { stringResource(R.string.peer_from, SessionNames.label(it, list) ?: it) } ?: stringResource(R.string.peer_from_session)
+            Origin.Sender.SUBAGENT -> origin.name?.let { stringResource(R.string.peer_report_from, it) } ?: stringResource(R.string.peer_report)
+            Origin.Sender.OTHER -> origin.name?.let { stringResource(R.string.peer_from, SessionNames.label(it, list) ?: it) } ?: stringResource(R.string.peer_from_other)
+        }
+        Origin.TaskNotice -> stringResource(R.string.peer_task_notice)
+        null -> stringResource(R.string.conversation_injected)
+    }
+}
+
 /** A muted, expandable line: thinking, an injected message. */
 @Composable
 private fun Muted(label: String, expanded: Boolean, toggle: () -> Unit, body: @Composable () -> Unit) {
@@ -541,6 +583,9 @@ private fun CallMark(call: ConversationItems.Call) {
 
 @Composable
 private fun CallLine(call: ConversationItems.Call, expanded: Boolean, toggle: () -> Unit, modifier: Modifier) {
+    val list = LocalToolContext.current.list
+    // What the call did, by its tool (`tool-call-display` D2).
+    val view = remember(call.tool, call.result, list) { ToolView.of(call.tool, call.result, list) }
     Column(modifier) {
         Row(
             Modifier.fillMaxWidth().toggles(expanded, toggle).padding(vertical = 5.dp),
@@ -548,8 +593,8 @@ private fun CallLine(call: ConversationItems.Call, expanded: Boolean, toggle: ()
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             CallMark(call)
-            Text(call.tool.name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-            call.tool.arg?.let {
+            Text(view.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            summaryOf(view)?.let {
                 Text(
                     it,
                     Modifier.weight(1f),
@@ -561,12 +606,7 @@ private fun CallLine(call: ConversationItems.Call, expanded: Boolean, toggle: ()
                 )
             }
         }
-        if (expanded) {
-            Column(Modifier.padding(start = 26.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                call.tool.arg?.let { Mono(it) }
-                call.result?.let { Mono(it.text, it.error) }
-            }
-        }
+        if (expanded) Box(Modifier.padding(start = 26.dp, bottom = 4.dp)) { ToolParts(view, call.tool.id) }
     }
 }
 
@@ -623,8 +663,10 @@ private fun RunItem(run: ConversationItems.Run, expanded: Boolean, toggle: () ->
                     }
                 }
                 if (!expanded) {
+                    val list = LocalToolContext.current.list
+                    val latest = remember(run.latest.tool, run.latest.result, list) { ToolView.of(run.latest.tool, run.latest.result, list) }
                     Text(
-                        listOfNotNull(run.latest.tool.name, run.latest.tool.arg).joinToString(" "),
+                        listOfNotNull(latest.title, summaryOf(latest)).joinToString(" "),
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
                         color = colors.onSurfaceVariant,
@@ -642,8 +684,8 @@ private fun RunItem(run: ConversationItems.Run, expanded: Boolean, toggle: () ->
                     val partToggle = { open[key] = !partOpen }
                     when (part) {
                         is ConversationItems.Call -> CallLine(part, partOpen, partToggle, Modifier.fillMaxWidth())
-                        is ConversationItems.Notice -> Muted(stringResource(R.string.conversation_injected), partOpen, partToggle) {
-                            Text(part.entry.text, style = MaterialTheme.typography.bodySmall)
+                        is ConversationItems.Notice -> Muted(stringResource(R.string.peer_task_notice), partOpen, partToggle) {
+                            SelectionContainer { Text(part.entry.text, style = MaterialTheme.typography.bodySmall) }
                         }
                         is ConversationItems.Thinking -> Muted(stringResource(R.string.conversation_thinking), partOpen, partToggle) {
                             Text(part.entry.text, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic, color = colors.onSurfaceVariant)
@@ -709,17 +751,35 @@ private fun ReplyRow(reply: Reply, now: Long) {
 }
 
 @Composable
-internal fun Composer(sessionId: String, c: Conversation?, connected: Boolean, paused: Boolean, answerable: Boolean, canAttach: Boolean, inboxPrompt: Boolean = false) {
+internal fun Composer(
+    sessionId: String,
+    c: Conversation?,
+    connected: Boolean,
+    paused: Boolean,
+    answerable: Boolean,
+    canAttach: Boolean,
+    inboxPrompt: Boolean = false,
+    panelMax: Dp = 240.dp,
+    onPanel: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     // The draft is held by Desktop across leaving the screen; plain `remember`, never saved instance state. A value,
-    // not a string, so a chosen skill can place the cursor (`agent-usage-and-skills` D4).
+    // not a string, so a chosen skill can place the cursor and a typed slash be read at it (`tool-call-display` D10).
     var field by remember(sessionId) { mutableStateOf((c?.draft ?: "").let { TextFieldValue(it, TextRange(it.length)) }) }
     val text = field.text
     LaunchedEffect(c?.draftReturns) { if (c != null && c.draftReturns > 0) field = TextFieldValue(c.draft, TextRange(c.draft.length)) }
-    var choosingSkill by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
+    // Back closes the skills until the text changes (D10).
+    var closedFor by remember(sessionId) { mutableStateOf<String?>(null) }
+    // The session's skills, once the desktop said anything about them this watch, offered from a typed slash (D10).
+    val skills = c?.skills?.takeIf { c.watch.active }
+    val query = SlashQuery.query(field.text, field.selection.start, field.selection.end)
+    val slash = skills != null && query != null && focused && connected && !paused && !c.closed && closedFor != field.text
+    BackHandler(enabled = slash) { closedFor = field.text }
+    LaunchedEffect(slash) { if (slash) onPanel() }
     val inFlight = c?.replies?.any { it.state == Reply.State.SENDING } == true
     val attachments = c?.attachments.orEmpty()
     val blocked = Replies.blocked(connected, paused, c?.watch ?: Watch.Idle, c?.wait ?: WaitState.UNKNOWN, c?.pending, inFlight, text, attachments, inboxPrompt)
@@ -746,27 +806,21 @@ internal fun Composer(sessionId: String, c: Conversation?, connected: Boolean, p
         }
         HorizontalDivider(color = colors.outlineVariant)
         Column(Modifier.fillMaxWidth().background(colors.surfaceContainer).padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (slash) {
+                SlashPanel(skills!!, query!!, panelMax) { skill ->
+                    val inserted = SkillInsert.atCursor(field.text, field.selection.start, skill.name)
+                    field = TextFieldValue(inserted.text, TextRange(inserted.cursor))
+                    // Set by the program, so not through onValueChange: kept for leaving the screen.
+                    Desktop.setDraft(sessionId, inserted.text)
+                    focus.requestFocus()
+                }
+            }
             if (attachments.isNotEmpty()) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (attachment in attachments) AttachmentCard(attachment)
                 }
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                // The session's skills, once the desktop said anything about them this watch (D4).
-                val skills = c?.skills?.takeIf { c.watch.active }
-                if (skills != null) {
-                    IconButton(enabled = connected && !paused && !c.closed, onClick = { choosingSkill = true }) { Icon(SpekIcons.Skills, stringResource(R.string.conversation_skills)) }
-                    if (choosingSkill) {
-                        SkillsSheet(skills, { choosingSkill = false }) { skill ->
-                            choosingSkill = false
-                            val inserted = SkillInsert.insert(field.text, skill.name)
-                            field = TextFieldValue(inserted.text, TextRange(inserted.cursor))
-                            // Set by the program, so not through onValueChange: kept for leaving the screen.
-                            Desktop.setDraft(sessionId, inserted.text)
-                            focus.requestFocus()
-                        }
-                    }
-                }
                 if (canAttach) {
                     Box {
                         IconButton(enabled = connected && !paused && c?.closed != true, onClick = { picking = true }) { Icon(SpekIcons.Attach, stringResource(R.string.conversation_attach)) }
@@ -788,8 +842,8 @@ internal fun Composer(sessionId: String, c: Conversation?, connected: Boolean, p
                         if (it.text != field.text) Desktop.setDraft(sessionId, it.text)
                         field = it
                     },
-                    modifier = Modifier.weight(1f).focusRequester(focus),
-                    placeholder = { Text(stringResource(R.string.conversation_reply_hint)) },
+                    modifier = Modifier.weight(1f).focusRequester(focus).onFocusChanged { focused = it.isFocused },
+                    placeholder = { Text(stringResource(if (skills != null) R.string.conversation_reply_hint_skills else R.string.conversation_reply_hint)) },
                     minLines = 1,
                     maxLines = 6,
                     shape = MaterialTheme.shapes.extraLarge,

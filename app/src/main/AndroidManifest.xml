@@ -11,6 +11,14 @@
 
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
+    <!-- An app to hand a sent file to (`tool-call-display` D9). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="*/*" />
+        </intent>
+    </queries>
+
     <application
         android:name=".App"
         android:allowBackup="false"

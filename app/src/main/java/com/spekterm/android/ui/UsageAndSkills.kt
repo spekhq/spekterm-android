@@ -4,6 +4,7 @@ package com.spekterm.android.ui
 
 import android.content.Context
 import android.text.format.DateUtils
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,8 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,15 +29,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -181,65 +184,54 @@ private fun resetTime(context: Context, at: Long): String {
     return DateUtils.formatDateTime(context, at, flags)
 }
 
-/** The session's skills, to start a reply with one (D4). Names and descriptions are plain text (obligation 15). */
+/**
+ * The session's skills above the reply field while a command name is typed (`tool-call-display` D10), filtered by
+ * [query]. Names and descriptions are plain text (obligation 15). At most [maxHeight], so the field stays in view.
+ */
 @Composable
-internal fun SkillsSheet(skills: Skills, onDismiss: () -> Unit, onChoose: (Skill) -> Unit) {
-    var query by remember { mutableStateOf("") }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(bottom = 16.dp)) {
-            Text(
-                stringResource(R.string.skills_title),
-                Modifier.padding(horizontal = 24.dp, vertical = 8.dp).semantics { heading() },
-                style = MaterialTheme.typography.titleMedium,
-            )
-            val colors = MaterialTheme.colorScheme
-            when (skills) {
-                Skills.Unknown -> SheetMessage(stringResource(R.string.skills_unknown))
-                is Skills.Known -> {
-                    if (skills.list.isNotEmpty()) {
-                        OutlinedTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                            placeholder = { Text(stringResource(R.string.skills_search)) },
-                            singleLine = true,
-                        )
-                    }
-                    val shown = SkillFilter.sorted(skills.list).filter { SkillFilter.matches(it, query) }
-                    when {
-                        skills.list.isEmpty() -> SheetMessage(stringResource(R.string.skills_none))
-                        shown.isEmpty() -> SheetMessage(stringResource(R.string.skills_no_match))
-                        else -> LazyColumn(Modifier.weight(1f, fill = false)) {
-                            items(shown, key = { it.name }) { skill ->
-                                Column(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onChoose(skill) }
-                                        .heightIn(min = 48.dp)
-                                        .padding(horizontal = 24.dp, vertical = 8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                                ) {
-                                    Text("/" + skill.name, style = MaterialTheme.typography.titleSmall)
-                                    skill.description?.let {
-                                        Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                                    }
-                                }
-                            }
-                        }
+internal fun SlashPanel(skills: Skills, query: String, maxHeight: Dp, onChoose: (Skill) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val shown = (skills as? Skills.Known)?.let { SkillFilter.ranked(it.list, query) }.orEmpty()
+    val header = when {
+        skills == Skills.Unknown -> stringResource(R.string.skills_unknown)
+        (skills as Skills.Known).list.isEmpty() -> stringResource(R.string.skills_none)
+        shown.isEmpty() -> stringResource(R.string.skills_no_match)
+        else -> pluralStringResource(R.plurals.skills_count, shown.size, shown.size)
+    }
+    val insert = stringResource(R.string.skills_insert)
+    Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).background(colors.surfaceContainerHigh, MaterialTheme.shapes.medium)) {
+        // Announced when the panel appears and as the filter changes what it holds.
+        Text(
+            header,
+            Modifier.padding(horizontal = 12.dp, vertical = 6.dp).semantics { liveRegion = LiveRegionMode.Polite },
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.onSurfaceVariant,
+        )
+        LazyColumn(Modifier.weight(1f, fill = false)) {
+            items(shown, key = { it.name }) { skill ->
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(onClickLabel = insert, role = Role.Button) { onChoose(skill) }
+                        .heightIn(min = 48.dp)
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text("/" + skill.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    skill.description?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
-            Text(
-                stringResource(R.string.skills_builtin_note),
-                Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant,
-            )
         }
+        // Under the rows, never scrolled away: what the list does not hold.
+        Text(
+            stringResource(R.string.skills_builtin_note),
+            Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
-}
-
-@Composable
-private fun SheetMessage(text: String) {
-    Text(text, Modifier.padding(horizontal = 24.dp, vertical = 16.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

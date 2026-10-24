@@ -45,24 +45,10 @@ object SlashQuery {
     }
 }
 
-/** Putting a chosen skill at the start of the reply field (D4). */
+/** Putting a chosen skill at the start of the reply field (`tool-call-display` D10). */
 object SkillInsert {
     /** The field's new text, and where the cursor goes: after the name and its separator. */
     data class Inserted(val text: String, val cursor: Int)
-
-    fun insert(draft: String, name: String): Inserted {
-        val command = "/$name"
-        val d = draft.dropWhile(Replies::jsSpace)
-        val end = d.indexOfFirst(Replies::jsSpace).let { if (it < 0) d.length else it }
-        val first = d.substring(0, end)
-        val text = when {
-            d.isEmpty() -> "$command "
-            // A command name or a bare slash — one slash, no other, so a path typed first is kept.
-            first.startsWith("/") && first.indexOf('/', 1) < 0 -> if (end == d.length) "$command " else command + d.substring(end)
-            else -> "$command $d"
-        }
-        return Inserted(text, command.length + 1)
-    }
 
     /**
      * Choosing [name] while [cursor] is in the command word at the start of [text] (`tool-call-display` D10): right

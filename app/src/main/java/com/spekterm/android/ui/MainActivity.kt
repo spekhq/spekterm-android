@@ -380,6 +380,7 @@ class MainActivity : ComponentActivity() {
         app.positions.delete()
         app.collapsed.delete()
         Desktop.clear()
+        SentFileCache.clear(this)
         announcements = app.announcements.update { Announcements() }
         for (id in listOf(Notifications.ID_PAIR_AGAIN, Notifications.ID_IDENTITY, Notifications.ID_STOPPED)) {
             Notifications.cancel(this, Notifications.TAG_STATUS, id)

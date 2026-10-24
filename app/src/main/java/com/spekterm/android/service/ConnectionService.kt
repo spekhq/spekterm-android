@@ -1,5 +1,6 @@
 package com.spekterm.android.service
 
+import com.spekterm.android.ui.SentFileCache
 import com.spekterm.android.R
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.Service
@@ -388,6 +389,7 @@ class ConnectionService : Service() {
             app.positions.delete()
             app.collapsed.delete()
             Desktop.clear()
+            SentFileCache.clear(this)
             app.announcements.update { it.copy(pairAgain = true, identityChanged = false) }
             Notifications.status(this, Notifications.ID_PAIR_AGAIN, getString(R.string.notification_pair_again_title, desktopName), getString(R.string.notification_pair_again_text))
         }

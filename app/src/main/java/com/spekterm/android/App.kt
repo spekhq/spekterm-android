@@ -15,6 +15,7 @@ import com.spekterm.android.store.CredentialStore
 import com.spekterm.android.store.PositionStore
 import com.spekterm.android.store.ThemeChoice
 import com.spekterm.android.store.ThemeStore
+import com.spekterm.android.ui.SentFileCache
 
 class App : Application() {
     lateinit var credentials: CredentialStore
@@ -50,6 +51,7 @@ class App : Application() {
         Desktop.log = { kind, fields -> log.write(kind, *fields) }
         Notifications.createChannels(this)
         Attach.clearCache(this)
+        SentFileCache.clear(this)
     }
 
     /** The channels' names follow a change of language (`app-language`, `scan-connect-zh` D8). */

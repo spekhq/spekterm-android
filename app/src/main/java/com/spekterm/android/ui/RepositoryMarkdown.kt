@@ -109,17 +109,17 @@ private fun HtmlBlock(type: IElementType, model: MarkdownComponentModel) {
 /**
  * A repository's Markdown: an OpenSpec artifact, delta, spec or task (`openspec-browse` design D7). Loads no image,
  * opens only `http`/`https` links on tap, shows HTML as text, joins soft line breaks, and makes relative inline links
- * plain text. [lazy] lays its blocks out as a lazy list that fills its space (an artifact, a spec); otherwise it is
+ * plain text. [immediate] false parses off the main thread (a sent file, `tool-call-display` D6). [lazy] lays its blocks out as a lazy list that fills its space (an artifact, a spec); otherwise it is
  * one block for an item of a list (a task, a delta). Parsed at once, so a re-read never passes through loading.
  */
 @Composable
-fun RepositoryMarkdown(text: String, lazy: Boolean, modifier: Modifier = Modifier, contentPadding: PaddingValues = PaddingValues()) {
+fun RepositoryMarkdown(text: String, lazy: Boolean, modifier: Modifier = Modifier, contentPadding: PaddingValues = PaddingValues(), immediate: Boolean = true) {
     val context = LocalContext.current
     val handler = remember(context) { SafeUriHandler(context) }
     val annotator = remember { safeAnnotator(softBreaks = true, inertLinks = true) }
     CompositionLocalProvider(LocalUriHandler provides handler) {
         Markdown(
-            markdownState = rememberMarkdownState(text, immediate = true),
+            markdownState = rememberMarkdownState(text, immediate = immediate),
             modifier = modifier,
             error = { Text(text, modifier = it, style = MaterialTheme.typography.bodyMedium) },
             imageTransformer = NoOpImageTransformerImpl(),

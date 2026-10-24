@@ -134,6 +134,56 @@
         <item quantity="other">%1$d 個失敗</item>
     </plurals>
     <string name="conversation_working">處理中</string>
+    <!-- tool-call-display: a call's parts, notes, files and who sent a message -->
+    <string name="tool_label_command">指令</string>
+    <string name="tool_label_output">輸出</string>
+    <string name="tool_label_error">錯誤</string>
+    <string name="tool_label_message">訊息</string>
+    <string name="tool_label_content">內容</string>
+    <string name="tool_label_plan">計畫</string>
+    <string name="tool_label_answer">回答</string>
+    <string name="tool_label_argument">參數</string>
+    <string name="tool_label_change">變更</string>
+    <string name="tool_label_path">檔案</string>
+    <string name="tool_part_description">%1$s，%2$s</string>
+    <string name="tool_to_another_session">另一個 session</string>
+    <string name="tool_to_subagent">子代理</string>
+    <string name="tool_note_background">在背景執行</string>
+    <string name="tool_note_sent">已送出</string>
+    <string name="tool_note_not_sent">沒送出</string>
+    <string name="tool_note_not_sent_because">沒送出：%1$s</string>
+    <string name="tool_note_idle_only">只要求對方閒下來時通知</string>
+    <string name="tool_note_replace_all">取代所有出現的地方</string>
+    <plurals name="tool_note_delay">
+        <item quantity="other">%d 分鐘後醒來</item>
+    </plurals>
+    <string name="tool_cut_chars">桌機只送了一部分（原本 %1$s 字）</string>
+    <string name="tool_cut_items">桌機只送了一部分（原本 %1$s 項）</string>
+    <string name="tool_cut">桌機只送了一部分</string>
+    <string name="tool_diff_unchanged">沒有變更</string>
+    <plurals name="tool_diff_fold">
+        <item quantity="other">%d 行沒變</item>
+    </plurals>
+    <string name="tool_files_cannot_send">這台桌機不能把檔案傳到手機。</string>
+    <string name="tool_file_open">開啟</string>
+    <string name="tool_file_open_with">用其他 App 開啟…</string>
+    <string name="peer_from">來自 %1$s</string>
+    <string name="peer_from_session">來自另一個 session</string>
+    <string name="peer_report_from">%1$s 的報告</string>
+    <string name="peer_report">子代理的報告</string>
+    <string name="peer_from_other">另一個 agent 的訊息</string>
+    <string name="peer_task_notice">背景工作通知</string>
+    <string name="file_loading">載入中 %1$s / %2$s</string>
+    <string name="file_not_sent">這個檔案不在目前對話傳過的檔案裡。</string>
+    <string name="file_gone">這個檔案已經不在桌機上了。</string>
+    <string name="file_changed">讀取時檔案被改了。</string>
+    <string name="file_too_large">太大，手機上打不開（%1$s）。</string>
+    <string name="file_cannot_show">這個檔案無法顯示。</string>
+    <string name="file_not_connected">手機沒有連上桌機。</string>
+    <string name="file_session_gone">這個 session 已經不在桌機上執行了。</string>
+    <string name="file_other">桌機無法傳送這個檔案（%1$s）。</string>
+    <string name="file_no_app">這支手機上沒有 App 能開這種檔案。</string>
+    <string name="file_close">關閉</string>
     <string name="conversation_sending">送出中…</string>
     <string name="conversation_reply_not_yet_confirmed">尚未確認</string>
     <string name="conversation_reply_waiting_for_agent">等 agent 接收</string>
@@ -147,6 +197,7 @@
     <string name="conversation_photo">照片</string>
     <string name="conversation_file">檔案</string>
     <string name="conversation_reply_hint">傳訊息給 agent</string>
+    <string name="conversation_reply_hint_skills">傳訊息給 agent · 打 / 選 skill</string>
     <string name="conversation_send">送出</string>
     <string name="conversation_remove_attachment">移除附件</string>
     <string name="conversation_attachment_preparing">準備中…</string>
@@ -591,12 +642,13 @@
     <string name="usage_detail_limit_resets">%1$d%% · %2$s 重置</string>
     <string name="usage_detail_reset_past">已於 %1$s 重置，之後還沒有回報</string>
     <string name="usage_footnote">這是 agent 最後一次回報給桌機的數值。額度是整個帳號的，不是這個 session 的。</string>
-    <string name="skills_title">Skill</string>
-    <string name="skills_search">搜尋 skill</string>
-    <string name="skills_unknown">agent 會在這個 session 的第一則訊息時列出它的 skill，/⁠clear 之後也會重新列。先送一則訊息，再回來看。</string>
+    <string name="skills_unknown">agent 會在這個 session 的第一則訊息時列出它的 skill，/⁠clear 之後也會重新列。先送一則訊息，再打一次 /。</string>
+    <plurals name="skills_count">
+        <item quantity="other">%d 個 skill</item>
+    </plurals>
+    <string name="skills_insert">插入</string>
     <string name="skills_none">這個 session 沒有 skill。</string>
     <string name="skills_no_match">沒有符合的 skill。</string>
     <string name="skills_builtin_note">/compact 這類內建指令不在清單裡，可以直接輸入。少數 skill 只有 agent 能用，要用的話請直接用文字請它做。</string>
-    <string name="conversation_skills">Skill</string>
     <string name="conversation_long_command">這麼長的指令會被當成一般訊息送出，不會當成指令執行。</string>
 </resources>
