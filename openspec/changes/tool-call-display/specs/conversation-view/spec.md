@@ -10,9 +10,10 @@ shown SHALL be shown on its own. Two or more tool calls in a row — with only t
 between them — SHALL be summarized in one collapsed item that says how many calls it holds, how many failed, and what the
 latest call was; expanding it SHALL show each call. A reply of the user's shown between tool calls
 (`conversation-reply`) SHALL end the run there, so that the reply stays where it was sent; a message from another
-session or a subagent's report SHALL end the run too, so that it is never hidden inside one. Thinking and tool results SHALL be collapsed until the user
-expands them. Messages the agent itself injected rather than the user typing them SHALL be marked as such, saying who sent
-them when the desktop says so (`tool-call-display`). New
+session, a subagent's report, and a message or files the agent sent (`tool-call-display`) SHALL end the run too, so
+that none is ever hidden inside one. Thinking and tool results SHALL be collapsed until the user
+expands them. Messages the agent itself injected rather than the user typing them SHALL be marked as such; those exchanged with
+other sessions, subagents and the user SHALL be shown as messages from their sender (`tool-call-display`). New
 entries SHALL appear as the desktop delivers them, without the user refreshing; a new tool call that extends a
 summarized run SHALL update the summary without collapsing it if the user expanded it. When the user has scrolled
 up, new entries SHALL NOT move the view, and the screen SHALL offer to jump to the newest.
@@ -50,7 +51,8 @@ up, new entries SHALL NOT move the view, and the screen SHALL offer to jump to t
 
 - **WHEN** the agent made two tool calls, a background task's notice and then another session's message arrived, and
   the agent made two more calls
-- **THEN** the screen shows a run of the first two calls, the notice, the message, then a run of the other two calls
+- **THEN** the screen shows a run of the first two calls, the notice's line, the message, then a run of the other two
+  calls
 
 #### Scenario: A notice between two calls
 

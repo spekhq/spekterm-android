@@ -242,7 +242,7 @@ desktop (`FILE_GONE`), changed while reading, too large (the size, or the deskto
 cannot be shown, the phone not connected (also after a timeout), the session gone (`NOT_FOUND`); any other code
 (`NO_CONVERSATION`, `BAD_PARAMS`, one not known) reads "The desktop could not send this file" with the code.
 
-### D7. Where a message came from
+### D7. Where a message came from (labels kept for D11's header; the collapsed rows are replaced by D11)
 
 `PlainRow` labels an injected `Entry.User` by `origin`:
 
@@ -344,6 +344,44 @@ field, and reaching a skill takes a tap, a sheet and a search. Typing `/` is whe
   watch active, `skills` not null), else today's "Reply to the agent".
 - **Removed**: `SpekIcons.Skills`, the `IconButton`, `SkillsSheet`, and the strings `conversation_skills`,
   `skills_title`, `skills_search`. `SkillsSheetTest` becomes `SlashSkillsTest`.
+
+### D11. Messages shown as chat (kewang's layout review, 2026-10-24)
+
+On the Pixel kewang found D7's collapsed lines and the SendMessage / SendUserFile calls inside runs "too much like a
+tool": what is exchanged between parties should read as a chat app does. Anything the user did not type themselves
+is "someone else": a peer's message, a subagent's report, the files the agent sent, and the agent's own SendMessage
+look the same. Mockup agreed with kewang: the Design canvas "對話裡的訊息與檔案"
+(https://claude.ai/artifact/NBtZZz8setN2pfvrVoTKjw, version 6). This supersedes D7's collapsed rows and D2's
+SendMessage and SendUserFile rows for a desktop that sends `input`.
+
+- **Which items** (`ConversationItems`): a new shown item `Message(key, from, to, body, files, status, at)`, made from
+  - a `user` entry with `origin` `Peer` → from the sender (name resolved by `SessionNames`), body `PeerText.strip(text)`;
+  - a `SendMessage` call with `input` → from this session, to the D2 recipient, body `message` (blank: D2's "asked to be
+    told when idle" line), status from its result (sending until the result, sent, not sent with the reason, or the
+    error text);
+  - a `SendUserFile` call with `input.files` → from this session, body `caption`, `files`, status only when the result is
+    an error.
+  A message ends a forming run and is never a part of one. A `TaskNotice` keeps D8's grouping (held like thinking, a
+  part when another call follows); standing alone it is a `Notice` line. Calls without `input` stay calls (today's
+  view).
+- **Look** (`ui/MessageViews.kt`): every message is the same row, on the left (the user's own messages stay on the
+  right): a 32 dp round avatar (the name's first character on a colour picked from a fixed palette of six by the name's
+  hash; a subagent with no name, the person icon), a header line ("自動更新功能 傳來", "openspec-change-reviewer 傳來報告",
+  "A 傳來 3 個檔案", "A 傳給 測試收件"), the bubble (`surface` with an `outlineVariant` border, a 4 dp top-left corner,
+  18 dp elsewhere), then the time and, for an outgoing message, "已送出" or, in the error colour with an icon, "沒送出：
+  reason". This session's name is its `label`, else "agent". One accessibility node per message: header, body, status.
+- **Body**: Markdown through `AgentMarkdown` for a received message or report (D5); plain text for what the agent sent
+  (protocol obligation 18). Longer than 12 lines or 1,200 characters: the first 10 lines (or 1,000 characters) and a
+  "顯示全部" / "收合" button, its state kept by item key like expansion.
+- **Files** (in the bubble, under the caption): an image is a picture, 298 dp wide at most, its height by its aspect,
+  read by itself when the message is composed: one `files.read` of the first chunk tells the size; at most 2 MB it reads
+  the rest and decodes it to at most 600 px on the longer side (`SentFileViewer.sampleSize`); over 2 MB it stops and
+  shows a card "照片 · 6.1 MB · 點一下載入". Thumbnails are cached in memory per conversation screen by (call id, index),
+  never written to storage; a failure shows the card with the reason. Tapping a picture or a card opens D6's viewer (or
+  D9's hand-off). Other files: a card with an icon by kind, the name, and "Markdown · 點一下閱讀" / "文字檔" / "用其他
+  App 開啟". With `files.read` not offered, the names and D6's note, no picture.
+- **Notice line**: centred, `labelMedium`, a check icon, the text of the notice's `<summary>` element (the CLI's
+  "Background command "X" completed (exit code 0)"), else "背景工作通知"; tapping it shows the whole notice as before.
 
 ## Risks / Trade-offs
 

@@ -2,7 +2,10 @@
 
 ### Requirement: List the files the agent sent
 
-A SendUserFile call SHALL show its caption and each file it sent by name. A file of a kind the phone can open —
+The files the agent sent with SendUserFile SHALL be shown in its message (`tool-call-display`), with the call's
+caption above them. An image SHALL be shown as a picture in the message, read from the desktop by itself when it is
+at most 2 MB, and otherwise on a tap that says its size; any other file SHALL be shown as a card with its name and
+kind. Reading a picture by itself SHALL happen only while the message is on screen, once per conversation shown. A file of a kind the phone can open —
 images, Markdown and plain text, judged from its name — SHALL be offered for opening when the desktop accepts reading
 sent files; a file of another kind SHALL be offered for opening with another app on the phone. With a desktop that does not accept reading
 sent files, no file SHALL be offered for opening, and the call SHALL say the desktop cannot send files to the phone.
@@ -10,17 +13,23 @@ sent files, no file SHALL be offered for opening, and the call SHALL say the des
 #### Scenario: A screenshot sent
 
 - **WHEN** the agent sent `login.png` with the caption "The new login screen"
-- **THEN** the call shows the caption and `login.png`, offered for opening
+- **THEN** the message shows the caption and the picture, which opens larger when tapped
 
 #### Scenario: A video sent
 
 - **WHEN** the agent sent `reel.mp4`
-- **THEN** the call shows `reel.mp4`, offered for opening with another app
+- **THEN** the message shows a card for `reel.mp4`, offered for opening with another app
 
 #### Scenario: A desktop that cannot send files
 
 - **WHEN** the desktop lists the files a call sent but does not accept reading them
-- **THEN** no sent file is offered for opening, and the call says the desktop cannot send files to the phone
+- **THEN** the message lists the files by name, none is offered for opening, and it says the desktop cannot send files
+  to the phone
+
+#### Scenario: A large photo
+
+- **WHEN** the agent sent a 6 MB photo
+- **THEN** the message shows a card with its name and size; the phone reads it only when the user taps it
 
 ### Requirement: Open a sent file on the phone
 
