@@ -85,8 +85,8 @@ access turned on.
 These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
 following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a;
 background work: c79785f, 0.2.11; scheduled handoffs: 445dc24, 0.2.12; sending an accepted item's first prompt: b45c359,
-0.2.13; the agent's model and usage, the session's skills and changing its effort: 6b6ebfa, 0.2.15; changing its model: a release
-that lists `conversation.setModel`, not out yet; repeating handoffs: d88a3d1, 0.2.16; what tool calls did, who sent a message and opening sent files:
+0.2.13; the agent's model and usage, the session's skills and changing its effort: 6b6ebfa, 0.2.15; changing its model: b7feaaa,
+0.2.24; repeating handoffs: d88a3d1, 0.2.16; what tool calls did, who sent a message and opening sent files:
 13d8ee7, 0.2.23; pictures in tool results: 6ff5fa4, 0.2.24); against an older desktop the app shows none of
 them, and a ready agent stays "Waiting for you".
 
