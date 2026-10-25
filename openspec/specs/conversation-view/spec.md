@@ -12,13 +12,14 @@ The conversation screen SHALL show the session's entries in order, newest last: 
 text, the agent's thinking, its tool calls, each shown by its kind as `tool-call-display` says, and their results
 (whether each succeeded or failed). A tool call and the result the desktop gives for it (the same tool call id)
 SHALL be shown as one item, marked as succeeded or failed once the result is there; a result whose call is not
-shown SHALL be shown on its own. Two or more tool calls in a row — with only their results, thinking and background-task notices
-between them — SHALL be summarized in one collapsed item that says how many calls it holds, how many failed, and what the
+shown SHALL be shown on its own. Two or more tool calls in a row — with only their results, thinking, background-task notices and the agent CLI's
+note about a picture it read (`tool-call-display`) between them — SHALL be summarized in one collapsed item that says how many calls it holds, how many failed, and what the
 latest call was; expanding it SHALL show each call. A reply of the user's shown between tool calls
 (`conversation-reply`) SHALL end the run there, so that the reply stays where it was sent; a message from another
 session, a subagent's report, and a message or files the agent sent (`tool-call-display`) SHALL end the run too, so
 that none is ever hidden inside one. Thinking and tool results SHALL be collapsed until the user
-expands them. Messages the agent itself injected rather than the user typing them SHALL be marked as such; those exchanged with
+expands them. Messages the agent itself injected rather than the user typing them SHALL be marked as such, except the agent CLI's
+note about a picture, which is not shown (`tool-call-display`); those exchanged with
 other sessions, subagents and the user SHALL be shown as messages from their sender (`tool-call-display`). New
 entries SHALL appear as the desktop delivers them, without the user refreshing; a new tool call that extends a
 summarized run SHALL update the summary without collapsing it if the user expanded it. When the user has scrolled
@@ -69,6 +70,12 @@ up, new entries SHALL NOT move the view, and the screen SHALL offer to jump to t
 
 - **WHEN** the user expanded a run of tool calls and the agent makes another call
 - **THEN** the run stays expanded and shows the new call, and its count goes up by one
+
+#### Scenario: A picture read inside a run
+
+- **WHEN** the agent ran a command, read a screenshot (followed by the CLI's note about its sizes), and ran another
+  command
+- **THEN** the screen shows one item saying "3 tool calls", and no injected message
 
 ### Requirement: Messages appear whole, and working is shown from the wait state
 

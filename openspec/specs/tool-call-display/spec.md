@@ -19,7 +19,11 @@ expanded view:
 - Edit: the summary names the file; expanded, the file's path and the replaced text against the new text, the
   removed lines and the added lines marked as such.
 - Write: the summary names the file; expanded, its path and the content written.
-- Read: the summary names the file and, when given, the lines read.
+- Read: the summary names the file and, when given, the lines read; expanded, the file's path and, when the result
+  is the agent CLI's numbered lines, the content under a "Content" label with each line's number beside it and not
+  part of the text when copied. A note the agent CLI put before the lines for the model (such as a memory file's age)
+  or after them (such as which artifact the file is the source of) SHALL be shown apart from the content, muted. A
+  result of any other shape SHALL be shown as it came, as "Output"; a blank result beside pictures SHALL show no part.
 - Agent (and Task): the summary names the subagent's kind and its description; expanded, the prompt it was given.
   The agent CLI's notice that it started the subagent SHALL NOT be presented as output; any other result SHALL be
   shown.
@@ -72,6 +76,24 @@ its results, field values — SHALL be shown as plain text.
 - **WHEN** the user expands a ToolSearch call whose result has no text
 - **THEN** the call shows its query and no empty output
 
+#### Scenario: A text file read
+
+- **WHEN** the user expands a Read of `proposal.md` whose result is the CLI's numbered lines `1\t## Why`, `2\t`,
+  `3\tFrom the phone…`
+- **THEN** the call shows the path and, under "Content", the three lines with the numbers 1–3 beside them, and copying
+  the text gives `## Why` and the other lines without a number
+
+#### Scenario: A memory file read
+
+- **WHEN** the user expands a Read whose result starts with the CLI's note that the memory is 3 days old, followed by
+  numbered lines
+- **THEN** the note is shown muted above the content, and the content is shown with its numbers apart
+
+#### Scenario: A read result of another shape
+
+- **WHEN** the user expands a Read whose result is not numbered lines, such as the text the CLI gives for a PDF
+- **THEN** it is shown as it came, under "Output"
+
 ### Requirement: What was asked is told apart from what came back
 
 In an expanded tool call, each part SHALL carry a label saying what it is — such as Command, Output, Error, Message,
@@ -115,7 +137,10 @@ say whether it was sent, and why not when it was not. The wrapper the agent CLI 
 session or a subagent's report SHALL NOT be shown: neither the sender's address nor its internal id SHALL appear;
 text the app does not recognize as such a wrapper SHALL be shown as it is. A message SHALL end a run of tool calls,
 and SHALL NOT also be shown as a call inside one. A background task's notice SHALL be shown as one short line saying
-what finished, not as a message. Any other injected message SHALL be marked as injected and collapsed, as before.
+what finished, not as a message. The note the agent CLI adds to the conversation after a picture it read, telling the model the picture's original
+and shown sizes (`[Image: original 1080x2400, displayed at 900x2000. Multiply coordinates by 1.20 to map to original
+image.]`), SHALL NOT be shown, and SHALL NOT end a run of tool calls. Any other injected message SHALL be marked as
+injected and collapsed, as before.
 Against a desktop that sends no input fields, the agent's SendMessage and SendUserFile calls SHALL be shown as tool
 calls, as before.
 
@@ -151,3 +176,108 @@ calls, as before.
 
 - **WHEN** the agent received a notice that a background command completed
 - **THEN** the conversation shows one short line saying what completed
+
+#### Scenario: The CLI's note after a picture
+
+- **WHEN** the agent read a screenshot, the CLI added its note about the picture's sizes, and the agent then ran two
+  more commands
+- **THEN** the conversation shows one run of three tool calls, and the note is shown nowhere
+
+#### Scenario: A reply sent right after the note
+
+- **WHEN** the user sent a reply while the CLI's picture note was the last entry, and the agent then made two more
+  calls
+- **THEN** the reply is shown after the call that read the picture and before the two calls, as any reply is
+
+#### Scenario: Another injected message
+
+- **WHEN** a meta message reads "[Image: something else]"
+- **THEN** it is shown marked as injected and collapsed, as before
+
+### Requirement: Pictures a tool brought back are seen without expanding
+
+When the desktop says which pictures a tool call's result held and offers reading them, the conversation SHALL show
+them without the user expanding anything: under a lone call's line, or a lone result's; for a collapsed run of calls,
+one row under the run's line of as many of its pictures as fit, at most three, the latest calls' first, with how many
+more there are, which expands the run when tapped; for an expanded run, under the line of the call that brought them
+back. This SHALL hold for every tool, not only Read. A picture SHALL be read from the desktop by the call and its
+position, never by a path, and only when shown, when next to the item shown full screen, or when the run holding it
+is expanded. Pictures up to 2 MB SHALL be read by themselves; a larger one SHALL show
+its size and be read on a tap, or once it is the picture shown full screen; one that could not be read SHALL say why, in words about a picture, not a sent file.
+Tapping a picture SHALL open it full screen, zoomable by pinching or by a double tap (a double tap again going back), titled by its file name for a Read and otherwise by its tool
+call and position. Full screen, swiping left or right SHALL show the conversation's other tool-result pictures and
+the files the agent sent, in conversation order, with the current one's place among them, except while a picture is
+zoomed in, when a drag SHALL move the picture. A sent file the app does not show itself SHALL appear there by its name
+and kind with a way to open it in another app, read only when that is chosen. A picture SHALL be decoded
+only as PNG, JPEG, GIF or WebP, and SHALL NOT be handed to another app. Pictures SHALL be kept in memory only, for as long as the conversation screen is open; of those not on screen, at most a
+bounded number SHALL be kept, and one dropped SHALL be read again when shown again. A failed call SHALL show no pictures. Each
+picture SHALL be announced to a screen reader as a picture, by the same title.
+
+Against a desktop that does not offer reading a result's pictures, no picture SHALL be shown, and a Read of a file named
+as a picture whose result is empty and not an error SHALL say, when expanded, that seeing it on the phone needs a newer
+spekterm; everything shown before SHALL still be shown.
+
+#### Scenario: A screenshot read
+
+- **WHEN** the agent read `rn.png`, one picture of 400 KB, as a lone call
+- **THEN** the picture is shown under the call's line without a tap, and tapping it opens it full screen
+
+#### Scenario: A browser screenshot
+
+- **WHEN** an MCP browser tool's result held a line of text and one picture
+- **THEN** the picture is shown under the call's line, and opening it shows it full screen titled by the tool and
+  "picture 1", without handing it to another app
+
+#### Scenario: A run with pictures
+
+- **WHEN** a collapsed run of six calls holds five Reads of screenshots, on a phone 412 dp wide
+- **THEN** under the run's line three thumbnails of the latest ones are shown with "+2", only those three are read, and
+  tapping "+2" expands the run, showing each picture under its own call
+
+#### Scenario: Swiping between pictures
+
+- **WHEN** the conversation shows three tool-result pictures and the second is opened full screen
+- **THEN** it shows the second with "2 / 3", swiping left shows the third with "3 / 3", and swiping right from the
+  second shows the first
+
+#### Scenario: Only the pictures near the one open are read
+
+- **WHEN** the conversation shows five tool-result pictures, none read yet, and the first is opened full screen
+- **THEN** the first and second are read and the others are not, until a swipe brings one next to the one shown
+
+#### Scenario: A file between two pictures
+
+- **WHEN** the agent sent `report.pdf` between two screenshots it read, and the first screenshot is opened full screen
+- **THEN** swiping left shows a page for `report.pdf` with its kind and "Open in another app", nothing of it is read,
+  and swiping left again shows the second screenshot; tapping "Open in another app" reads it and hands it off
+
+#### Scenario: A double tap
+
+- **WHEN** a picture is open full screen at its fitted size and the user double-taps it
+- **THEN** it zooms in around that point, and a second double tap shows it fitted again
+
+#### Scenario: Swiping while zoomed in
+
+- **WHEN** an opened picture is zoomed in and the user drags sideways
+- **THEN** the picture moves and stays the one shown
+
+#### Scenario: A large picture
+
+- **WHEN** a result's picture is 6.1 MB
+- **THEN** it shows "6.1 MB" without reading it, and is read only when tapped
+
+#### Scenario: A picture no longer there
+
+- **WHEN** a picture is read and the desktop answers that the conversation no longer holds it
+- **THEN** it says the picture is no longer in the conversation
+
+#### Scenario: A failed read
+
+- **WHEN** a Read failed
+- **THEN** no picture is shown, and its error is
+
+#### Scenario: An older desktop
+
+- **WHEN** the desktop does not offer reading a result's pictures, and the agent read `sp.png`
+- **THEN** no picture is shown, and the expanded call shows its path and says a newer spekterm is needed to see the
+  picture on the phone
