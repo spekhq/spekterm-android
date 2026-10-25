@@ -225,7 +225,8 @@ answer, or an error `SendOutcome.of` does not read as a refusal: the desktop may
   watch is being re-established the earlier reasons (not watching, unknown) show first.
 - **Prompt answers.** `Answers.offer` returns a new `Offer.Held` while the hold is on: the card shows the prompt and
   the hold's text instead of answer buttons, with "Continue anyway". Not measured whether a `1` would reach the box
-  rather than the prompt; holding is the safe side.
+  rather than the prompt; holding is the safe side. The composer then says "Answer the choice above", as for an
+  answerable prompt, not "answer it on the desktop".
 
 ### D7. Bare commands
 
@@ -296,7 +297,7 @@ desktop without `conversation.setModel` gets effort only.
 
 ## Open Questions
 
-- spekterm's D1 measurement of the hook, and whether the CLI normalizes `requested_model` (case, aliases); the
-  desktop's arming follows that measurement and `spekterm-35af` reports both. Its obligations, as revised on
+- Settled by spekterm's measurement (CLI 2.1.310): `allow` skips the box, idle and while the agent works;
+  `requested_model` is the typed name lower-cased, and the desktop compares so. Seen from the emulator too (task 3.2). Its obligations, as revised on
   2026-10-25: never send a bare `/model` or `/effort`; a name outside its charset is refused with `BAD_PARAMS` (the
   free-name field is fine within it).

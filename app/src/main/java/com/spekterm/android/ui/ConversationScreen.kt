@@ -278,9 +278,11 @@ fun ConversationScreen(
                         c?.let { answerNote(it) }?.let { Notice(it.text(), answerTone(c), stringResource(R.string.common_dismiss), { Desktop.dismissAnswer(sessionId) }) }
                         val offer = c?.prompt?.let { Answers.offer(it, operations, connected, announcements.paused, c.watch, c.answer, c.switch) }
                         if (offer != null) PromptCard(sessionId, c.prompt!!, offer)
+                        // A held prompt is answered above once the switch shows or the user continues (`session-model-effort` D6).
+                        val answerAbove = offer is Offer.Answerable || offer is Offer.Held
                         if (sheetOpen && c != null && ModelEffort.available(c)) {
                             ModelEffortSheet(
-                                c, operations, connected, announcements.paused, offer is Offer.Answerable, InboxView.holdsReplies(linked, replyAnyway),
+                                c, operations, connected, announcements.paused, answerAbove, InboxView.holdsReplies(linked, replyAnyway),
                                 onChoose = { s -> screenScope.launch { Desktop.switch(sessionId, s) } },
                                 onDismiss = { sheetOpen = false },
                             )
@@ -301,7 +303,7 @@ fun ConversationScreen(
                         }
                         linked?.let { InboxNote(it, replyAnyway, onOpenInbox) { replyAnyway = true } }
                         Composer(
-                            sessionId, c, connected, announcements.paused, offer is Offer.Answerable, Operations.ATTACH in operations && session?.isAgent != false,
+                            sessionId, c, connected, announcements.paused, answerAbove, Operations.ATTACH in operations && session?.isAgent != false,
                             inboxPrompt = InboxView.holdsReplies(linked, replyAnyway),
                             panelMax = panelMax,
                             onPanel = { panelShows++ },

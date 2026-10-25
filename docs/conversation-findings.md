@@ -1063,3 +1063,29 @@ with the app in English and the language switched back before each screenshot. N
 Left for the model half, against a desktop running spekterm's `remote-model-switch`: the model chips, Other…,
 `conversation.setModel`, the desktop's hook skipping the box, a refusal's note, the hold on a prompt card, and the
 instrumented suites again.
+
+### On the emulator against the dev desktop, model half (task 3.2)
+
+2026-10-25 10:05–10:15 (+08:00), the dev desktop built from a snapshot of spekterm's working tree (613ffe7 plus the
+uncommitted `remote-model-switch`, 12 of 12 tasks, and `remote-result-images`), profile `spekterm-dev`, port 47616,
+CLI 2.1.310; the emulator re-paired by link. A new session `go-d119`. `~/.claude/settings.json` was saved first;
+afterwards it differed only by `"model": "sonnet"`, taken out again (identical to the saved copy).
+
+| What | Outcome |
+|---|---|
+| The sheet on a desktop listing `conversation.setModel`: Default, Opus, Fable, Sonnet (marked for "Sonnet 5.5"), Haiku, Other…, the re-read note | pass |
+| Haiku while the agent waits, cache warm: "Switching the model to haiku…" and the hold's first text, then "Haiku 5.5"; the desktop's terminal shows "/model haiku · Set model to Haiku 5.5", no "Switch model?" box | pass |
+| Sonnet while the agent runs a 30-second command: "Sonnet 5.5" within about 5 s, the terminal still running with no box, nothing in the conversation | pass |
+| Fable: "Fable 5.1" (the alias works on CLI 2.1.310) | pass |
+| Other…: "opus 1m" refused by the field with the charset line and Switch disabled; "opus[1m]" sent, "Opus 5.5 (1M context)" confirms it and marks no chip | pass |
+| "claude-nonexistent": the hold's 10-second text and "Continue anyway"; continuing leaves "The model hasn't changed — …" with Dismiss | pass |
+| A question asked while that switch holds: the card shows the question, the hold's text and "Continue anyway", no answer buttons; continuing brings back "Send answer" and "Decline" | pass |
+| The same moment, the composer said "Answer it on the desktop" (the held offer counted as not answerable) | fixed: a held prompt counts as answered above |
+| A question already open when the sheet is opened: the choices disabled, "Answer the choice above." | pass |
+| 中文（台灣）, dark: the sheet with 「預設」「其他…」, 「正在把 model 換成 sonnet…」 and 「Model 換好之前，回覆和回答會先等著。」 | pass |
+| A refusal's note (`PREFILL_PENDING`, `BAD_PARAMS`) | not produced: the field never sends a name outside the charset, and an inbox prompt was not staged; `DesktopTest` carries a refused switch and its note |
+| A session whose hook does not run | carried by the effort-half run against master (no hook at all): the box opened, the hold stayed across the screen off and on, and "Yes" on the desktop ended it. spekterm-35af: with agent events off the desktop refuses with `WAIT_STATE` instead |
+
+After the rebase onto 36a60c8: `./gradlew test assembleDebug` passes, and `ANDROID_SERIAL=emulator-5554 ./gradlew
+connectedDebugAndroidTest` with only the emulator attached: 182 tests, all but `DesktopRaceTest`'s assumption (skipped,
+as before); gradle exit 0.
