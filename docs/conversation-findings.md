@@ -1106,3 +1106,27 @@ read Opus; the agent still answered the next message. kewang: 「5,6,7 剛測試
 `~/.claude/settings.json` was saved before; the switches had added `"model": "opus"` and
 `modelSettings.claude-sonnet-5-5.effortLevel: "high"`, which were taken out (identical to the saved copy). No
 screenshots: kewang looked at the screens.
+
+### Swiping through pictures and sent files (task 5.3)
+
+2026-10-25 12:56–13:01 (+08:00), after kewang asked for it on the Pixel: the emulator's debug build
+(`com.spekterm.android.debug`, master `41f0bd1`) paired with the dev desktop built from spekterm `6ff5fa4`
+(`remote-result-images` and `remote-model-switch` committed). A new agent session in `go` read `s1.png`, `s2.png` and
+`portrait.png`, then sent `wide.jpg`, `report.pdf` and `notes.md` (a code block with one long line) with SendUserFile.
+Driven over adb, the app in front each time; screenshots kept outside the repository.
+
+| What | Outcome |
+|---|---|
+| The run's strip tile of `portrait.png` tapped: full screen, "portrait.png  3 / 6" | pass |
+| A swipe left: `wide.jpg` (sent) "4 / 6"; again: `report.pdf` "5 / 6", its icon, "PDF" and "Open in another app"; again: `notes.md` "6 / 6" rendered, its code block scrolling sideways | pass |
+| A swipe right on the Markdown page's prose: back to "5 / 6" | pass |
+| "Open in another app": the PDF opened in the emulator's PDF viewer; back: the view still on `report.pdf` "5 / 6" | pass |
+| The `report.pdf` card tapped in its message: handed straight to the PDF viewer, no pager | pass |
+| 中文（台灣）, dark: "wide.jpg  4 / 6"; the PDF page's 「用其他 App 開啟」 | pass |
+| Pinch zoom then a sideways drag | not done by hand (adb cannot pinch); `SentFileViewerTest.zoomedInASwipeMovesThePicture` pinches and swipes: the place stays "2 / 3" |
+
+`SentFileViewerTest` 20/20 on the emulator; a control run with the picture taking one-finger drags at 1× failed 4
+of them (the pager never moved). Allowing paging while zoomed did not fail the zoom case: the zoomed picture already
+takes the drag, so `userScrollEnabled` is a second guard. The full instrumented run: 190 tests, the About case fixed
+for the debug build's name, `DesktopRaceTest` skipped by its assumption as before.
+
