@@ -1135,3 +1135,14 @@ Double tap (task 5.4, 13:08): on `wide.jpg` full screen, double taps (two `input
 first pair did not register: adb's two taps can land further apart than a double tap allows. `SentFileViewerTest`
 21/21, its double-tap case red with the zoom-in removed.
 
+### On the Pixel (task 4.1)
+
+2026-10-25 12:05–13:15 (+08:00), with kewang's OK: the debug build, now `com.spekterm.android.debug` ("spekterm dev")
+beside the Google Play build, installed with `adb install` (master `a7e29c0`, then `d0c6116`, then `0af3b75`), paired
+with the dev desktop built from spekterm `6ff5fa4` (the installed desktop does not run `remote-result-images` yet) by a
+link opened in the app; kewang tapped Pair. Nothing was driven on the Pixel by adb but the installs and that link.
+kewang's word, in order: the strip read "three tiles +5" (the count is right: eight pictures, three shown) and `a.kt`
+showed its line numbers; then asked for swiping between pictures (D8) and for a double tap (D8); after each, tried on
+the Pixel: "測試沒問題". The Play build's pairing was left as it was (it is not debuggable, so it could not be saved,
+and it was not touched).
+

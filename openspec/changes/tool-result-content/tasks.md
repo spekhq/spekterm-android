@@ -18,7 +18,7 @@
 
 ## 4. On the phone
 
-- [ ] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop once it runs the release with `remote-result-images`: `adb install -r` the debug build; kewang reads a session where the agent reads screenshots; I collect screenshots (only with the app in front) and the log's picture-read lines. Verify: kewang's word and the evidence recorded in the findings section
+- [x] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop once it runs the release with `remote-result-images`: `adb install -r` the debug build; kewang reads a session where the agent reads screenshots; I collect screenshots (only with the app in front) and the log's picture-read lines. Verify: kewang's word and the evidence recorded in the findings section (done against the dev desktop built from spekterm `6ff5fa4`, before its release, at kewang's choice; see the findings)
 
 ## 5. Swiping through what the conversation shows (D8, added 2026-10-25)
 
