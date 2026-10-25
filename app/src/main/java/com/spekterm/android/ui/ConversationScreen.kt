@@ -108,6 +108,7 @@ import com.spekterm.android.desktop.AttachmentState
 import com.spekterm.android.desktop.Answers
 import com.spekterm.android.desktop.Blocked
 import com.spekterm.android.desktop.ConversationItems
+import com.spekterm.android.desktop.ConversationReducer
 import com.spekterm.android.desktop.PictureCache
 import com.spekterm.android.desktop.ConversationTimes
 import com.spekterm.android.desktop.ConversationTimes.DayWord
@@ -194,6 +195,10 @@ fun ConversationScreen(
     val linked = InboxView.linked(session, inbox.items, sessions, operations)
     // An older desktop's hold on replies, lifted by the user until the note changes (design D7).
     var replyAnyway by remember(sessionId, linked?.javaClass, (linked as? InboxView.Linked.Waiting)?.item?.key) { mutableStateOf(false) }
+    val toolContext = ToolContext(
+        sessions.list, Operations.FILES_READ in operations, sessionId, session?.label, thumbs,
+        imagesReadable = Operations.IMAGES_READ in operations, pictures = pictures,
+    ) { viewing = it }
 
     // Watch only while visible (design D3); opening it clears its notification (design D8).
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -267,12 +272,7 @@ fun ConversationScreen(
                         // From the last list held, as the close offer is (`background-tasks` D4).
                         val background = session?.let { SessionsView.background(it) }.orEmpty()
                         if (background.isNotEmpty()) BackgroundTasks(background, backgroundOpen, { backgroundOpen = !backgroundOpen }, backgroundMax)
-                        CompositionLocalProvider(
-                            LocalToolContext provides ToolContext(
-                                sessions.list, Operations.FILES_READ in operations, sessionId, session?.label, thumbs,
-                                imagesReadable = Operations.IMAGES_READ in operations, pictures = pictures,
-                            ) { viewing = it },
-                        ) {
+                        CompositionLocalProvider(LocalToolContext provides toolContext) {
                             Entries(c, Modifier.weight(1f), panelShows)
                         }
                         c?.let { answerNote(it) }?.let { Notice(it.text(), answerTone(c), stringResource(R.string.common_dismiss), { Desktop.dismissAnswer(sessionId) }) }
@@ -313,7 +313,15 @@ fun ConversationScreen(
             }
         }
     }
-    viewing?.let { SentFileDialog(sessionId, it) { viewing = null } }
+    viewing?.let { ref ->
+        CompositionLocalProvider(LocalToolContext provides toolContext) {
+            // What full screen swipes through, taken when it opens (`tool-result-content` D8).
+            val sources = remember(ref) {
+                c?.entries?.let { ConversationItems.viewerSources(ConversationItems.group(it, ConversationReducer.keys(it), emptySet()), toolContext.imagesReadable, toolContext.canReadFiles) }.orEmpty()
+            }
+            SentFileDialog(sessionId, ref, viewerItems(sources)) { viewing = null }
+        }
+    }
     SessionDialogsHost(dialogs, actionsEnabled)
 }
 

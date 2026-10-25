@@ -34,7 +34,7 @@ class AboutTest {
         val context = instrumentation.targetContext
         val info = context.packageManager.getPackageInfo(context.packageName, 0)
         compose.setContent { SpektermTheme(false) { AboutScreen(onLicenses = {}, onBack = {}) } }
-        compose.onNodeWithText("spekterm").assertIsDisplayed()
+        compose.onNodeWithText(context.getString(com.spekterm.android.R.string.app_name)).assertIsDisplayed()
         compose.onNodeWithText("Version ${info.versionName} (${PackageInfoCompat.getLongVersionCode(info)})").assertIsDisplayed()
         compose.onNodeWithText("Privacy policy").assertIsDisplayed()
         compose.onNodeWithText("Source code").assertIsDisplayed()

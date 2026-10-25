@@ -312,4 +312,41 @@ class ConversationItemsTest {
         assertEquals("P(u1)<cv P(u2)", shape(group(user("u1"), caveat("cv"), user("u2"), anchors = setOf("cv"))))
         assertEquals("P(u2)<cv", shape(group(caveat("cv"), user("u2"), anchors = setOf("cv"))))
     }
+
+    private fun pic(name: String, id: String, error: Boolean = false) =
+        Entry.Result(name, 0, id, "", error, listOf(com.spekterm.android.net.ResultImage("image/png", 10)))
+
+    private fun sources(items: List<Shown>, imagesReadable: Boolean = true, canReadFiles: Boolean = true): String =
+        ConversationItems.viewerSources(items, imagesReadable, canReadFiles).joinToString(" ") {
+            when (it) {
+                is ConversationItems.ViewerSource.Call -> "C(${it.tool.id})"
+                is ConversationItems.ViewerSource.Lone -> "L(${it.result.id})"
+                is ConversationItems.ViewerSource.Sent -> "S(${it.message.call?.id})"
+            }
+        }
+
+    @Test
+    fun fullScreenGoesThroughPicturesAndSentFilesInOrder() {
+        // tool-result-content D8: a lone call, a sent message, a run (one call without pictures), a lone result.
+        val items = group(
+            call("c1"), pic("r1", "c1"), text("t1"),
+            files("f1"), text("t2"),
+            call("c2"), pic("r2", "c2"), call("c3"), result("r3", "c3"), text("t3"),
+            pic("r4", "lone"),
+        )
+        assertEquals("C(c1) S(f1) C(c2) L(lone)", sources(items))
+    }
+
+    @Test
+    fun fullScreenLeavesOutWhatCannotBeShown() {
+        assertEquals("", sources(group(call("c1"), pic("r1", "c1", error = true))))
+        val items = group(call("c1"), pic("r1", "c1"), text("t1"), files("f1"), send("m1"))
+        assertEquals("S(f1)", sources(items, imagesReadable = false))
+        assertEquals("C(c1)", sources(items, canReadFiles = false))
+    }
+
+    @Test
+    fun aResultSeenTwiceIsGoneThroughOnce() {
+        assertEquals("C(x)", sources(group(call("x"), pic("r1", "x"), pic("r2", "x"))))
+    }
 }

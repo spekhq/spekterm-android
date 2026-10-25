@@ -176,6 +176,41 @@ object ConversationItems {
         return out
     }
 
+    /** What full screen swipes through (`tool-result-content` D8). */
+    sealed interface ViewerSource {
+        data class Call(val tool: Entry.Tool, val result: Entry.Result) : ViewerSource
+
+        data class Lone(val result: Entry.Result) : ViewerSource
+
+        data class Sent(val message: Message) : ViewerSource
+    }
+
+    /**
+     * In conversation order: each call or lone result whose result has pictures, and each message with files when the
+     * desktop sends them. A result already given by its id is not given again.
+     */
+    fun viewerSources(items: List<Shown>, imagesReadable: Boolean, canReadFiles: Boolean): List<ViewerSource> {
+        val out = mutableListOf<ViewerSource>()
+        val given = HashSet<String>()
+        fun result(tool: Entry.Tool?, result: Entry.Result?) {
+            if (result == null || ToolView.pictures(result, imagesReadable).isEmpty() || !given.add("r:${result.id}")) return
+            out += if (tool != null) ViewerSource.Call(tool, result) else ViewerSource.Lone(result)
+        }
+        for (item in items) {
+            when (item) {
+                is Call -> result(item.tool, item.result)
+                is Run -> item.calls.forEach { result(it.tool, it.result) }
+                is LoneResult -> result(null, item.result)
+                is Message -> {
+                    val id = item.call?.id
+                    if (canReadFiles && id != null && item.files.isNotEmpty() && given.add("s:$id")) out += ViewerSource.Sent(item)
+                }
+                is Plain, is CommandOutput -> Unit
+            }
+        }
+        return out
+    }
+
     private val PICTURE_NOTE =
         Regex("""^\[Image: original \d+x\d+, displayed at \d+x\d+\. Multiply coordinates by [\d.]+ to map to original image\.]$""")
 

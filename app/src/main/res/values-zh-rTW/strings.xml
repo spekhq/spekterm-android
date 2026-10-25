@@ -184,6 +184,8 @@
     <string name="file_session_gone">這個 session 已經不在桌機上執行了。</string>
     <string name="file_other">桌機無法傳送這個檔案（%1$s）。</string>
     <string name="file_no_app">這支手機上沒有 App 能開這種檔案。</string>
+    <string name="file_open_elsewhere">用其他 App 開啟</string>
+    <string name="picture_position_description">第 %1$d 個，共 %2$d 個</string>
     <string name="file_close">關閉</string>
     <string name="picture_no_image">這張圖已經不在對話裡了。</string>
     <string name="picture_changed">讀取時這張圖變了。</string>

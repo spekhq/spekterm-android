@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.spekterm.android.R
+import com.spekterm.android.desktop.ConversationItems
 import com.spekterm.android.desktop.MemorySink
 import com.spekterm.android.desktop.ReadLines
 import com.spekterm.android.desktop.SentFileRead
@@ -72,6 +73,20 @@ internal fun picturesOf(tool: Entry.Tool, view: ToolView): List<ShownPicture> {
     return view.pictures.mapIndexed { i, image ->
         val title = file ?: stringResource(R.string.picture_of_call, view.title, i + 1)
         ShownPicture(SentFileRef(tool.id, i, null, SentFileRef.Source.RESULT, title), image)
+    }
+}
+
+/** What full screen swipes through, as the conversation titles it (`tool-result-content` D8). */
+@Composable
+internal fun viewerItems(sources: List<ConversationItems.ViewerSource>): List<ViewerItem> {
+    val ctx = LocalToolContext.current
+    return sources.flatMap { s ->
+        when (s) {
+            is ConversationItems.ViewerSource.Call ->
+                picturesOf(s.tool, ToolView.of(s.tool, s.result, ctx.list, ctx.imagesReadable)).map { ViewerItem(it.ref, it.image.size) }
+            is ConversationItems.ViewerSource.Lone -> picturesOf(s.result, ctx.imagesReadable).map { ViewerItem(it.ref, it.image.size) }
+            is ConversationItems.ViewerSource.Sent -> s.message.files.mapIndexed { i, path -> ViewerItem(SentFileRef(s.message.call!!.id, i, path)) }
+        }
     }
 }
 

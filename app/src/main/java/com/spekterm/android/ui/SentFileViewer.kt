@@ -7,7 +7,22 @@ import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.webkit.MimeTypeMap
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.Button
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import kotlin.math.abs
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,6 +103,12 @@ sealed interface ViewerState {
     data object PictureCannotShow : ViewerState
 
     data object NoApp : ViewerState
+
+    /** A picture over the thumbnail limit, not read until it is the one shown (`tool-result-content` D8). */
+    data class Large(val size: Long) : ViewerState
+
+    /** Answered as a type the app never renders (SVG, HTML): for another app (D9). */
+    data object Elsewhere : ViewerState
 }
 
 object SentFileViewer {
@@ -105,78 +126,252 @@ object SentFileViewer {
     }
 }
 
+/** One thing full screen swipes through: its ref, and a result picture's listed size (`tool-result-content` D8). */
+data class ViewerItem(val ref: SentFileRef, val size: Long? = null)
+
+/** An item by its source and place, its title aside: what the pager keys on and the opened one is found by (D8). */
+internal fun viewerKey(ref: SentFileRef): String = "${ref.source}:${ref.toolUseId}:${ref.index}"
+
+/** The current picture's zoom, held by the view so the pager knows not to page while zoomed in (D8). */
+internal class Zoom {
+    var scale by mutableFloatStateOf(1f)
+    var offset by mutableStateOf(Offset.Zero)
+
+    fun reset() {
+        scale = 1f
+        offset = Offset.Zero
+    }
+}
+
 /**
  * A sent file over the conversation, not a route, so the conversation keeps what is expanded and where it is (design
  * D6). Its bytes live only while it is open; a kind the app does not show is handed to another app (D9). A picture in
  * a tool result is always read into memory and shown here, never handed to another app (`tool-result-content` D2).
+ * With [items], swiping goes through the conversation's pictures and sent files, unless [ref] is a sent file the app
+ * does not show, which is handed off at once as before (`tool-result-content` D8).
  */
 @Composable
-fun SentFileDialog(sessionId: String, ref: SentFileRef, onClose: () -> Unit) {
+fun SentFileDialog(sessionId: String, ref: SentFileRef, items: List<ViewerItem> = emptyList(), onClose: () -> Unit) {
+    val start = items.indexOfFirst { viewerKey(it.ref) == viewerKey(ref) }
+    val elsewhere = ref.source == SentFileRef.Source.SENT && SentFiles.kind(ref.path ?: "") == SentFiles.Kind.OTHER
+    if (elsewhere || start < 0 || items.size < 2) {
+        SingleFile(sessionId, ref, onClose)
+    } else {
+        Swiped(sessionId, items, start, onClose)
+    }
+}
+
+@Composable
+private fun SingleFile(sessionId: String, ref: SentFileRef, onClose: () -> Unit) {
     val context = LocalContext.current
     val ctx = LocalToolContext.current
-    val longest = with(LocalDensity.current) { maxOf(LocalConfiguration.current.screenWidthDp, LocalConfiguration.current.screenHeightDp).dp.roundToPx() }
+    val longest = screenLongest()
     val name = ref.name
     val picture = ref.source == SentFileRef.Source.RESULT
     val kind = if (picture) SentFiles.Kind.IMAGE else SentFiles.kind(ref.path ?: "")
     var state by remember(ref) { mutableStateOf<ViewerState>(ViewerState.Loading(0, -1)) }
     LaunchedEffect(ref) {
-        val sink = if (!picture && kind == SentFiles.Kind.OTHER) CacheSink(SentFileCache.dir(context), name) else MemorySink()
-        var done = false
-        try {
-            val outcome = ctx.read(sessionId, ref, SentFiles.limit(kind), sink) { d, s -> state = ViewerState.Loading(d, s) }
-            state = when {
-                outcome is SentFileRead.Outcome.Failed -> ViewerState.Failed(outcome.reason, outcome.size, outcome.code, picture)
-                picture -> {
-                    val type = (outcome as SentFileRead.Outcome.Done).mediaType
-                    val image = if (SentFiles.decodable(type)) withContext(Dispatchers.Default) { decode((sink as MemorySink).bytes(), longest) } else null
-                    image?.let { ViewerState.Picture(it) } ?: ViewerState.PictureCannotShow
-                }
-                outcome is SentFileRead.Outcome.Done -> when (SentFiles.view(outcome.mediaType, kind)) {
-                    SentFiles.View.HAND_OFF -> {
-                        val cache = sink as? CacheSink ?: CacheSink(SentFileCache.dir(context), name).also { it.write((sink as MemorySink).bytes()) }
-                        cache.close()
-                        done = true
-                        if (handOff(context, cache.file, outcome.mediaType)) {
-                            onClose()
-                            return@LaunchedEffect
-                        }
-                        cache.reset()
-                        ViewerState.NoApp
-                    }
-                    SentFiles.View.IMAGE -> withContext(Dispatchers.Default) { decode((sink as MemorySink).bytes(), longest) }?.let { ViewerState.Picture(it) } ?: ViewerState.CannotShow
-                    SentFiles.View.MARKDOWN -> ViewerState.Markdown((sink as MemorySink).bytes().decodeToString())
-                    SentFiles.View.TEXT -> ViewerState.Lines(withContext(Dispatchers.Default) { SentFileViewer.pieces((sink as MemorySink).bytes().decodeToString()) })
-                }
-                else -> ViewerState.CannotShow
+        if (!picture && kind == SentFiles.Kind.OTHER) {
+            state = handOffRead(context, ctx, sessionId, ref) { d, s -> state = ViewerState.Loading(d, s) } ?: run {
+                onClose()
+                return@LaunchedEffect
             }
-            if (sink is MemorySink) sink.reset()
-            done = true
-        } finally {
-            if (!done) sink.reset()
+            return@LaunchedEffect
+        }
+        state = readShown(ctx, sessionId, ref, kind, SentFiles.limit(kind), longest) { d, s -> state = ViewerState.Loading(d, s) }
+        if (state == ViewerState.Elsewhere) {
+            state = handOffRead(context, ctx, sessionId, ref) { d, s -> state = ViewerState.Loading(d, s) } ?: run {
+                onClose()
+                return@LaunchedEffect
+            }
         }
     }
+    val zoom = remember(ref) { Zoom() }
+    ViewerFrame(name, null, onClose) { ViewerBody(state, zoom) }
+}
+
+@Composable
+private fun Swiped(sessionId: String, items: List<ViewerItem>, start: Int, onClose: () -> Unit) {
+    val pager = rememberPagerState(initialPage = start) { items.size }
+    val zoom = remember { Zoom() }
+    // Back at 1× whenever the pager comes to rest elsewhere (D8).
+    LaunchedEffect(pager) { snapshotFlow { pager.settledPage }.collect { zoom.reset() } }
+    val current = pager.currentPage
+    ViewerFrame(items[current].ref.name, current + 1 to items.size, onClose) {
+        HorizontalPager(
+            pager,
+            Modifier.fillMaxSize(),
+            beyondViewportPageCount = 1,
+            userScrollEnabled = zoom.scale == 1f,
+            key = { viewerKey(items[it].ref) },
+        ) { page ->
+            SwipedPage(sessionId, items[page], near = abs(page - pager.currentPage) <= 1, settled = page == pager.settledPage, zoom.takeIf { page == pager.currentPage })
+        }
+    }
+}
+
+/**
+ * One item of the pager, read by its distance from the current page, never because it is composed (D8): a picture,
+ * Markdown or text within one page; a large picture only once settled on; any other file only on its button.
+ */
+@Composable
+private fun SwipedPage(sessionId: String, item: ViewerItem, near: Boolean, settled: Boolean, zoom: Zoom?) {
+    val ctx = LocalToolContext.current
+    val ref = item.ref
+    val result = ref.source == SentFileRef.Source.RESULT
+    val kind = if (result) SentFiles.Kind.IMAGE else SentFiles.kind(ref.path ?: "")
+    if (kind == SentFiles.Kind.OTHER) return OfferPage(sessionId, ref)
+    val longest = screenLongest()
+    val thumb = ctx.thumbs["${ref.toolUseId}#${ref.index}"]
+    var state by remember { mutableStateOf<ViewerState>(ViewerState.Loading(0, -1)) }
+    val large = when {
+        result -> item.size?.takeIf { it > THUMB_LIMIT }
+        thumb is Thumb.Large -> thumb.size
+        else -> (state as? ViewerState.Large)?.size
+    }
+    val limit = when {
+        !near -> null
+        large != null && !settled -> null
+        kind == SentFiles.Kind.IMAGE && !result && !settled -> THUMB_LIMIT
+        else -> SentFiles.limit(kind)
+    }
+    LaunchedEffect(limit) {
+        if (limit == null || (state !is ViewerState.Loading && state !is ViewerState.Large)) return@LaunchedEffect
+        state = ViewerState.Loading(0, -1)
+        state = readShown(ctx, sessionId, ref, kind, limit, longest, smallFirst = limit == THUMB_LIMIT) { d, s -> state = ViewerState.Loading(d, s) }
+    }
+    if (state == ViewerState.Elsewhere) return OfferPage(sessionId, ref)
+    val shown = if (large != null && limit == null && state is ViewerState.Loading) ViewerState.Large(large) else state
+    ViewerBody(shown, zoom)
+}
+
+/** A sent file the app does not show, reached by swiping: named, with a button that hands it off (D8). */
+@Composable
+private fun OfferPage(sessionId: String, ref: SentFileRef) {
+    val context = LocalContext.current
+    val ctx = LocalToolContext.current
+    val scope = rememberCoroutineScope()
+    var state by remember { mutableStateOf<ViewerState?>(null) }
+    state?.let { return ViewerBody(it, null) }
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(SpekIcons.File, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(ref.name, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        ref.path?.substringAfterLast('.', "")?.takeIf { it.isNotEmpty() && '/' !in it }?.let {
+            Text(it.uppercase(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Button(onClick = {
+            scope.launch { state = handOffRead(context, ctx, sessionId, ref) { d, s -> state = ViewerState.Loading(d, s) } }
+        }) { Text(stringResource(R.string.file_open_elsewhere)) }
+    }
+}
+
+/** The view's frame: the title, its place among the items when there are several, and Close. */
+@Composable
+private fun ViewerFrame(title: String, place: Pair<Int, Int>?, onClose: () -> Unit, content: @Composable () -> Unit) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    place?.let { (n, of) ->
+                        val description = stringResource(R.string.picture_position_description, n, of)
+                        Text(
+                            stringResource(R.string.picture_position, n, of),
+                            Modifier.padding(horizontal = 8.dp).semantics { contentDescription = description },
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     IconButton(onClick = onClose) { Icon(SpekIcons.Close, stringResource(R.string.file_close)) }
                 }
                 HorizontalDivider()
-                Box(Modifier.fillMaxSize().weight(1f)) { ViewerBody(state) }
+                Box(Modifier.fillMaxSize().weight(1f)) { content() }
             }
         }
     }
 }
 
 @Composable
-internal fun ViewerBody(state: ViewerState) {
+private fun screenLongest(): Int =
+    with(LocalDensity.current) { maxOf(LocalConfiguration.current.screenWidthDp, LocalConfiguration.current.screenHeightDp).dp.roundToPx() }
+
+/**
+ * A picture, Markdown or text file read into memory and made ready to show. [smallFirst]: a sent picture read at the
+ * thumbnail limit, so one too large says its size instead of failing (D8).
+ */
+private suspend fun readShown(
+    ctx: ToolContext,
+    sessionId: String,
+    ref: SentFileRef,
+    kind: SentFiles.Kind,
+    limit: Long,
+    longest: Int,
+    smallFirst: Boolean = false,
+    progress: (Long, Long) -> Unit,
+): ViewerState {
+    val picture = ref.source == SentFileRef.Source.RESULT
+    val sink = MemorySink()
+    try {
+        val outcome = ctx.read(sessionId, ref, limit, sink, progress)
+        return when {
+            outcome is SentFileRead.Outcome.Failed && smallFirst && outcome.reason == SentFileRead.Reason.TOO_LARGE && outcome.size != null -> ViewerState.Large(outcome.size)
+            outcome is SentFileRead.Outcome.Failed -> ViewerState.Failed(outcome.reason, outcome.size, outcome.code, picture)
+            picture -> {
+                val type = (outcome as SentFileRead.Outcome.Done).mediaType
+                val image = if (SentFiles.decodable(type)) withContext(Dispatchers.Default) { decode(sink.bytes(), longest) } else null
+                image?.let { ViewerState.Picture(it) } ?: ViewerState.PictureCannotShow
+            }
+            outcome is SentFileRead.Outcome.Done -> when (SentFiles.view(outcome.mediaType, kind)) {
+                SentFiles.View.IMAGE -> withContext(Dispatchers.Default) { decode(sink.bytes(), longest) }?.let { ViewerState.Picture(it) } ?: ViewerState.CannotShow
+                SentFiles.View.MARKDOWN -> ViewerState.Markdown(sink.bytes().decodeToString())
+                SentFiles.View.TEXT -> ViewerState.Lines(withContext(Dispatchers.Default) { SentFileViewer.pieces(sink.bytes().decodeToString()) })
+                SentFiles.View.HAND_OFF -> ViewerState.Elsewhere
+            }
+            else -> ViewerState.CannotShow
+        }
+    } finally {
+        sink.reset()
+    }
+}
+
+/** A sent file read into the private cache and handed to another app (D9); `null` once handed off, else what to say. */
+private suspend fun handOffRead(context: Context, ctx: ToolContext, sessionId: String, ref: SentFileRef, progress: (Long, Long) -> Unit): ViewerState? {
+    val cache = CacheSink(SentFileCache.dir(context), ref.name)
+    var kept = false
+    try {
+        return when (val outcome = ctx.read(sessionId, ref, SentFiles.limit(SentFiles.Kind.OTHER), cache, progress)) {
+            is SentFileRead.Outcome.Failed -> ViewerState.Failed(outcome.reason, outcome.size, outcome.code)
+            is SentFileRead.Outcome.Done -> {
+                cache.close()
+                if (handOff(context, cache.file, outcome.mediaType)) {
+                    kept = true
+                    null
+                } else {
+                    ViewerState.NoApp
+                }
+            }
+        }
+    } finally {
+        if (!kept) cache.reset()
+    }
+}
+
+@Composable
+internal fun ViewerBody(state: ViewerState, zoom: Zoom? = null) {
     when (state) {
         is ViewerState.Loading -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator()
             if (state.size >= 0) Text(stringResource(R.string.file_loading, formatBytes(state.done), formatBytes(state.size)), Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodyMedium)
         }
-        is ViewerState.Picture -> ZoomableImage(state.image)
+        is ViewerState.Large -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(SpekIcons.Image, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(formatBytes(state.size), Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodyMedium)
+        }
+        is ViewerState.Picture -> ZoomableImage(state.image, zoom)
         is ViewerState.Markdown -> RepositoryMarkdown(state.text, lazy = true, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), immediate = false)
         is ViewerState.Lines -> SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp)) {
@@ -187,6 +382,7 @@ internal fun ViewerBody(state: ViewerState) {
         ViewerState.CannotShow -> CenteredMessage(SpekIcons.Info, stringResource(R.string.file_cannot_show))
         ViewerState.PictureCannotShow -> CenteredMessage(SpekIcons.Info, stringResource(R.string.picture_cannot_show))
         ViewerState.NoApp -> CenteredMessage(SpekIcons.Info, stringResource(R.string.file_no_app))
+        ViewerState.Elsewhere -> Unit
     }
 }
 
@@ -212,22 +408,33 @@ private fun pictureFailedText(f: ViewerState.Failed): String = when (f.reason) {
     SentFileRead.Reason.NOT_SENT, SentFileRead.Reason.GONE, SentFileRead.Reason.OTHER -> stringResource(R.string.picture_other, f.code ?: "?")
 }
 
+/**
+ * A picture the user can zoom. Its own gesture loop, not `detectTransformGestures`, which takes every move: at 1× only
+ * two fingers are taken, so one finger swipes the pager; zoomed in, one finger pans (D8). Without [zoom] it stays 1×.
+ */
 @Composable
-private fun ZoomableImage(image: ImageBitmap) {
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
+private fun ZoomableImage(image: ImageBitmap, zoom: Zoom?) {
     Image(
         image,
         null,
         Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(1f, 8f)
-                    offset = if (scale == 1f) Offset.Zero else offset + pan
+            .pointerInput(zoom) {
+                if (zoom == null) return@pointerInput
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        if (event.changes.count { it.pressed } >= 2 || zoom.scale > 1f) {
+                            val scale = (zoom.scale * event.calculateZoom()).coerceIn(1f, 8f)
+                            zoom.offset = if (scale == 1f) Offset.Zero else zoom.offset + event.calculatePan()
+                            zoom.scale = scale
+                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
                 }
             }
-            .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
+            .graphicsLayer(scaleX = zoom?.scale ?: 1f, scaleY = zoom?.scale ?: 1f, translationX = zoom?.offset?.x ?: 0f, translationY = zoom?.offset?.y ?: 0f),
         contentScale = ContentScale.Fit,
     )
 }

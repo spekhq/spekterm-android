@@ -183,6 +183,9 @@
     <string name="file_session_gone">The session is no longer running on the desktop.</string>
     <string name="file_other">The desktop could not send this file (%1$s).</string>
     <string name="file_no_app">No app on this phone opens this kind of file.</string>
+    <string name="file_open_elsewhere">Open in another app</string>
+    <string name="picture_position" translatable="false">%1$d / %2$d</string>
+    <string name="picture_position_description">%1$d of %2$d</string>
     <string name="file_close">Close</string>
     <string name="picture_no_image">This picture is no longer in the conversation.</string>
     <string name="picture_changed">The picture changed while it was being read.</string>

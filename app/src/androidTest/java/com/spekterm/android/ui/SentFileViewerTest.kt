@@ -7,6 +7,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.pinch
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -173,4 +180,119 @@ class SentFileViewerTest {
         openResult(screenshot, code = "LATER")
         compose.onNodeWithText("The desktop could not send this picture (LATER)", substring = true).assertIsDisplayed()
     }
+
+    // Swiping through what the conversation shows (`tool-result-content` D8).
+
+    private val reads = java.util.Collections.synchronizedList(mutableListOf<String>())
+
+    private fun result(n: Int, size: Long = 1_000) = ViewerItem(SentFileRef("t$n", 0, null, SentFileRef.Source.RESULT, "p$n.png"), size)
+
+    private fun sent(path: String) = ViewerItem(SentFileRef("f", 0, path))
+
+    /** The view over [items] opened at [at], read by a fake recording "id:limit"; a sent `big.png` is too large for a thumbnail. */
+    private fun swipe(items: List<ViewerItem>, at: SentFileRef = items.first().ref) {
+        val ctx = ToolContext(null, true, "s1", read = { _, ref, limit, sink, _ ->
+            reads += "${ref.toolUseId}:$limit"
+            val path = ref.path ?: ""
+            when {
+                path.endsWith("big.png") && limit <= THUMB_LIMIT -> SentFileRead.Outcome.Failed(SentFileRead.Reason.TOO_LARGE, size = 6_000_000)
+                path.endsWith(".md") -> "# Notes\n\nfrom the agent".toByteArray().let { sink.write(it); SentFileRead.Outcome.Done("", "text/markdown", it.size.toLong()) }
+                path.endsWith(".x-spekterm-test") -> byteArrayOf(1).let { sink.write(it); SentFileRead.Outcome.Done("", "application/x-spekterm-test", 1) }
+                else -> png().let { sink.write(it); SentFileRead.Outcome.Done("", "image/png", it.size.toLong()) }
+            }
+        }) {}
+        compose.setContent { English { CompositionLocalProvider(LocalToolContext provides ctx) { SentFileDialog("s1", at, items) {} } } }
+        compose.waitForIdle()
+    }
+
+    private fun read(): Set<String> = reads.map { it.substringBefore(':') }.toSet()
+
+    private fun swipeLeft() {
+        compose.onNode(isDialog()).performTouchInput { swipeLeft() }
+        compose.waitForIdle()
+    }
+
+    @Test
+    fun onlyTheOneShownAndItsNeighboursAreRead() {
+        swipe((0..4).map { result(it) })
+        compose.onNodeWithText("1 / 5").assertExists()
+        assertEquals(setOf("t0", "t1"), read())
+        swipeLeft()
+        compose.onNodeWithText("p1.png").assertExists()
+        compose.onNodeWithText("2 / 5").assertExists()
+        assertEquals(setOf("t0", "t1", "t2"), read())
+        swipeLeft()
+        compose.onNodeWithText("3 / 5").assertExists()
+        assertTrue(read().toString(), "t3" in read() && "t4" !in read())
+        compose.onNode(isDialog()).performTouchInput { swipeRight() }
+        compose.waitForIdle()
+        compose.onNodeWithText("2 / 5").assertExists()
+    }
+
+    @Test
+    fun zoomedInASwipeMovesThePicture() {
+        swipe((0..2).map { result(it) }, at = result(1).ref)
+        compose.onNodeWithText("2 / 3").assertExists()
+        compose.onNode(isDialog()).performTouchInput {
+            pinch(center - Offset(20f, 0f), center - Offset(200f, 0f), center + Offset(20f, 0f), center + Offset(200f, 0f))
+        }
+        compose.waitForIdle()
+        swipeLeft()
+        compose.onNodeWithText("2 / 3").assertExists()
+    }
+
+    @Test
+    fun aLargeNeighbourWaitsToBeShown() {
+        swipe(listOf(result(0), result(1, 6_000_000)))
+        assertEquals(setOf("t0"), read())
+        swipeLeft()
+        assertEquals(setOf("t0", "t1"), read())
+    }
+
+    @Test
+    fun aFileBetweenTwoPicturesIsOpenedOnItsButton() {
+        val file = sent("/x/report.x-spekterm-test")
+        swipe(listOf(result(0), file, result(2)))
+        assertEquals(setOf("t0"), read())
+        swipeLeft()
+        compose.onNodeWithText("2 / 3").assertExists()
+        compose.onAllNodesWithText("report.x-spekterm-test").fetchSemanticsNodes().let { assertTrue(it.isNotEmpty()) }
+        assertFalse("f" in read())
+        compose.onNodeWithText("Open in another app").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("No app on this phone", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(1, reads.count { it.startsWith("f:") })
+        compose.onNodeWithText("2 / 3").assertExists()
+    }
+
+    @Test
+    fun aFileTappedInItsMessageIsHandedOffAtOnce() {
+        val file = sent("/x/report.x-spekterm-test")
+        swipe(listOf(result(0), file, result(2)), at = file.ref)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("No app on this phone", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(setOf("f"), read())
+        compose.onAllNodesWithText("/ 3", substring = true).fetchSemanticsNodes().let { assertTrue(it.isEmpty()) }
+    }
+
+    @Test
+    fun aSentPictureTooLargeForANeighbourWaits() {
+        swipe(listOf(result(0), sent("/x/big.png")))
+        assertEquals(listOf("f:$THUMB_LIMIT"), reads.filter { it.startsWith("f:") })
+        compose.onNodeWithText("5.7 MB", substring = true).assertExists()
+        swipeLeft()
+        compose.waitUntil(5_000) { reads.any { it == "f:${16L * 1024 * 1024}" } }
+    }
+
+    @Test
+    fun aSentMarkdownFileShowsInPlace() {
+        swipe(listOf(result(0), sent("/x/notes.md")))
+        swipeLeft()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("from the agent", substring = true).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    fun onePictureHasNoPlace() {
+        swipe(listOf(result(0)))
+        compose.onAllNodesWithText("1 / 1").fetchSemanticsNodes().let { assertTrue(it.isEmpty()) }
+    }
 }
+
