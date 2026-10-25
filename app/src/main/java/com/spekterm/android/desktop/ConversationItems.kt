@@ -80,6 +80,12 @@ object ConversationItems {
         else -> null
     }
 
+    /**
+     * The agent CLI's answer to a built-in command, recorded as a user entry wrapped in `<local-command-stdout>`
+     * (`session-model-effort` D8): [text] is what is between the markers, without terminal escape sequences.
+     */
+    data class CommandOutput(override val key: String, val text: String, val entry: Entry.User, override val anchorsAfter: List<String> = emptyList()) : Shown
+
     /** Any other entry: a user or injected message, the agent's text, thinking outside a run. */
     data class Plain(override val key: String, val entry: Entry, override val anchorsAfter: List<String> = emptyList()) : Shown
 
@@ -94,9 +100,12 @@ object ConversationItems {
         var forming: MutableList<Part>? = null
         // Thinking and task notices after a call: joined to the run when another call follows, else shown on their own.
         val held = mutableListOf<Part>()
+        // Anchors of entries not shown before anything was: carried by the next item.
+        val carried = mutableListOf<String>()
 
         fun emit(item: Shown) {
-            out += item
+            out += carried.fold(item, ::withAnchor)
+            carried.clear()
         }
 
         fun close() {
@@ -121,6 +130,12 @@ object ConversationItems {
                 entry is Entry.Tool && message(key, entry, results[i]?.let { entries[it] as Entry.Result }) != null -> {
                     close()
                     emit(message(key, entry, results[i]?.let { entries[it] as Entry.Result })!!)
+                }
+                // The CLI's caveat before a built-in command: not shown, and it ends a run as the injected entry it is (D8).
+                entry is Entry.User && isCommandCaveat(entry) -> close()
+                entry is Entry.User && commandOutput(entry) != null -> {
+                    close()
+                    emit(CommandOutput(key, commandOutput(entry)!!, entry))
                 }
                 entry is Entry.User && entry.origin is Origin.Peer -> {
                     close()
@@ -154,7 +169,7 @@ object ConversationItems {
             }
             if (key in anchors) {
                 close()
-                out.lastOrNull()?.let { out[out.lastIndex] = withAnchor(it, key) }
+                if (out.isEmpty()) carried += key else out[out.lastIndex] = withAnchor(out.last(), key)
             }
         }
         close()
@@ -165,6 +180,29 @@ object ConversationItems {
         Regex("""^\[Image: original \d+x\d+, displayed at \d+x\d+\. Multiply coordinates by [\d.]+ to map to original image\.]$""")
 
     fun isPictureNote(entry: Entry.User): Boolean = entry.meta && entry.origin == null && PICTURE_NOTE.matches(entry.text)
+
+    /** One whole wrapper of [tag] around the text, holding no other marker: what is inside, or null (D8). */
+    private fun wrapped(text: String, vararg tags: String): String? {
+        val t = Replies.jsTrim(text)
+        val tag = tags.firstOrNull { t.length >= 2 * it.length + 5 && t.startsWith("<$it>") && t.endsWith("</$it>") } ?: return null
+        return t.substring(tag.length + 2, t.length - tag.length - 3).takeUnless { COMMAND_MARKER in it }
+    }
+
+    private const val COMMAND_MARKER = "local-command-"
+
+    /** CSI sequences, then any other escape and the character after it. */
+    private val ESCAPE = Regex("\u001b\\[[0-?]*[ -/]*[@-~]|\u001b[\\s\\S]?")
+
+    /** The text of a built-in command's output, or null: one whole wrapper, no other marker inside, not injected (D8). */
+    fun commandOutput(entry: Entry.User): String? {
+        if (entry.meta || entry.origin != null) return null
+        val inner = wrapped(entry.text, "local-command-stdout", "local-command-stderr") ?: return null
+        return Replies.jsTrim(inner.replace(ESCAPE, ""))
+    }
+
+    /** The CLI's fixed caveat it injects before a built-in command (D8). */
+    fun isCommandCaveat(entry: Entry.User): Boolean =
+        entry.meta && entry.origin == null && wrapped(entry.text, "local-command-caveat") != null
 
     /** Call index → result index: each result with the earliest earlier call of its id still without one. */
     private fun pair(entries: List<Entry>): Map<Int, Int> {
@@ -186,5 +224,6 @@ object ConversationItems {
         is Run -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
         is Plain -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
         is Message -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
+        is CommandOutput -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
     }
 }

@@ -396,6 +396,19 @@ class FramesTest {
     }
 
     @Test
+    fun encodesSetModelAsTheProtocolDocumentSays() {
+        val req = parse(Frames.request(3, Operations.SET_MODEL, Frames.conversationSetModel("s1", "opus[1m]")))
+        assertEquals("conversation.setModel", req["m"]!!.jsonPrimitive.content)
+        val p = req["p"]!!.jsonObject
+        assertEquals(setOf("sessionId", "model"), p.keys)
+        assertEquals("s1", p["sessionId"]!!.jsonPrimitive.content)
+        assertEquals("opus[1m]", p["model"]!!.jsonPrimitive.content)
+        val r = Frames.decodeOrNull<SendResult>(Json.parseToJsonElement("""{"outcome":"submitted","text":"/model opus[1m]"}"""))!!
+        assertEquals(SendResult.SUBMITTED, r.outcome)
+        assertEquals("/model opus[1m]", r.text)
+    }
+
+    @Test
     fun decodesTheNewResults() {
         assertNull(Frames.decodeOrNull<SendResult>(Json.parseToJsonElement("""{"outcome":"submitted"}"""))!!.text)
         assertEquals("hi\n\n(x)", Frames.decodeOrNull<SendResult>(Json.parseToJsonElement("""{"outcome":"submitted","text":"hi\n\n(x)"}"""))!!.text)

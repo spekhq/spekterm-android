@@ -160,6 +160,12 @@ object Desktop {
     private var uploadJob: Job? = null
     /** Drafts typed in sessions other than the held one, kept in memory while the user moves between them. */
     private val drafts = HashMap<String, String>()
+    private var nextSwitchId = 0L
+    /**
+     * Each session's pending switch (`session-model-effort` D6), written here and not through the held conversation,
+     * so it is kept while another session is on screen, across a re-watch and a reconnect. In memory only.
+     */
+    private val switches = HashMap<String, PendingSwitch>()
 
     private var tracker = OpenSpecTracker()
     /** In order of last focus, oldest first (design D4). */
@@ -225,6 +231,7 @@ object Desktop {
             "inbox.changed" -> InboxItem.decodeList(event.data)?.let { applyInbox(a, event.seq, it) }
             "conversation.update" -> ConversationUpdate.decode(event.data)?.let { update ->
                 change(update.sessionId) { ConversationReducer.apply(it, update, now()) }
+                settleSwitch(update.sessionId)
             }
             "conversation.wait" -> ConversationWait.decode(event.data)?.let { wait ->
                 change(wait.sessionId) { ConversationReducer.waited(it, wait.state, wait.pending, now(), wait.prompt) }
@@ -235,6 +242,7 @@ object Desktop {
                 // Which values are present, when that changes: context and cost change with every call (D7).
                 val fields = UsageLine.logFields(usage)
                 if (before == null || UsageLine.logFields(before) != fields) log(Kind.CONVERSATION, "event" to "status", "values" to fields)
+                settleSwitch(usage.sessionId)
             }
             "conversation.skills" -> SkillList.decode(event.data)?.let { list ->
                 change(list.sessionId) { it.copy(skills = Skills.of(list.skills)) }
@@ -245,6 +253,8 @@ object Desktop {
                 if (c != null && c.sessionId == ended.sessionId && c.watch.active) {
                     setHeld(ConversationReducer.ended(c, ended.reason))
                     log(Kind.CONVERSATION, "event" to "ended", "reason" to ended.reason)
+                    // The agent's process went, and any box it held open with it.
+                    if (ended.reason != ConversationEnded.WINDOW) endSwitch(ended.sessionId, "gone")
                 }
             }
             "openspec.changed" -> ((event.data as? JsonObject)?.get("folderId") as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { folderId ->
@@ -264,7 +274,9 @@ object Desktop {
         mutableInbox.value = mutableInbox.value.detached()
         mutableInboxActions.value = OpeningTracker.detached(mutableInboxActions.value, a)
         track(CreateTracker.detached(trackerState(), a))
-        mutableConversation.value?.let { mutableConversation.value = ConversationReducer.disconnected(it) }
+        // A switch still waiting for its answer may or may not have been written.
+        switches.replaceAll { _, p -> if (p.state == PendingSwitch.State.Sending) p.copy(state = PendingSwitch.State.Lost) else p }
+        mutableConversation.value?.let { mutableConversation.value = ConversationReducer.disconnected(it).copy(switch = switches[it.sessionId]) }
         openspecStep(tracker.detached())
     }
 
@@ -378,7 +390,10 @@ object Desktop {
     /** Closes [sessionId] (design D9), after the user confirmed. Its attachments go with it on success. */
     suspend fun close(sessionId: String, force: Boolean): RemoteError? {
         val error = sessionAction(Kind.CLOSE, "sessions.close", Frames.sessionsClose(sessionId, force), force)
-        if (error == null) withContext(dispatcher) { change(sessionId, requireWatch = false) { ConversationReducer.gone(it) } }
+        if (error == null) withContext(dispatcher) {
+            change(sessionId, requireWatch = false) { ConversationReducer.gone(it) }
+            endSwitch(sessionId, "gone")
+        }
         return error
     }
 
@@ -411,17 +426,21 @@ object Desktop {
         val a = attached
         val c = mutableConversation.value?.takeIf { it.sessionId == sessionId } ?: return@withContext false
         val inFlight = c.replies.any { it.state == Reply.State.SENDING }
-        if (a == null || Replies.blocked(true, false, c.watch, c.wait, c.pending, inFlight, text, c.attachments) != null) return@withContext false
+        if (a == null || Replies.blocked(true, false, c.watch, c.wait, c.pending, inFlight, text, c.attachments, switch = switches[sessionId]) != null) return@withContext false
         val id = ++nextReplyId
         val carried = c.attachments
         val ids = carried.mapNotNull { it.ready?.attachmentId }
+        // A typed `/model <name>` or `/effort <level>` is tracked as a switch from the send (`session-model-effort` D6).
+        val typed = ModelEffort.typed(text, carried.size)?.let { pendingSwitch(c, it, replyId = id) }
         mutableConversation.value = Replies.sent(c, id, text, carried)
+        typed?.let { putSwitch(sessionId, it) }
         a.scope.launch {
             val answer = request(a, "conversation.send", Frames.conversationSend(sessionId, text, ids), SEND_TIMEOUT_MS)
             val result = answer?.result?.let { Frames.decodeOrNull<SendResult>(it) }
             val outcome = SendOutcome.of(result?.outcome, answer?.error?.code)
             log(Kind.SEND, "outcome" to outcome.logName, "error" to answer?.error?.code, "length" to text.length, "attachments" to ids.size)
             change(sessionId, requireWatch = false) { Replies.answered(it, id, outcome, now(), result?.text) }
+            typed?.let { switchAnswered(sessionId, it.id, outcome) }
             // Files of attachments that were spent, or that did not come back to the composer, are not needed.
             dropFilesNotHeld(carried)
             if (outcome is SendOutcome.Refused) pumpUploads()
@@ -439,6 +458,7 @@ object Desktop {
         val prompt = c.prompt?.takeIf { it.id == promptId } ?: return@withContext false
         if (c.watch != Watch.Watching || Operations.ANSWER !in mutableOperations.value) return@withContext false
         if (c.answer?.let { it.promptId == promptId && it.inFlight } == true) return@withContext false
+        if (switches[sessionId]?.holds == true) return@withContext false
         mutableConversation.value = c.copy(answer = AnswerState(promptId, decision))
         val kind = when (prompt) {
             is com.spekterm.android.net.Prompt.Permission -> "permission"
@@ -456,6 +476,54 @@ object Desktop {
             }
         }
         true
+    }
+
+    /**
+     * Switches the watched [sessionId]'s effort or model (`session-model-effort` D5, D6): `/effort <level>` with
+     * `conversation.send`, a model with `conversation.setModel`, never with the composer's text or attachments.
+     * Returns false when the gate refuses; the outcome arrives in [conversation]'s `switch`.
+     */
+    suspend fun switch(sessionId: String, s: Switch): Boolean = withContext(dispatcher) {
+        val a = attached ?: return@withContext false
+        val c = mutableConversation.value?.takeIf { it.sessionId == sessionId } ?: return@withContext false
+        val valid = when (s) {
+            is Switch.Effort -> s.level in ModelEffort.EFFORTS
+            is Switch.Model -> ModelEffort.modelsOffered(mutableOperations.value) && ModelEffort.validName(s.name)
+        }
+        val pending = switches[sessionId]
+        val line = ModelEffort.command(s)
+        val inFlight = c.replies.any { it.state == Reply.State.SENDING }
+        if (!valid || !ModelEffort.available(c) || pending?.state == PendingSwitch.State.Sending) return@withContext false
+        if (Replies.blocked(true, false, c.watch, c.wait, c.pending, inFlight, line, switch = pending) != null) return@withContext false
+        val p = pendingSwitch(c, s, replyId = null)
+        putSwitch(sessionId, p)
+        a.scope.launch {
+            val answer = when (s) {
+                is Switch.Effort -> request(a, "conversation.send", Frames.conversationSend(sessionId, line), SEND_TIMEOUT_MS)
+                is Switch.Model -> request(a, Operations.SET_MODEL, Frames.conversationSetModel(sessionId, s.name), SEND_TIMEOUT_MS)
+            }
+            val outcome = SendOutcome.of(answer?.result?.let { Frames.decodeOrNull<SendResult>(it) }?.outcome, answer?.error?.code)
+            log(Kind.SEND, "switch" to s.logName, "outcome" to outcome.logName, "error" to answer?.error?.code)
+            switchAnswered(sessionId, p.id, outcome)
+        }
+        true
+    }
+
+    /** The user dismissed what the screen says about [sessionId]'s switch; a switch that holds stays. */
+    fun dismissSwitch(sessionId: String) {
+        scope.launch {
+            val p = switches[sessionId]?.takeUnless { it.holds } ?: return@launch
+            if (p.open) endSwitch(sessionId, "dismissed") else dropSwitch(sessionId)
+        }
+    }
+
+    /** "Continue anyway": lifts the hold of [sessionId]'s model switch, which a report can still confirm (D6). */
+    fun continueAnyway(sessionId: String) {
+        scope.launch {
+            val p = switches[sessionId]?.takeIf { it.holds } ?: return@launch
+            putSwitch(sessionId, p.copy(anyway = true))
+            logSwitchEnd(p, "anyway")
+        }
     }
 
     /** The user dismissed the note about the last answer. */
@@ -730,6 +798,7 @@ object Desktop {
             mutableInbox.value = InboxState()
             mutableInboxActions.value = emptyMap()
             drafts.clear()
+            switches.clear()
             setHeld(null)
             dropCreation()
             dropOpenspec()
@@ -745,6 +814,8 @@ object Desktop {
         clock.reset()
         seen.reset()
         nextReplyId = 0
+        nextSwitchId = 0
+        switches.clear()
         mutableConnected.value = false
         mutableOperations.value = emptySet()
         mutableSessions.value = SessionsState()
@@ -915,7 +986,12 @@ object Desktop {
         mutableInboxActions.value = OpeningTracker.listed(mutableInboxActions.value, list, a, inboxOnScreen)
         seen.next(list).takeIf { it.isNotEmpty() }?.let { ids -> onSeen?.invoke(ids) }
         track(CreateTracker.listed(trackerState(), list, a, listOnScreen))
-        if (list.window) drafts.keys.retainAll(list.sessions.map { it.id }.toSet())
+        if (list.window) {
+            drafts.keys.retainAll(list.sessions.map { it.id }.toSet())
+            // A session closed, gone or not running any more takes any box it held open along (D6).
+            val running = list.sessions.filter { it.running }.map { it.id }.toSet()
+            switches.keys.filter { it !in running }.forEach { endSwitch(it, "gone") }
+        }
         mutableConversation.value?.let { held ->
             var next = ConversationReducer.listed(held, list)
             // A list with a window that no longer holds the session: closed, or its process ended (design D10).
@@ -933,12 +1009,74 @@ object Desktop {
      */
     private fun setHeld(next: Conversation?) {
         val before = mutableConversation.value
-        mutableConversation.value = next
+        mutableConversation.value = next?.copy(switch = switches[next.sessionId])
         if (before != null && (next == null || next.sessionId != before.sessionId)) {
             uploadJob?.cancel()
             uploadJob = null
         }
         dropFilesNotHeld(before?.attachments.orEmpty())
+    }
+
+    private fun pendingSwitch(c: Conversation, s: Switch, replyId: Long?) = PendingSwitch(
+        id = ++nextSwitchId,
+        switch = s,
+        before = if (s is Switch.Effort) c.usage?.effort else c.usage?.model,
+        sentAt = now(),
+        held = c.entries.mapNotNullTo(HashSet()) { it.uuid.takeIf(String::isNotEmpty) },
+        replyId = replyId,
+    )
+
+    private fun putSwitch(sessionId: String, p: PendingSwitch) {
+        switches[sessionId] = p
+        mutableConversation.value?.takeIf { it.sessionId == sessionId }?.let { mutableConversation.value = it.copy(switch = p) }
+    }
+
+    private fun dropSwitch(sessionId: String) {
+        switches.remove(sessionId) ?: return
+        mutableConversation.value?.takeIf { it.sessionId == sessionId }?.let { mutableConversation.value = it.copy(switch = null) }
+    }
+
+    /** Removes [sessionId]'s switch, logging how it ended when it was still open. */
+    private fun endSwitch(sessionId: String, how: String) {
+        val p = switches[sessionId] ?: return
+        if (p.open && !p.anyway) logSwitchEnd(p, how)
+        dropSwitch(sessionId)
+    }
+
+    /** Never the name or the level (D9). */
+    private fun logSwitchEnd(p: PendingSwitch, how: String) =
+        log(Kind.SEND, "switch" to p.switch.logName, "ended" to how, "seconds" to (now() - p.sentAt) / 1000)
+
+    /**
+     * The desktop answered switch [id]; an answer for a switch already replaced or confirmed is dropped. A typed
+     * command's switch follows its reply: refused or withheld, it goes.
+     */
+    private fun switchAnswered(sessionId: String, id: Long, outcome: SendOutcome) {
+        val p = switches[sessionId]?.takeIf { it.id == id && it.state == PendingSwitch.State.Sending } ?: return
+        if (p.replyId != null && (outcome is SendOutcome.Refused || outcome == SendOutcome.NotSubmitted)) {
+            endSwitch(sessionId, if (outcome is SendOutcome.Refused) "refused" else "not-submitted")
+            return
+        }
+        val state = when (outcome) {
+            SendOutcome.Submitted -> PendingSwitch.State.Submitted
+            SendOutcome.NotSubmitted -> PendingSwitch.State.NotSubmitted
+            is SendOutcome.Refused -> PendingSwitch.State.Refused(outcome.code)
+            SendOutcome.Unknown -> PendingSwitch.State.Lost
+        }
+        if (state is PendingSwitch.State.Refused) logSwitchEnd(p, "refused")
+        if (state == PendingSwitch.State.NotSubmitted) logSwitchEnd(p, "not-submitted")
+        putSwitch(sessionId, p.copy(state = state))
+        settleSwitch(sessionId)
+    }
+
+    /** Confirms [sessionId]'s switch by what its held conversation shows now (D6); a typed command's reply with it. */
+    private fun settleSwitch(sessionId: String) {
+        val p = switches[sessionId] ?: return
+        val c = mutableConversation.value?.takeIf { it.sessionId == sessionId } ?: return
+        if (!ModelEffort.confirmed(p, c)) return
+        endSwitch(sessionId, "confirmed")
+        val replyId = p.replyId ?: return
+        mutableConversation.value?.takeIf { it.sessionId == sessionId }?.let { held -> mutableConversation.value = held.copy(replies = held.replies.filter { it.id != replyId }) }
     }
 
     private fun keepDraft(c: Conversation) {
@@ -1057,6 +1195,7 @@ object Desktop {
             val now = mutableConversation.value
             if (attached !== a || now == null || now.sessionId != sessionId || now.watch != Watch.Requested) return@launch
             mutableConversation.value = ConversationReducer.answered(now, answer.error?.code)
+            if (answer.error?.code == RemoteError.NOT_FOUND) endSwitch(sessionId, "gone")
         }
     }
 

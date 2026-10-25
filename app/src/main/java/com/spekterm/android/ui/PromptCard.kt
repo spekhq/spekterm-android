@@ -129,6 +129,13 @@ fun PromptCard(sessionId: String, prompt: Prompt, offer: Offer) {
             is Offer.ReadOnly -> readOnlyText(offer.reason, prompt)?.let {
                 Text(it.text(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            // A model switch holds the answers: the box it may have opened would take the keys (`session-model-effort` D6).
+            is Offer.Held -> {
+                val now = rememberSwitchNow(offer.switch)
+                val late = offer.switch.late(now)
+                Text(stringResource(if (late) R.string.switch_hold_late else R.string.switch_hold), style = MaterialTheme.typography.bodySmall, color = if (late) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                if (late) OutlinedButton(onClick = { Desktop.continueAnyway(sessionId) }) { Text(stringResource(R.string.switch_continue_anyway)) }
+            }
             is Offer.Answerable -> {
                 if (prompt is Prompt.Permission && !prompt.canAllow) {
                     Text(stringResource(R.string.prompt_allow_on_desktop), style = MaterialTheme.typography.bodySmall)

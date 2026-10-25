@@ -95,6 +95,8 @@ data class Conversation(
     val usage: AgentUsage? = null,
     /** The session's skills, for the current watch; null before its first `conversation.skills`. */
     val skills: Skills? = null,
+    /** The session's switch of model or effort, mirrored from [Desktop]'s own map (`session-model-effort` D6). */
+    val switch: PendingSwitch? = null,
 ) {
     /** The uuid to resume from: the last held entry's, or none when nothing is held. */
     val afterUuid: String? get() = entries.lastOrNull()?.uuid?.takeIf { it.isNotEmpty() }

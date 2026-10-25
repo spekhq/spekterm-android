@@ -1013,3 +1013,53 @@ front each time. Screenshots kept outside the repository.
 | A picture over 2 MB and the no-image answer | not produced by the CLI (it scales pictures); carried by `ResultPicturesTest` and `SentFileViewerTest` |
 
 Also: `./gradlew test assembleDebug` after the fix, 487 JVM tests pass; `ResultPicturesTest` 8 of 8 on the emulator.
+
+## Model and effort (`session-model-effort`)
+
+### The build and the instrumented suites (task 3.3)
+
+2026-10-25, branch `model-effort-switch` on 6d8d298:
+
+- `./gradlew test assembleDebug`: passes (61 JVM suites; new `ModelEffortTest` 15, and cases added to `RepliesTest`,
+  `AnswersTest`, `ConversationItemsTest`, `ConversationTimesTest`, `FramesTest`; `StringsTest` and `HardcodedTextTest`
+  green).
+- `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest` on the `Pixel_9` AVD, with only `emulator-5554`
+  attached (the Pixel was not connected): 180 tests; every new `DesktopTest` case (switches, the hold across a
+  re-watch, another focus and a reconnect, typed commands, the re-checks, the log) and `ModelEffortSheetTest` (7)
+  pass; `DesktopRaceTest` is its assumption not met (skipped, as before). Run before the held-reply label below; the
+  JVM suites cover that, and the instrumented suites run again with the model half.
+
+### On the emulator against the dev desktop, effort half (task 3.2)
+
+2026-10-25 09:24–09:43 (+08:00), the `Pixel_9` AVD paired by link with the dev desktop built from spekterm master
+(613ffe7, 0.2.23; no `conversation.setModel`) on port 47616, agent CLI 2.1.310; driven over adb, each tap with the app
+in front. Two sessions started from the phone in `go`. `~/.claude/settings.json` was saved first; afterwards it
+differed by `"model": "sonnet"` and `modelSettings.claude-sonnet-5-5.effortLevel: "high"` (the switches), which were
+taken out again, and by `"idleCompaction": true`, which no step of the run explains and was left as found.
+Screenshots kept outside the repository.
+
+| What | Outcome |
+|---|---|
+| The sheet from the usage line, English, light: "Now: Sonnet 5.5 · medium", medium marked, the model row replaced by the newer-desktop note, the default note, then the details with the limits' resets | pass |
+| "low" while the agent waits: "Changing the effort to low…", then "(low)" on the line; the conversation shows "/effort low" and its output as "Command output", no caveat | pass |
+| "high" while the agent runs a 40-second command: the usage line reads "(high)" within 2 s; nothing appears in the conversation, before or after the turn | pass |
+| "/model" alone in the field: send disabled, "Add a name, or choose in Model and effort." | pass |
+| A draft and a photo (ready) in the composer, then "medium" chosen: both stay | pass |
+| A new session before its first message: the menu offers "Model and effort"; "xhigh" confirmed | pass |
+| Typed "/model haiku" in a session with no request yet: held while sending, then "Haiku 5.5" confirms it at once (no box) | pass |
+| Typed "/Model sonnet": the CLI does not run it (the model stays Haiku, no line appears); D7's case-sensitive check stands | measured |
+| `/compact`: "Compacted (ctrl+o to see full summary)" and the PreCompact hook's line, as command output with no escape codes | pass |
+| Typed "/model sonnet" after Haiku answered: the desktop's terminal opens "Switch model?" (seen over CDP), the desktop still reports the agent idle; the phone holds, and from 10 s says to look at the desktop with "Continue anyway" | pass |
+| That reply, 30 s on: it read "a command the agent's CLI doesn't know" and the hold's text pushed the newest row out of view — fixed: "Waiting for the model to switch" while held, and the list follows the newest row when the switch's notes change (design D6) | fixed, pass |
+| The screen turned off for 15 s and on: the hold is still there | pass |
+| "No" in the box (Escape over CDP): "Kept model as Haiku 5.5", and no entry reaches the phone, so a declined switch is never confirmed by a line | measured |
+| "Yes" in the box: the line reads "Sonnet 5.5", the hold ends, and the reply leaves as confirmed by "/model sonnet" | pass |
+| "Continue anyway": the hold lifts | pass |
+| 中文（台灣）, dark: the sheet, 「正在把 effort 改成 high…」, 指令輸出, the bare-command note, the hold's two texts with 「仍要繼續」, the held reply 「等待 model 切換」 | pass |
+
+Typing on the emulator while the app is in 中文 gives nothing (Gboard follows the app's language); the text was typed
+with the app in English and the language switched back before each screenshot. Not the app's doing.
+
+Left for the model half, against a desktop running spekterm's `remote-model-switch`: the model chips, Other…,
+`conversation.setModel`, the desktop's hook skipping the box, a refusal's note, the hold on a prompt card, and the
+instrumented suites again.

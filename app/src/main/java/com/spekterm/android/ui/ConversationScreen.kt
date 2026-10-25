@@ -113,7 +113,10 @@ import com.spekterm.android.desktop.ConversationTimes
 import com.spekterm.android.desktop.ConversationTimes.DayWord
 import com.spekterm.android.desktop.ConversationTimes.Line
 import com.spekterm.android.desktop.ConversationItems.Shown
+import com.spekterm.android.desktop.ModelEffort
 import com.spekterm.android.desktop.Offer
+import com.spekterm.android.desktop.PendingSwitch
+import com.spekterm.android.desktop.Switch
 import com.spekterm.android.desktop.SessionActions
 import com.spekterm.android.desktop.Uploads
 import com.spekterm.android.desktop.Conversation
@@ -173,7 +176,9 @@ fun ConversationScreen(
     // Closing the session from its own screen returns to the list (design D9).
     val dialogs = rememberSessionDialogs { if (it.kind == SessionAction.Kind.CLOSE) onBack() }
     var menu by remember { mutableStateOf(false) }
-    var usageOpen by remember { mutableStateOf(false) }
+    // The model-and-effort sheet (`session-model-effort` D1); its switch runs in this screen's scope.
+    var sheetOpen by remember { mutableStateOf(false) }
+    val screenScope = rememberCoroutineScope()
     // A sent file being viewed, over the conversation so it keeps its place (`tool-call-display` D6).
     var viewing by remember(sessionId) { mutableStateOf<SentFileRef?>(null) }
     // Sent pictures read on this screen, in memory only, so scrolling away and back reads nothing again (D11).
@@ -228,7 +233,9 @@ fun ConversationScreen(
                 val actions = session?.let { SessionActions.of(it, operations, sessions.list) }.orEmpty()
                 Box {
                     MoreButton({ menu = true })
-                    SessionMenu(menu, { menu = false }, actions, actionsEnabled) {
+                    val sheetItem = stringResource(R.string.model_effort_title)
+                    val extra = if (c != null && ModelEffort.available(c)) listOf(sheetItem to { sheetOpen = true }) else emptyList()
+                    SessionMenu(menu, { menu = false }, actions, actionsEnabled, extra = extra) {
                         if (it == SessionActions.Action.HANDOFF) onHandoff(sessionId) else dialogs.choose(it, session!!)
                     }
                 }
@@ -254,9 +261,7 @@ fun ConversationScreen(
                     else -> {
                         // What the agent last reported, while watched (`agent-usage-and-skills` D3).
                         c?.usage?.takeIf { c.watch.active && it.reported }?.let { usage ->
-                            val now = rememberUsageNow(usage)
-                            UsageRow(usage, now) { usageOpen = true }
-                            if (usageOpen) UsageDialog(usage, now) { usageOpen = false }
+                            UsageRow(usage, rememberUsageNow(usage)) { sheetOpen = true }
                         }
                         if (screen == Screen.Content && c != null) ContentNotices(c)
                         // From the last list held, as the close offer is (`background-tasks` D4).
@@ -271,8 +276,15 @@ fun ConversationScreen(
                             Entries(c, Modifier.weight(1f), panelShows)
                         }
                         c?.let { answerNote(it) }?.let { Notice(it.text(), answerTone(c), stringResource(R.string.common_dismiss), { Desktop.dismissAnswer(sessionId) }) }
-                        val offer = c?.prompt?.let { Answers.offer(it, operations, connected, announcements.paused, c.watch, c.answer) }
+                        val offer = c?.prompt?.let { Answers.offer(it, operations, connected, announcements.paused, c.watch, c.answer, c.switch) }
                         if (offer != null) PromptCard(sessionId, c.prompt!!, offer)
+                        if (sheetOpen && c != null && ModelEffort.available(c)) {
+                            ModelEffortSheet(
+                                c, operations, connected, announcements.paused, offer is Offer.Answerable, InboxView.holdsReplies(linked, replyAnyway),
+                                onChoose = { s -> screenScope.launch { Desktop.switch(sessionId, s) } },
+                                onDismiss = { sheetOpen = false },
+                            )
+                        }
                         // The agent's offer to close the session, from the last list held (close-offer D5).
                         if (session != null && SessionActions.offered(session)) {
                             CloseOffer(
@@ -415,7 +427,10 @@ private fun Entries(c: Conversation?, modifier: Modifier, panelShows: Int = 0) {
     suspend fun toNewest() = state.scrollToItem(count - 1, Int.MAX_VALUE)
     // A picture that finishes decoding makes its item taller: follow it too (`tool-result-content` D3).
     var picturesDrawn by remember { mutableIntStateOf(0) }
-    LaunchedEffect(lastEntry, lastReply, working, panelShows, picturesDrawn) { if (follow && count > 0) toNewest() }
+    // The switch's notes above the composer take room from the list: keep the newest row in view (`session-model-effort` D6).
+    val switchNow = rememberSwitchNow(c.switch)
+    val switchShown = c.switch?.let { listOf(it.id, it.state, it.anyway, it.late(switchNow)) }
+    LaunchedEffect(lastEntry, lastReply, working, panelShows, picturesDrawn, switchShown) { if (follow && count > 0) toNewest() }
     val pictureDrawn: () -> Unit = remember { { picturesDrawn++ } }
     Box(modifier.fillMaxWidth()) {
         CompositionLocalProvider(LocalPictureDrawn provides pictureDrawn) {
@@ -425,7 +440,7 @@ private fun Entries(c: Conversation?, modifier: Modifier, panelShows: Int = 0) {
                         // A day's heading stays pinned at the top while its items scroll under it (D5).
                         is Line.Day -> stickyHeader(key = item.key) { DayHeading(ConversationTimes.dayWord(item.date, clock.today)) }
                         is Line.Of -> item(key = item.key) { ShownRow(item.shown, open, ConversationTimes.timeOf(item.shown)?.let { timeFormat.format(Date(it)) }) }
-                        is Line.Mine -> item(key = item.key) { ReplyRow(item.reply, now) }
+                        is Line.Mine -> item(key = item.key) { ReplyRow(item.reply, now, ConversationTimes.holding(c, item.reply)) }
                     }
                 }
                 if (working) item(key = "working") { WorkingRow() }
@@ -464,8 +479,33 @@ internal fun ShownRow(shown: Shown, open: MutableMap<String, Boolean>, time: Str
         is ConversationItems.LoneResult -> ResultLine(shown.result, expanded, toggle, rowPad)
         is ConversationItems.Plain -> PlainRow(shown.entry, expanded, toggle, time)
         is ConversationItems.Message -> MessageRow(shown, open, time)
+        is ConversationItems.CommandOutput -> CommandOutputRow(shown.text, expanded, toggle)
     }
 }
+
+/** A built-in command's answer, as the CLI printed it: plain monospace text, three lines until expanded (`session-model-effort` D8). */
+@Composable
+private fun CommandOutputRow(text: String, expanded: Boolean, toggle: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val lines = remember(text) { text.lines() }
+    val long = lines.size > COMMAND_OUTPUT_LINES
+    Column(rowPad.padding(horizontal = 4.dp, vertical = 3.dp)) {
+        Text(stringResource(R.string.command_output), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+        Box(Modifier.fillMaxWidth().padding(top = 2.dp).background(colors.surfaceContainerLow, MaterialTheme.shapes.small).padding(horizontal = 10.dp, vertical = 6.dp)) {
+            SelectionContainer {
+                Text(
+                    if (long && !expanded) lines.take(COMMAND_OUTPUT_LINES).joinToString("\n") else text,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = colors.onSurfaceVariant,
+                )
+            }
+        }
+        if (long && !expanded) TextButton(onClick = toggle) { Text(stringResource(R.string.command_output_show_all)) }
+    }
+}
+
+private const val COMMAND_OUTPUT_LINES = 3
 
 @Composable
 private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit, time: String?) {
@@ -745,8 +785,8 @@ private fun WorkingRow() {
 }
 
 @Composable
-private fun ReplyRow(reply: Reply, now: Long) {
-    val label = reply.label(now)
+private fun ReplyRow(reply: Reply, now: Long, holding: Boolean) {
+    val label = reply.label(now, holding)
     val text = stringResource(
         when (label) {
             Reply.Label.SENDING -> R.string.conversation_sending
@@ -757,6 +797,7 @@ private fun ReplyRow(reply: Reply, now: Long) {
             Reply.Label.COMMAND_NOT_SHOWN -> R.string.conversation_reply_command_not_shown
             Reply.Label.MAY_NOT_HAVE_BEEN_SENT -> R.string.conversation_reply_may_not_have_been_sent
             Reply.Label.NOT_SUBMITTED -> R.string.conversation_reply_not_submitted
+            Reply.Label.SWITCHING -> R.string.conversation_reply_switching
         },
     )
     val colors = MaterialTheme.colorScheme
@@ -822,7 +863,8 @@ internal fun Composer(
     LaunchedEffect(slash) { if (slash) onPanel() }
     val inFlight = c?.replies?.any { it.state == Reply.State.SENDING } == true
     val attachments = c?.attachments.orEmpty()
-    val blocked = Replies.blocked(connected, paused, c?.watch ?: Watch.Idle, c?.wait ?: WaitState.UNKNOWN, c?.pending, inFlight, text, attachments, inboxPrompt)
+    val blocked = Replies.blocked(connected, paused, c?.watch ?: Watch.Idle, c?.wait ?: WaitState.UNKNOWN, c?.pending, inFlight, text, attachments, inboxPrompt, c?.switch)
+    val now = rememberSwitchNow(c?.switch)
     // The photo picker refuses a maximum below 2, so it is always built for 10; extra picks are dropped (design D5).
     val photos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(Uploads.MAX_ATTACHMENTS)) { uris ->
         Attach.add(context, sessionId, uris, "photo")
@@ -832,13 +874,19 @@ internal fun Composer(
     }
     var picking by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
+        c?.switch?.let { SwitchLine(sessionId, it, now) }
         c?.attachNote?.let { Notice(attachNoteText(it).text(), attachNoteTone(it), stringResource(R.string.common_dismiss), { Desktop.dismissAttachNote(sessionId) }) }
         // A reply the desktop refused because a first prompt from the inbox waits there (`inbox` design D7).
         if (c?.prefillRefused == true && blocked != Blocked.InboxPrompt) {
             Text(stringResource(R.string.conversation_prefill_refused), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.error)
         }
-        blockedText(blocked, answerable)?.let {
-            Text(it.text(), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        if (blocked is Blocked.ModelSwitch && blocked.late(now)) {
+            // Said loudly: the desktop may hold a box a reply would confirm (`session-model-effort` D6).
+            Notice(blockedText(blocked, answerable, now)!!.text(), Tone.Warning, stringResource(R.string.switch_continue_anyway), { Desktop.continueAnyway(sessionId) })
+        } else {
+            blockedText(blocked, answerable, now)?.let {
+                Text(it.text(), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            }
         }
         // Past the agent CLI's limit, a command is taken as pasted text (D6); sending stays allowed.
         if (Replies.pastedCommand(text, attachments.map { it.name })) {
@@ -974,7 +1022,11 @@ private fun attachNoteText(note: AttachNote): UiText = when (note) {
     AttachNote.SEND_NOT_FOUND -> UiText.Res(R.string.conversation_note_send_not_found)
 }
 
-private fun blockedText(blocked: Blocked?, answerable: Boolean): UiText? = when (blocked) {
+/**
+ * What the composer, and the model-and-effort sheet, say about [blocked]; a held model switch reads its stage at [now]
+ * (`session-model-effort` D5, D6).
+ */
+internal fun blockedText(blocked: Blocked?, answerable: Boolean, now: Long): UiText? = when (blocked) {
     null, Blocked.Empty -> null
     Blocked.Paused -> UiText.Res(R.string.conversation_blocked_paused)
     Blocked.NotConnected -> UiText.Res(R.string.conversation_blocked_not_connected)
@@ -991,4 +1043,41 @@ private fun blockedText(blocked: Blocked?, answerable: Boolean): UiText? = when 
     Blocked.TooLong -> UiText.Res(R.string.conversation_blocked_too_long)
     // The inbox note above the composer says why (`inbox` design D7).
     Blocked.InboxPrompt -> null
+    is Blocked.ModelSwitch -> UiText.Res(if (blocked.late(now)) R.string.switch_hold_late else R.string.switch_hold)
+    Blocked.BareCommand -> UiText.Res(R.string.conversation_blocked_bare_command)
+}
+
+/**
+ * One line above the composer about the session's switch chosen in the sheet (`session-model-effort` D6): changing,
+ * not changed and why, left unsent, or not seen; a typed command's reply row says it instead.
+ */
+@Composable
+private fun SwitchLine(sessionId: String, p: PendingSwitch, now: Long) {
+    if (p.replyId != null) return
+    val name = when (val s = p.switch) {
+        is Switch.Effort -> s.level
+        is Switch.Model -> s.name
+    }
+    val dismiss = stringResource(R.string.common_dismiss)
+    val onDismiss = { Desktop.dismissSwitch(sessionId) }
+    when (val state = p.state) {
+        is PendingSwitch.State.Refused -> Notice(stringResource(R.string.switch_refused, refusedText(state.code).text()), Tone.Error, dismiss, onDismiss)
+        PendingSwitch.State.NotSubmitted -> Notice(stringResource(R.string.switch_not_submitted), Tone.Warning, dismiss, onDismiss)
+        else -> when {
+            p.switch is Switch.Model && p.anyway -> Notice(stringResource(R.string.switch_model_anyway), Tone.Warning, dismiss, onDismiss)
+            p.switch is Switch.Model -> Notice(stringResource(R.string.switch_model_changing, name), Tone.Info)
+            p.late(now) -> Notice(stringResource(R.string.switch_effort_late), Tone.Warning, dismiss, onDismiss)
+            else -> Notice(stringResource(R.string.switch_effort_changing, name), Tone.Info)
+        }
+    }
+}
+
+private fun refusedText(code: String): UiText = when (code) {
+    RemoteError.WAIT_STATE -> UiText.Res(R.string.switch_refused_wait_state)
+    RemoteError.PREFILL_PENDING -> UiText.Res(R.string.switch_refused_prefill)
+    RemoteError.NOT_FOUND -> UiText.Res(R.string.switch_refused_not_found)
+    RemoteError.BAD_PARAMS -> UiText.Res(R.string.switch_refused_bad_params)
+    RemoteError.NOT_WATCHING -> UiText.Res(R.string.switch_refused_not_watching)
+    RemoteError.UNKNOWN_OPERATION -> UiText.Res(R.string.switch_refused_unknown_operation)
+    else -> UiText.Res(R.string.switch_refused_other, code)
 }

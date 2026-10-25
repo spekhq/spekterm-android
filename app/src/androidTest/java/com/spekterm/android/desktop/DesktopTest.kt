@@ -1068,4 +1068,241 @@ class DesktopTest {
             Desktop.log = previous
         }
     }
+
+    // ---- Model and effort (`session-model-effort` D6) ----
+
+    private val switchOps = setOf(Operations.SET_MODEL, Operations.ANSWER, Operations.ATTACH)
+
+    private fun status(model: String, effort: String) = evt("conversation.status", """{"sessionId":"s1","model":"$model","effort":"$effort"}""")
+
+    /** A standard desktop that reports Opus 5.5 at high on each watch, and answers sends and switches with [answer]. */
+    private fun Scripted.switching(
+        onWatch: List<String> = listOf(status("Opus 5.5", "high"), wait("ready")),
+        answer: (Scripted.Req, WebSocket) -> Unit = { req, ws -> ws.send(ok(req.id, """{"outcome":"submitted"}""")) },
+    ) {
+        standard { req, ws ->
+            onWatch.forEach(ws::send)
+            ws.send(update(user("u1", "hi"), reset = true))
+            ws.send(ok(req.id, """{"sessionId":"s1"}"""))
+        }
+        val base = handle
+        handle = { req, ws ->
+            when (req.method) {
+                "conversation.send", Operations.SET_MODEL -> answer(req, ws)
+                "attachments.put" -> ws.send(putOk(req))
+                else -> base(req, ws)
+            }
+        }
+    }
+
+    private suspend fun watched(wait: String = WaitState.READY) =
+        until { it.sessionId == "s1" && it.watch == Watch.Watching && it.usage != null && it.wait == wait }
+
+    private fun Scripted.Req.text(key: String) = (params[key] as JsonPrimitive).content
+
+    @Test
+    fun anEffortSwitchSendsTheCommandAloneAndLeavesTheComposer() = runBlocking<Unit> {
+        val desktop = Scripted().apply { switching() }
+        connect(desktop, switchOps)
+        Desktop.focus("o1", "s1")
+        watched()
+        Desktop.setDraft("s1", "draft")
+        attach(fileOf(10))
+        until { it.attachments.singleOrNull()?.state is AttachmentState.Ready && it.draft == "draft" }
+        assertTrue(Desktop.switch("s1", Switch.Effort("low")))
+        until { it.switch?.state == PendingSwitch.State.Submitted }
+        val sent = desktop.requests.single { it.method == "conversation.send" }
+        assertEquals(setOf("sessionId", "text"), sent.params.keys)
+        assertEquals("/effort low", sent.text("text"))
+        val c = Desktop.conversation.value!!
+        assertEquals("draft", c.draft)
+        assertEquals(1, c.attachments.size)
+        assertTrue(c.replies.isEmpty())
+        desktop.socket!!.send(status("Opus 5.5", "low"))
+        until { it.switch == null }
+    }
+
+    @Test
+    fun aModelSwitchHoldsAcrossARewatchAndAnotherFocusUntilAnotherModelIsReported() = runBlocking<Unit> {
+        val desktop = Scripted().apply { switching() }
+        connect(desktop, switchOps)
+        Desktop.focus("o1", "s1")
+        watched()
+        assertTrue(Desktop.switch("s1", Switch.Model(" sonnet ")))
+        until { it.switch?.state == PendingSwitch.State.Submitted }
+        assertEquals("sonnet", desktop.requests.single { it.method == Operations.SET_MODEL }.text("model"))
+        assertFalse(Desktop.send("s1", "next"))
+        assertFalse(Desktop.switch("s1", Switch.Effort("low")))
+        Desktop.unfocus("o1")
+        until { it.watch == Watch.Idle }
+        Desktop.focus("o1", "s1")
+        assertTrue(watched().switch!!.holds)
+        Desktop.focus("o2", "s2")
+        until { it.sessionId == "s2" }
+        Desktop.focus("o1", "s1")
+        assertTrue(watched().switch!!.holds)
+        desktop.socket!!.send(status("Sonnet 5.5", "high"))
+        until { it.switch == null }
+        assertTrue(Desktop.send("s1", "next"))
+    }
+
+    @Test
+    fun aModelSwitchsHoldSurvivesAReconnect() = runBlocking<Unit> {
+        val connection = connect(Scripted().apply { switching() }, switchOps)
+        Desktop.focus("o1", "s1")
+        watched()
+        assertTrue(Desktop.switch("s1", Switch.Model("sonnet")))
+        until { it.switch?.state == PendingSwitch.State.Submitted }
+        connection.cancel()
+        assertTrue(until { it.phase == Phase.DISCONNECTED }.switch!!.holds)
+        connect(Scripted().apply { switching(onWatch = listOf(status("Sonnet 5.5", "high"), wait("ready"))) }, switchOps)
+        until { it.watch == Watch.Watching && it.usage != null && it.switch == null }
+    }
+
+    @Test
+    fun aRefusedSwitchIsStoredAndLeavesTheDraftUntilDismissed() = runBlocking<Unit> {
+        val desktop = Scripted().apply { switching { req, ws -> ws.send(err(req.id, "PREFILL_PENDING")) } }
+        connect(desktop, switchOps)
+        Desktop.focus("o1", "s1")
+        watched()
+        Desktop.setDraft("s1", "draft")
+        until { it.draft == "draft" }
+        assertTrue(Desktop.switch("s1", Switch.Model("sonnet")))
+        val c = until { it.switch?.state == PendingSwitch.State.Refused("PREFILL_PENDING") }
+        assertFalse(c.switch!!.holds)
+        assertEquals("draft", c.draft)
+        assertEquals(0, c.draftReturns)
+        Desktop.dismissSwitch("s1")
+        until { it.switch == null }
+    }
+
+    @Test
+    fun aTypedModelCommandHoldsFromItsSendAndOneWithAPhotoDoesNot() = runBlocking<Unit> {
+        val desktop = Scripted().apply { switching() }
+        connect(desktop, switchOps)
+        Desktop.focus("o1", "s1")
+        watched()
+        assertTrue(Desktop.send("s1", "/model sonnet"))
+        val p = Desktop.conversation.value!!.switch!!
+        assertTrue(p.holds)
+        assertEquals(Desktop.conversation.value!!.replies.single().id, p.replyId)
+        until { it.replies.singleOrNull()?.state == Reply.State.SUBMITTED }
+        desktop.socket!!.send(status("Sonnet 5.5", "high"))
+        until { it.switch == null && it.replies.isEmpty() }
+        attach(fileOf(10))
+        until { it.attachments.singleOrNull()?.state is AttachmentState.Ready }
+        assertTrue(Desktop.send("s1", "/model haiku"))
+        assertNull(Desktop.conversation.value!!.switch)
+    }
+
+    @Test
+    fun aTypedEffortWhileBusyIsConfirmedByTheReport() = runBlocking<Unit> {
+        val desktop = Scripted().apply { switching(onWatch = listOf(status("Opus 5.5", "high"), wait("busy"))) }
+        connect(desktop, switchOps)
+        Desktop.focus("o1", "s1")
+        watched(WaitState.BUSY)
+        assertTrue(Desktop.send("s1", "/effort low"))
+        until { it.replies.singleOrNull()?.state == Reply.State.SUBMITTED }
+        desktop.socket!!.send(status("Opus 5.5", "low"))
+        until { it.replies.isEmpty() && it.switch == null }
+    }
+
+    @Test
+    fun whileAModelSwitchIsSentRepliesAndAnswersAreRefusedAndADisconnectKeepsTheHold() = runBlocking<Unit> {
+        val desktop = Scripted().apply { switching { _, _ -> } }
+        val connection = connect(desktop, switchOps)
+        Desktop.focus("o1", "s1")
+        watched()
+        assertTrue(Desktop.switch("s1", Switch.Model("sonnet")))
+        withTimeout(5_000) { while (desktop.count(Operations.SET_MODEL) == 0) delay(20) }
+        assertFalse(Desktop.send("s1", "next"))
+        desktop.socket!!.send(promptWait("p1"))
+        until { it.prompt?.id == "p1" }
+        assertFalse(Desktop.answer("s1", "p1", "deny"))
+        assertEquals(0, desktop.count("conversation.answer"))
+        connection.cancel()
+        val c = until { it.switch?.state == PendingSwitch.State.Lost }
+        assertTrue(c.switch!!.holds)
+        Desktop.continueAnyway("s1")
+        until { it.switch?.anyway == true && it.switch?.holds == false }
+    }
+
+    @Test
+    fun aSessionReportedNotRunningEndsTheHold() = runBlocking<Unit> {
+        val desktop = Scripted().apply { switching() }
+        connect(desktop, switchOps)
+        Desktop.focus("o1", "s1")
+        watched()
+        assertTrue(Desktop.switch("s1", Switch.Model("sonnet")))
+        until { it.switch?.state == PendingSwitch.State.Submitted }
+        desktop.socket!!.send(evt("sessions.changed", list(running = false)))
+        until { it.switch == null }
+    }
+
+    @Test
+    fun anAnswerArrivingWhileAnotherSessionIsFocusedIsStored() = runBlocking<Unit> {
+        var release: (() -> Unit)? = null
+        val desktop = Scripted().apply { switching { req, ws -> release = { ws.send(ok(req.id, """{"outcome":"submitted"}""")) } } }
+        connect(desktop, switchOps)
+        Desktop.focus("o1", "s1")
+        watched()
+        assertTrue(Desktop.switch("s1", Switch.Effort("low")))
+        withTimeout(5_000) { while (release == null) delay(20) }
+        Desktop.focus("o2", "s2")
+        until { it.sessionId == "s2" }
+        release!!()
+        delay(300)
+        Desktop.focus("o1", "s1")
+        until { it.sessionId == "s1" && it.switch?.state == PendingSwitch.State.Submitted }
+    }
+
+    @Test
+    fun anEffortAnswerAfterATypedModelReplacedItIsDropped() = runBlocking<Unit> {
+        val held = CopyOnWriteArrayList<Pair<Scripted.Req, WebSocket>>()
+        val desktop = Scripted().apply { switching { req, ws -> held += req to ws } }
+        connect(desktop, switchOps)
+        Desktop.focus("o1", "s1")
+        watched()
+        assertTrue(Desktop.switch("s1", Switch.Effort("low")))
+        withTimeout(5_000) { while (held.size < 1) delay(20) }
+        assertTrue(Desktop.send("s1", "/model sonnet"))
+        withTimeout(5_000) { while (held.size < 2) delay(20) }
+        val (effort, ws) = held[0]
+        ws.send(err(effort.id, "WAIT_STATE"))
+        delay(300)
+        val c = Desktop.conversation.value!!
+        assertEquals(Switch.Model("sonnet"), c.switch!!.switch)
+        assertEquals(PendingSwitch.State.Sending, c.switch!!.state)
+        assertTrue(c.switch!!.holds)
+        held[1].second.send(ok(held[1].first.id, """{"outcome":"submitted"}"""))
+        until { it.switch?.state == PendingSwitch.State.Submitted }
+    }
+
+    @Test
+    fun theLogNamesTheSwitchAndItsOutcomeNeverTheNameOrTheLevel() = runBlocking<Unit> {
+        val logged = CopyOnWriteArrayList<String>()
+        val previous = Desktop.log
+        Desktop.log = { kind, fields -> logged += "$kind ${fields.joinToString(" ") { "${it.first}=${it.second}" }}" }
+        try {
+            val desktop = Scripted().apply { switching() }
+            connect(desktop, switchOps)
+            Desktop.focus("o1", "s1")
+            watched()
+            assertTrue(Desktop.switch("s1", Switch.Effort("xhigh")))
+            until { it.switch?.state == PendingSwitch.State.Submitted }
+            desktop.socket!!.send(status("Opus 5.5", "xhigh"))
+            until { it.switch == null }
+            assertTrue(Desktop.switch("s1", Switch.Model("haiku")))
+            until { it.switch?.state == PendingSwitch.State.Submitted }
+            desktop.socket!!.send(status("Haiku 5.5", "xhigh"))
+            until { it.switch == null }
+            val switches = logged.filter { "switch=" in it }
+            assertTrue(switches.any { "switch=effort" in it && "outcome=Submitted" in it })
+            assertTrue(switches.any { "switch=effort" in it && "ended=confirmed" in it })
+            assertTrue(switches.any { "switch=model" in it && "outcome=Submitted" in it })
+            assertTrue(switches.none { "xhigh" in it || "haiku" in it || "Haiku" in it })
+        } finally {
+            Desktop.log = previous
+        }
+    }
 }

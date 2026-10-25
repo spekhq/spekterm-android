@@ -52,6 +52,7 @@ object ConversationTimes {
         is ConversationItems.LoneResult -> shown.result.at
         is ConversationItems.Plain -> shown.entry.at
         is ConversationItems.Message -> shown.at
+        is ConversationItems.CommandOutput -> shown.entry.at
     }
 
     /**
@@ -61,16 +62,20 @@ object ConversationTimes {
     fun rows(c: Conversation, now: Long): List<Line> {
         val keys = ConversationReducer.keys(c.entries)
         val known = keys.toSet()
-        val settled = c.replies.filter { it.label(now).settled }.groupBy { it.anchor?.takeIf { a -> a in known } }
+        fun settled(r: Reply) = r.label(now, holding(c, r)).settled
+        val settled = c.replies.filter(::settled).groupBy { it.anchor?.takeIf { a -> a in known } }
         val out = mutableListOf<Line>()
         settled[null]?.forEach { out += Line.Mine(it) }
         for (shown in ConversationItems.group(c.entries, keys, settled.keys.filterNotNull().toSet())) {
             out += Line.Of(shown)
             for (anchor in shown.anchorsAfter) settled[anchor]?.forEach { out += Line.Mine(it) }
         }
-        c.replies.filter { !it.label(now).settled }.forEach { out += Line.Mine(it) }
+        c.replies.filter { !settled(it) }.forEach { out += Line.Mine(it) }
         return out
     }
+
+    /** [r] is the typed command of [c]'s switch, which holds (`session-model-effort` D6). */
+    fun holding(c: Conversation, r: Reply): Boolean = c.switch?.let { it.holds && it.replyId == r.id } == true
 
     /**
      * [lines] with a day heading before the first item with a time and before each item with a time whose date

@@ -63,8 +63,11 @@ access turned on.
   the app, anything else handed to another app. Agent text is Markdown that loads nothing from the network. Your messages and the
   agent's text show when they were written, and the conversation is divided by day ("Today", "Yesterday", the date).
   A line under the title shows what the agent last reported: its model and effort, how full its context is, the
-  session's cost, and the account's rate limits when they are close to full; tapping it shows them all, with when the
-  limits reset.
+  session's cost, and the account's rate limits when they are close to full. Tapping it (or "Model and effort" in the
+  menu) changes the session's effort or model — which Claude Code also keeps as the default for new sessions on that
+  computer — and shows every value, with when the limits reset. A model switch holds replies and answers until the
+  agent reports the new model, so nothing sent meanwhile can confirm a question the desktop's terminal may be asking.
+  The answer to a built-in command such as `/effort` or `/compact` is shown as the command's output.
 - **Replies**: free text to the agent while it waits or works, with photos (HEIC converted to JPEG), PDF or
   text files attached, shown as unconfirmed until it appears in the conversation. Typing `/` at the start of
   the reply shows the session's skills, filtered as you type; choosing one fills it in as a slash command. A command that never appears says
@@ -82,7 +85,8 @@ access turned on.
 These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
 following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a;
 background work: c79785f, 0.2.11; scheduled handoffs: 445dc24, 0.2.12; sending an accepted item's first prompt: b45c359,
-0.2.13; the agent's model and usage, and the session's skills: 6b6ebfa, 0.2.15; repeating handoffs: d88a3d1, 0.2.16; what tool calls did, who sent a message and opening sent files:
+0.2.13; the agent's model and usage, the session's skills and changing its effort: 6b6ebfa, 0.2.15; changing its model: a release
+that lists `conversation.setModel`, not out yet; repeating handoffs: d88a3d1, 0.2.16; what tool calls did, who sent a message and opening sent files:
 13d8ee7, 0.2.23); against an older desktop the app shows none of
 them, and a ready agent stays "Waiting for you".
 

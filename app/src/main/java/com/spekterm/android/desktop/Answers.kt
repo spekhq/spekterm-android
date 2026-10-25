@@ -71,6 +71,9 @@ sealed interface Offer {
     /** [decisions] in the order shown. */
     data class Answerable(val decisions: List<String>) : Offer
 
+    /** A model switch holds answers: the box it may have opened would take the keys (`session-model-effort` D6). */
+    data class Held(val switch: PendingSwitch) : Offer
+
     sealed interface Reason {
         /** The desktop does not accept `conversation.answer`, or the phone cannot reach it now. */
         data object NoOperation : Reason
@@ -104,8 +107,10 @@ object Answers {
         paused: Boolean,
         watch: Watch,
         answer: AnswerState?,
+        switch: PendingSwitch? = null,
     ): Offer {
         val mine = answer?.takeIf { it.promptId == prompt.id }
+        if (Operations.ANSWER in operations && !paused && connected && watch == Watch.Watching && switch?.holds == true) return Offer.Held(switch)
         val reason = when {
             Operations.ANSWER !in operations -> Offer.Reason.NoOperation
             paused -> Offer.Reason.Paused

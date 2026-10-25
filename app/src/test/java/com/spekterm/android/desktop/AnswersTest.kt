@@ -91,4 +91,15 @@ class AnswersTest {
         assertEquals("Refused", AnswerOutcome.Refused(RemoteError.WAIT_STATE).logName)
         assertEquals("Unknown", AnswerOutcome.Unknown.logName)
     }
+
+    @Test
+    fun aModelSwitchHoldsTheAnswers() {
+        val sending = PendingSwitch(1, Switch.Model("sonnet"), "Opus 5.5", 0, emptySet())
+        assertEquals(Offer.Held(sending), Answers.offer(permission(), ops, true, false, Watch.Watching, null, sending))
+        val held = sending.copy(state = PendingSwitch.State.Submitted)
+        assertEquals(Offer.Held(held), Answers.offer(permission(), ops, true, false, Watch.Watching, null, held))
+        assertEquals(Offer.Answerable(listOf("allow", "deny")), Answers.offer(permission(), ops, true, false, Watch.Watching, null, held.copy(anyway = true)))
+        assertEquals(Offer.Answerable(listOf("allow", "deny")), Answers.offer(permission(), ops, true, false, Watch.Watching, null, PendingSwitch(2, Switch.Effort("low"), null, 0, emptySet())))
+        assertEquals(Offer.ReadOnly(Offer.Reason.NoOperation), Answers.offer(permission(), emptySet(), true, false, Watch.Watching, null, held))
+    }
 }

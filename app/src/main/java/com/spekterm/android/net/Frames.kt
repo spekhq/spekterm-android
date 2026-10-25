@@ -115,6 +115,12 @@ object Frames {
         if (attachments.isNotEmpty()) put("attachments", JsonArray(attachments.map(::JsonPrimitive)))
     }
 
+    /** [model] trimmed and in the desktop's charset (`ModelEffort.validName`); answered as [SendResult]. */
+    fun conversationSetModel(sessionId: String, model: String): JsonObject = buildJsonObject {
+        put("sessionId", sessionId)
+        put("model", model)
+    }
+
     /** An empty [name] hands naming back to the session's own title. */
     fun sessionsRename(sessionId: String, name: String): JsonObject = buildJsonObject {
         put("sessionId", sessionId)
@@ -315,6 +321,7 @@ object Operations {
     const val SUBMIT_PREFILL = "sessions.submitPrefill"
     const val FILES_READ = "files.read"
     const val IMAGES_READ = "images.read"
+    const val SET_MODEL = "conversation.setModel"
 }
 
 @Serializable

@@ -416,4 +416,52 @@ class RepliesTest {
         assertTrue(Replies.pastedCommand(name + "x".repeat(640), listOf("photo.jpg")))
         assertFalse(Replies.pastedCommand(name + "x".repeat(490), listOf("photo.jpg")))
     }
+
+    private fun switchOf(s: Switch, state: PendingSwitch.State = PendingSwitch.State.Submitted, anyway: Boolean = false) =
+        PendingSwitch(1, s, before = "Opus 5.5", sentAt = 1_000, held = emptySet(), state = state, anyway = anyway)
+    private fun gate(text: String = "hi", switch: PendingSwitch? = null, inFlight: Boolean = false, wait: String = WaitState.READY, attachments: List<Attachment> = emptyList(), inbox: Boolean = false) =
+        Replies.blocked(true, false, Watch.Watching, wait, null, inFlight, text, attachments, inbox, switch)
+
+    @Test
+    fun aModelSwitchHoldsRepliesFromItsSend() {
+        val sending = switchOf(Switch.Model("sonnet"), PendingSwitch.State.Sending)
+        assertEquals(Blocked.ModelSwitch(sending), gate(switch = sending))
+        val held = switchOf(Switch.Model("sonnet"))
+        // Said with an empty field, ahead of the attachments.
+        assertEquals(Blocked.ModelSwitch(held), gate(text = "", switch = held))
+        assertEquals(Blocked.ModelSwitch(held), gate(switch = held, attachments = listOf(Attachment(1, "a.png"))))
+        assertFalse((gate(switch = held) as Blocked.ModelSwitch).late(10_999))
+        assertTrue((gate(switch = held) as Blocked.ModelSwitch).late(11_000))
+        assertNull(gate(switch = held.copy(anyway = true)))
+        assertEquals(Blocked.InFlight, gate(switch = held, inFlight = true))
+    }
+
+    @Test
+    fun anEffortSwitchAndASettledModelSwitchHoldNothing() {
+        assertNull(gate(switch = switchOf(Switch.Effort("low"), PendingSwitch.State.Sending)))
+        assertNull(gate(switch = switchOf(Switch.Model("sonnet"), PendingSwitch.State.Refused(RemoteError.WAIT_STATE))))
+        assertNull(gate(switch = switchOf(Switch.Model("sonnet"), PendingSwitch.State.NotSubmitted)))
+        // Confirmed switches leave the map; the gate still holds on the others.
+        assertEquals(Blocked.AwaitingChoice(null), gate(wait = WaitState.AWAITING_CHOICE))
+        assertEquals(Blocked.InboxPrompt, gate(inbox = true))
+        assertEquals(Blocked.InFlight, gate(inFlight = true))
+    }
+
+    @Test
+    fun aBareModelOrEffortCannotBeSent() {
+        for (bare in listOf("/model", " /effort ", "/model\u3000")) assertEquals(bare, Blocked.BareCommand, gate(bare))
+        for (fine in listOf("/model sonnet", "/models", "/Model")) assertNull(fine, gate(fine))
+    }
+
+    @Test
+    fun aHeldTypedModelCommandWaitsForTheSwitchInsteadOfSettling() {
+        val c = send(watching(), "/model sonnet")
+        val reply = c.replies.single()
+        assertEquals(Reply.Label.SWITCHING, reply.label(Replies.NOT_SEEN_MS + 1, holding = true))
+        assertFalse(reply.label(Replies.NOT_SEEN_MS + 1, holding = true).settled)
+        val p = PendingSwitch(1, Switch.Model("sonnet"), "Opus 5.5", 0, emptySet(), replyId = reply.id, state = PendingSwitch.State.Submitted)
+        assertTrue(ConversationTimes.holding(c.copy(switch = p), reply))
+        assertFalse(ConversationTimes.holding(c.copy(switch = p.copy(anyway = true)), reply))
+        assertFalse(ConversationTimes.holding(c.copy(switch = p.copy(replyId = 99)), reply))
+    }
 }

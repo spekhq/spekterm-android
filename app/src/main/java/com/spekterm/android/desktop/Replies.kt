@@ -52,13 +52,18 @@ data class Reply(
 
         /** Not in the conversation, and a slash command: one the agent's CLI does not know never is (D5). */
         COMMAND_NOT_SHOWN(true),
+
+        /** A typed `/model <name>` whose switch holds: it may wait in a box on the desktop (`session-model-effort` D6). */
+        SWITCHING(false),
     }
 
-    fun label(now: Long): Label = when (state) {
+    /** [holding]: this reply is the typed command of the session's switch, which holds. */
+    fun label(now: Long, holding: Boolean = false): Label = when (state) {
         State.SENDING -> Label.SENDING
         State.MAY_NOT_HAVE_BEEN_SENT -> Label.MAY_NOT_HAVE_BEEN_SENT
         State.NOT_SUBMITTED -> Label.NOT_SUBMITTED
         State.SUBMITTED -> when {
+            holding -> Label.SWITCHING
             sentWhile == WaitState.BUSY -> when {
                 stoppedAt == null -> Label.WAITING_FOR_AGENT
                 inGrace(now) -> Label.NOT_YET_CONFIRMED
@@ -152,6 +157,11 @@ sealed interface Blocked {
 
     data object InFlight : Blocked
 
+    /** A model switch holds replies until it is confirmed (`session-model-effort` D6); [late] from 10 s after it was sent. */
+    data class ModelSwitch(val switch: PendingSwitch) : Blocked {
+        fun late(now: Long): Boolean = switch.late(now)
+    }
+
     /** An attachment is still being prepared or uploaded. */
     data object Attaching : Blocked
 
@@ -160,6 +170,9 @@ sealed interface Blocked {
 
     /** The text is empty once the desktop's cleaning and trimming are applied. */
     data object Empty : Blocked
+
+    /** `/model` or `/effort` alone: it opens a picker in the terminal the phone cannot close (`session-model-effort` D7). */
+    data object BareCommand : Blocked
 
     data object TooLong : Blocked
 }
@@ -224,6 +237,8 @@ object Replies {
         attachments: List<Attachment> = emptyList(),
         /** `InboxView.linked` holds replies back now (`inbox` design D7). */
         inboxPrompt: Boolean = false,
+        /** The session's pending switch; only one that [PendingSwitch.holds] blocks. */
+        switch: PendingSwitch? = null,
     ): Blocked? = when {
         paused -> Blocked.Paused
         !connected -> Blocked.NotConnected
@@ -232,10 +247,12 @@ object Replies {
         inboxPrompt -> Blocked.InboxPrompt
         wait != WaitState.READY && wait != WaitState.BUSY -> Blocked.Unknown
         inFlight -> Blocked.InFlight
+        switch?.holds == true -> Blocked.ModelSwitch(switch)
         attachments.any { it.state is AttachmentState.Failed } -> Blocked.AttachmentFailed
         attachments.any { it.state !is AttachmentState.Ready } -> Blocked.Attaching
         // Empty text is sendable when it carries an attachment: the desktop writes its sentence alone.
         jsTrim(clean(text)).isEmpty() && attachments.isEmpty() -> Blocked.Empty
+        ModelEffort.bare(text) -> Blocked.BareCommand
         tooLong(text) -> Blocked.TooLong
         else -> null
     }

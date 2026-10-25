@@ -702,4 +702,51 @@
     <string name="skills_no_match">No skill matches.</string>
     <string name="skills_builtin_note">Built-in commands such as /compact aren\'t listed; type them. A few skills only the agent may use: for those, ask it in words.</string>
     <string name="conversation_long_command">This long, it will arrive as a plain message, not run as a command.</string>
+    <string name="model_effort_title">Model and effort</string>
+    <string name="model_effort_now">Now: %1$s</string>
+    <string name="model_effort_now_both">Now: %1$s · %2$s</string>
+    <string name="model_effort_effort" translatable="false">Effort</string>
+    <string name="model_effort_model" translatable="false">Model</string>
+    <string name="model_effort_level_low" translatable="false">low</string>
+    <string name="model_effort_level_medium" translatable="false">medium</string>
+    <string name="model_effort_level_high" translatable="false">high</string>
+    <string name="model_effort_level_xhigh" translatable="false">xhigh</string>
+    <string name="model_effort_level_max" translatable="false">max</string>
+    <string name="model_effort_level_auto" translatable="false">auto</string>
+    <string name="model_effort_auto_meaning">auto is the model\'s default.</string>
+    <string name="model_effort_model_default">Default</string>
+    <string name="model_effort_model_opus" translatable="false">Opus</string>
+    <string name="model_effort_model_fable" translatable="false">Fable</string>
+    <string name="model_effort_model_sonnet" translatable="false">Sonnet</string>
+    <string name="model_effort_model_haiku" translatable="false">Haiku</string>
+    <string name="model_effort_model_other">Other…</string>
+    <string name="model_effort_other_label">Model name</string>
+    <string name="model_effort_other_charset">Letters, digits and . _ : / @ [ ] -</string>
+    <string name="model_effort_other_send">Switch</string>
+    <string name="model_effort_needs_desktop">Changing the model from the phone needs a newer spekterm on the desktop.</string>
+    <string name="model_effort_note_default">Each choice also becomes Claude Code\'s default for new sessions on that computer (max is for this session only; auto clears it).</string>
+    <string name="model_effort_note_reread">Switching mid-conversation makes the next response re-read the whole conversation: slower, and more tokens.</string>
+    <string name="model_effort_inbox_prompt">A first prompt from the inbox waits in this session; send or edit it first.</string>
+    <string name="model_effort_sending">A switch is being sent.</string>
+    <string name="model_effort_details">Details</string>
+    <string name="switch_effort_changing">Changing the effort to %1$s…</string>
+    <string name="switch_model_changing">Switching the model to %1$s…</string>
+    <string name="switch_effort_late">The effort hasn\'t changed yet — look at the desktop.</string>
+    <string name="switch_model_anyway">The model hasn\'t changed — if the desktop still asks to confirm, a reply or another switch sent now could confirm it.</string>
+    <string name="switch_refused">Not changed: %1$s</string>
+    <string name="switch_refused_wait_state">the agent couldn\'t take it now.</string>
+    <string name="switch_refused_prefill">a first prompt waits in the session.</string>
+    <string name="switch_refused_not_found">the session has no running agent.</string>
+    <string name="switch_refused_bad_params">the desktop didn\'t accept that model name.</string>
+    <string name="switch_refused_not_watching">the conversation wasn\'t being watched.</string>
+    <string name="switch_refused_unknown_operation">the desktop doesn\'t support this.</string>
+    <string name="switch_refused_other">the desktop refused it (%1$s).</string>
+    <string name="switch_not_submitted">Typed into the agent\'s input but not sent — clear it on the desktop before replying.</string>
+    <string name="switch_hold">Replies and answers wait until the model has switched.</string>
+    <string name="switch_hold_late">The model hasn\'t changed yet. The desktop may be asking to confirm the switch — a reply or an answer sent now could confirm it, and a reply would be lost. Look at the desktop.</string>
+    <string name="switch_continue_anyway">Continue anyway</string>
+    <string name="conversation_blocked_bare_command">Add a name, or choose in Model and effort.</string>
+    <string name="command_output">Command output</string>
+    <string name="command_output_show_all">Show all</string>
+    <string name="conversation_reply_switching">Waiting for the model to switch</string>
 </resources>

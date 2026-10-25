@@ -136,4 +136,12 @@ class ConversationTimesTest {
         val saoPaulo = ZoneId.of("America/Sao_Paulo")
         assertEquals(Duration.ofHours(12), ConversationTimes.untilMidnight(LocalDateTime.parse("2018-11-04T12:00:00").atZone(saoPaulo)))
     }
+
+    @Test
+    fun aCommandsOutputHasNoTimeAndCountsForItsDay() {
+        val out = Entry.User("o1", ms("2026-10-25T10:00:00"), "<local-command-stdout>done</local-command-stdout>", meta = false)
+        val shown = ConversationItems.group(listOf(out), listOf("o1#0"), emptySet()).single()
+        assertNull(ConversationTimes.timeOf(shown))
+        assertEquals(ms("2026-10-25T10:00:00"), ConversationTimes.startOf(shown))
+    }
 }
