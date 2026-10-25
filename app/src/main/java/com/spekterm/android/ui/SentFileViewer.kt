@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -410,7 +411,8 @@ private fun pictureFailedText(f: ViewerState.Failed): String = when (f.reason) {
 
 /**
  * A picture the user can zoom. Its own gesture loop, not `detectTransformGestures`, which takes every move: at 1× only
- * two fingers are taken, so one finger swipes the pager; zoomed in, one finger pans (D8). Without [zoom] it stays 1×.
+ * two fingers are taken, so one finger swipes the pager; zoomed in, one finger pans; a double tap zooms in or back out
+ * (D8). Without [zoom] it stays 1×.
  */
 @Composable
 private fun ZoomableImage(image: ImageBitmap, zoom: Zoom?) {
@@ -434,10 +436,25 @@ private fun ZoomableImage(image: ImageBitmap, zoom: Zoom?) {
                     } while (event.changes.any { it.pressed })
                 }
             }
+            .pointerInput(zoom) {
+                if (zoom == null) return@pointerInput
+                // A double tap zooms in around the point, and back out when zoomed in (D8).
+                detectTapGestures(onDoubleTap = { tap ->
+                    if (zoom.scale > 1f) {
+                        zoom.reset()
+                    } else {
+                        zoom.scale = DOUBLE_TAP_SCALE
+                        zoom.offset = (Offset(size.width / 2f, size.height / 2f) - tap) * (DOUBLE_TAP_SCALE - 1f)
+                    }
+                })
+            }
             .graphicsLayer(scaleX = zoom?.scale ?: 1f, scaleY = zoom?.scale ?: 1f, translationX = zoom?.offset?.x ?: 0f, translationY = zoom?.offset?.y ?: 0f),
         contentScale = ContentScale.Fit,
     )
 }
+
+/** How far a double tap zooms in (D8). */
+private const val DOUBLE_TAP_SCALE = 2.5f
 
 /** Decoded no larger than the screen's longer side (design D6); `null` when the bytes are not an image. */
 internal fun decode(bytes: ByteArray, longest: Int): ImageBitmap? {

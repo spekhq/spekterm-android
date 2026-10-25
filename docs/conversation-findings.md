@@ -1130,3 +1130,8 @@ of them (the pager never moved). Allowing paging while zoomed did not fail the z
 takes the drag, so `userScrollEnabled` is a second guard. The full instrumented run: 190 tests, the About case fixed
 for the debug build's name, `DesktopRaceTest` skipped by its assumption as before.
 
+Double tap (task 5.4, 13:08): on `wide.jpg` full screen, double taps (two `input tap`s in one adb shell) alternated
+1× → 2.5× around the tap → 1× → 2.5× → 1×, read from a pixel above the picture (background at 1×, red zoomed). The
+first pair did not register: adb's two taps can land further apart than a double tap allows. `SentFileViewerTest`
+21/21, its double-tap case red with the zoom-in removed.
+

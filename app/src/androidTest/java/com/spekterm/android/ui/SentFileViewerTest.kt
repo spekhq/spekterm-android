@@ -12,6 +12,7 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -294,5 +295,17 @@ class SentFileViewerTest {
         swipe(listOf(result(0)))
         compose.onAllNodesWithText("1 / 1").fetchSemanticsNodes().let { assertTrue(it.isEmpty()) }
     }
-}
 
+    @Test
+    fun aDoubleTapZoomsInAndBackOut() {
+        swipe((0..2).map { result(it) }, at = result(1).ref)
+        compose.onNode(isDialog()).performTouchInput { doubleClick(center) }
+        compose.waitForIdle()
+        swipeLeft()
+        compose.onNodeWithText("2 / 3").assertExists()
+        compose.onNode(isDialog()).performTouchInput { doubleClick(center) }
+        compose.waitForIdle()
+        swipeLeft()
+        compose.onNodeWithText("3 / 3").assertExists()
+    }
+}

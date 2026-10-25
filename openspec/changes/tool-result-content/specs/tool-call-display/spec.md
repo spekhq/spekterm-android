@@ -10,7 +10,7 @@ back. This SHALL hold for every tool, not only Read. A picture SHALL be read fro
 position, never by a path, and only when shown, when next to the item shown full screen, or when the run holding it
 is expanded. Pictures up to 2 MB SHALL be read by themselves; a larger one SHALL show
 its size and be read on a tap, or once it is the picture shown full screen; one that could not be read SHALL say why, in words about a picture, not a sent file.
-Tapping a picture SHALL open it full screen, zoomable, titled by its file name for a Read and otherwise by its tool
+Tapping a picture SHALL open it full screen, zoomable by pinching or by a double tap (a double tap again going back), titled by its file name for a Read and otherwise by its tool
 call and position. Full screen, swiping left or right SHALL show the conversation's other tool-result pictures and
 the files the agent sent, in conversation order, with the current one's place among them, except while a picture is
 zoomed in, when a drag SHALL move the picture. A sent file the app does not show itself SHALL appear there by its name
@@ -56,6 +56,11 @@ spekterm; everything shown before SHALL still be shown.
 - **WHEN** the agent sent `report.pdf` between two screenshots it read, and the first screenshot is opened full screen
 - **THEN** swiping left shows a page for `report.pdf` with its kind and "Open in another app", nothing of it is read,
   and swiping left again shows the second screenshot; tapping "Open in another app" reads it and hands it off
+
+#### Scenario: A double tap
+
+- **WHEN** a picture is open full screen at its fitted size and the user double-taps it
+- **THEN** it zooms in around that point, and a second double tap shows it fitted again
 
 #### Scenario: Swiping while zoomed in
 

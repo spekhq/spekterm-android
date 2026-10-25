@@ -265,6 +265,9 @@ or right shows the conversation's others, so a file between two pictures is seen
   or more pointers are pressed or `scale > 1`, so at 1× a one-finger drag reaches the pager. Zoomed in, the pager's
   `userScrollEnabled` is false, so a drag pans. A text or Markdown page scrolls vertically; sideways drags reach the
   pager, except on a code block or table that scrolls sideways, which scrolls first and hands the rest of the drag on.
+- **Double tap** (added after kewang's second try): on a picture at 1×, a double tap zooms to 2.5× around the tapped
+  point; zoomed in, a double tap goes back to 1×. Pinching still zooms anywhere between 1× and 8×. The same in a
+  picture opened alone.
 - **One item**: no pager and no position; a sideways swipe changes nothing.
 
 ## Risks / Trade-offs
