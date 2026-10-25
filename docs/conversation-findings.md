@@ -1089,3 +1089,20 @@ afterwards it differed only by `"model": "sonnet"`, taken out again (identical t
 After the rebase onto 36a60c8: `./gradlew test assembleDebug` passes, and `ANDROID_SERIAL=emulator-5554 ./gradlew
 connectedDebugAndroidTest` with only the emulator attached: 182 tests, all but `DesktopRaceTest`'s assumption (skipped,
 as before); gradle exit 0.
+
+### On the Pixel (task 4.1)
+
+2026-10-25 12:15 (+08:00), kewang on the Pixel 7 with the debug build `com.spekterm.android.debug` at a7e29c0 (it
+carries 1880c1e), paired with the dev desktop built from spekterm 6ff5fa4 (it carries `remote-model-switch`, b7feaaa)
+rather than an installed release, which does not exist yet. kewang, guided by `spekterm-android-f537`: set the effort
+to high and saw the line read high; switched the model to Opus, saw no "Switch model?" box on the desktop and the line
+read Opus; the agent still answered the next message. kewang: 「5,6,7 剛測試都沒問題」. From the phone's connection log
+(pulled with `run-as`, the screen not touched):
+
+- `04:15:18.439Z send switch=effort outcome=Submitted`, `04:15:18.736Z … ended=confirmed seconds=0`;
+- `04:15:33.049Z send switch=model outcome=Submitted`, `04:15:33.260Z … ended=confirmed seconds=0`;
+- no `anyway`, `gone` or `refused` line: no hold was left open; neither line names the level or the model.
+
+`~/.claude/settings.json` was saved before; the switches had added `"model": "opus"` and
+`modelSettings.claude-sonnet-5-5.effortLevel: "high"`, which were taken out (identical to the saved copy). No
+screenshots: kewang looked at the screens.

@@ -19,4 +19,4 @@
 
 ## 4. On the phone
 
-- [ ] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop once it runs a release that lists `conversation.setModel`: `adb install -r` the debug build; kewang switches effort and model for real in a working session; I compare the usage line with the desktop's status bar, check the desktop's terminal shows no open confirmation, and collect the log's switch and hold lines and screenshots (only with the app in front). Verify: the comparison, kewang's word and the evidence recorded in the findings section
+- [x] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop once it runs a release that lists `conversation.setModel`: `adb install -r` the debug build; kewang switches effort and model for real in a working session; I compare the usage line with the desktop's status bar, check the desktop's terminal shows no open confirmation, and collect the log's switch and hold lines and screenshots (only with the app in front). Verify: the comparison, kewang's word and the evidence recorded in the findings section
