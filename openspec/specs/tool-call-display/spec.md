@@ -140,7 +140,8 @@ and SHALL NOT also be shown as a call inside one. A background task's notice SHA
 what finished, not as a message. The note the agent CLI adds to the conversation after a picture it read, telling the model the picture's original
 and shown sizes (`[Image: original 1080x2400, displayed at 900x2000. Multiply coordinates by 1.20 to map to original
 image.]`), SHALL NOT be shown, and SHALL NOT end a run of tool calls. Any other injected message SHALL be marked as
-injected and collapsed, as before.
+injected and collapsed, as before, except the agent CLI's fixed caveat before a built-in command, which SHALL NOT be
+shown (`conversation-view`).
 Against a desktop that sends no input fields, the agent's SendMessage and SendUserFile calls SHALL be shown as tool
 calls, as before.
 

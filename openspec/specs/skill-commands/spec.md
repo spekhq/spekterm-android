@@ -122,7 +122,8 @@ reply is sent to a desktop that shows a command in the conversation as the line 
 for the watch before the reply was sent (spekterm 0.2.15 or later) — and it is then marked as not in the conversation,
 after the waits `conversation-reply` sets, the mark SHALL also say that a command the agent's CLI does not know, a skill only
 the agent may use, or a command that opened something on the desktop, never appears in the conversation as sent; it SHALL still point to the desktop, and
-its other marks, its timing and how it is confirmed SHALL be unchanged. A slash-command reply sent to an older desktop
+its other marks, its timing and how it is confirmed SHALL be unchanged, except that a reply that is `/model` or
+`/effort` with one argument, on one line and without attachments, is also confirmed by the agent's reports (`conversation-reply`, `model-effort-switch`). A slash-command reply sent to an older desktop
 SHALL keep the marks of any reply. While the reply field holds a slash command whose line, as the desktop will write
 it with its attachments named, is longer than the agent's CLI runs as a command (800 characters, measured with its
 version 2.1.304), the composer SHALL say that it will arrive as a plain message and not run as a command, and SHALL

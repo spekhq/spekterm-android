@@ -19,7 +19,9 @@ saying that spekterm cannot tell whether the agent can take a message now and th
 desktop. The app SHALL NOT try to send while the wait state is unknown. Text that is empty once the desktop's
 cleaning would remove control characters SHALL NOT be sendable, unless the reply carries at least one
 attachment that is ready (`reply-attachments`). While an attachment of the reply is still being prepared or
-uploaded, or has failed, sending SHALL NOT be possible and the screen SHALL say so. Until the desktop has
+uploaded, or has failed, sending SHALL NOT be possible and the screen SHALL say so. While a model switch holds
+(`model-effort-switch`), sending SHALL NOT be possible and the screen SHALL say why, even with the field empty. A
+reply that is `/model` or `/effort` with no argument SHALL NOT be sendable, and the screen SHALL say to add one. Until the desktop has
 reported a wait state for the conversation, it SHALL be treated as unknown.
 
 #### Scenario: Replying while the agent waits
@@ -53,6 +55,11 @@ reported a wait state for the conversation, it SHALL be treated as unknown.
 
 - **WHEN** the desktop lists a filled-in first prompt from the inbox on the session on screen
 - **THEN** sending free text is not possible, and the screen says the prompt waits
+
+#### Scenario: A model switch holds
+
+- **WHEN** a model switch from the sheet was written by the desktop and the reported model has not changed yet
+- **THEN** sending is not possible, and the screen says the model is being switched
 
 ### Requirement: While the agent asks for a choice, show what it asks and refuse free text
 
@@ -113,8 +120,9 @@ phone is unpaired; its attachments are kept only while no other session's conver
 
 A sent reply SHALL appear at once at the end of the conversation, marked as not yet confirmed, and SHALL stay so
 until a user message matching it — compared ignoring leading and trailing white space — appears in the
-conversation that was not there when the reply was sent; then the mark SHALL go and only the conversation's own
-message SHALL remain, wherever in the conversation that message appears (a reply the agent takes in while it
+conversation that was not there when the reply was sent — or, for a reply that is `/model` or `/effort` with one
+argument on one line and without attachments, until the agent's reports confirm it (`model-effort-switch`), since one run while the agent works never
+appears; then the mark SHALL go and only the conversation's own message, if any, SHALL remain, wherever in the conversation that message appears (a reply the agent takes in while it
 works appears where it took it in). A reply matches the text the desktop answered that it wrote, which includes
 the sentence naming its attachments. Until such an answer exists — while it is being sent, when the connection
 ended before the answer, or with a desktop whose answer carries no text — a reply without attachments matches
@@ -220,6 +228,11 @@ The app SHALL tell the user, and not show the reply as pending:
 - **WHEN** the connection ends after the user sent a reply and before the desktop answered
 - **THEN** the screen says it is unknown whether the reply was sent, and if it later appears in the
   conversation the mark clears
+
+#### Scenario: A typed effort change while the agent works
+
+- **WHEN** the user sends "/effort high" while the agent works, and the desktop then reports effort "high"
+- **THEN** the reply's mark goes, although the conversation never shows "/effort high"
 
 ### Requirement: Say when an inbox item's first prompt waits unsent
 

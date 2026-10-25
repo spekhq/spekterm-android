@@ -19,7 +19,8 @@ latest call was; expanding it SHALL show each call. A reply of the user's shown 
 session, a subagent's report, and a message or files the agent sent (`tool-call-display`) SHALL end the run too, so
 that none is ever hidden inside one. Thinking and tool results SHALL be collapsed until the user
 expands them. Messages the agent itself injected rather than the user typing them SHALL be marked as such, except the agent CLI's
-note about a picture, which is not shown (`tool-call-display`); those exchanged with
+note about a picture, which is not shown (`tool-call-display`), and its fixed caveat before a built-in command,
+which SHALL NOT be shown (requirement "Show a built-in command's output as the command's output"); those exchanged with
 other sessions, subagents and the user SHALL be shown as messages from their sender (`tool-call-display`). New
 entries SHALL appear as the desktop delivers them, without the user refreshing; a new tool call that extends a
 summarized run SHALL update the summary without collapsing it if the user expanded it. When the user has scrolled
@@ -76,6 +77,11 @@ up, new entries SHALL NOT move the view, and the screen SHALL offer to jump to t
 - **WHEN** the agent ran a command, read a screenshot (followed by the CLI's note about its sizes), and ran another
   command
 - **THEN** the screen shows one item saying "3 tool calls", and no injected message
+
+#### Scenario: A command's caveat
+
+- **WHEN** the user ran "/effort low" and the conversation holds the CLI's caveat entry before it
+- **THEN** the screen shows "/effort low" and its output, and nothing for the caveat
 
 ### Requirement: Messages appear whole, and working is shown from the wait state
 
@@ -318,3 +324,41 @@ SHALL show no time and SHALL start no day.
 
 - **WHEN** the user sends a reply and it has not appeared in the conversation
 - **THEN** its bubble shows its sending state and no time, and no heading comes before it
+
+### Requirement: Show a built-in command's output as the command's output
+
+A user entry not marked as injected whose whole text, without white space at either end, is one
+`<local-command-stdout>…</local-command-stdout>` or `<local-command-stderr>…</local-command-stderr>` with no other
+marker inside SHALL be shown as the output of the agent CLI's command: the text between the markers without terminal
+escape sequences, as plain text, under a label saying it is command output, not as a message the user typed, with
+only its first three lines shown until the user expands it. It SHALL end a run of tool calls as the user's message it
+replaces would, keep the place of a reply sent after it, and show no time of its own while counting for its day as
+a tool call does. An entry marked as injected
+whose whole text is one `<local-command-caveat>…</local-command-caveat>` SHALL NOT be shown; it SHALL still end a run
+of tool calls as an injected message does, and a reply sent after it SHALL stay where it was sent. Any other entry
+holding these markers SHALL be shown as it is today.
+
+#### Scenario: An effort change
+
+- **WHEN** the conversation holds, in order, an injected entry "<local-command-caveat>The command below was run
+  directly in Claude Code…</local-command-caveat>", the user entry "/effort low", and the entry
+  "<local-command-stdout>Set effort level to low (saved as your default for new sessions): Quick…
+  </local-command-stdout>"
+- **THEN** the screen shows "/effort low" as the user's message, followed by "Set effort level to low (saved as your
+  default for new sessions): Quick…" as command output, and no caveat
+
+#### Scenario: Output with terminal styling
+
+- **WHEN** the output entry of "/compact" reads "<local-command-stdout>\u001b[2mCompacted (ctrl+o to see full
+  summary)\u001b[22m</local-command-stdout>"
+- **THEN** the screen shows "Compacted (ctrl+o to see full summary)" as command output, with no escape codes
+
+#### Scenario: A caveat between two tool calls
+
+- **WHEN** the CLI's caveat entry arrived between two of the agent's tool calls
+- **THEN** the screen shows the two calls as it did before this change: in two items, not one run
+
+#### Scenario: Markers among other text
+
+- **WHEN** a user entry reads "see <local-command-stdout>x</local-command-stdout> above"
+- **THEN** it is shown as the user's message, as recorded
