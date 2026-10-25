@@ -7,10 +7,13 @@ them without the user expanding anything: under a lone call's line, or a lone re
 one row under the run's line of as many of its pictures as fit, at most three, the latest calls' first, with how many
 more there are, which expands the run when tapped; for an expanded run, under the line of the call that brought them
 back. This SHALL hold for every tool, not only Read. A picture SHALL be read from the desktop by the call and its
-position, never by a path, and only when shown or when the run holding it is expanded. Pictures up to 2 MB SHALL be read by themselves; a larger one SHALL show
-its size and be read on a tap; one that could not be read SHALL say why, in words about a picture, not a sent file.
+position, never by a path, and only when shown, when next to the picture open full screen, or when the run holding it
+is expanded. Pictures up to 2 MB SHALL be read by themselves; a larger one SHALL show
+its size and be read on a tap, or once it is the picture shown full screen; one that could not be read SHALL say why, in words about a picture, not a sent file.
 Tapping a picture SHALL open it full screen, zoomable, titled by its file name for a Read and otherwise by its tool
-call and position. A picture SHALL be decoded
+call and position. Full screen, swiping left or right SHALL show the conversation's other tool-result pictures in
+conversation order, with the current one's place among them, except while the picture is zoomed in, when a drag SHALL
+move the picture. A picture SHALL be decoded
 only as PNG, JPEG, GIF or WebP, and SHALL NOT be handed to another app. Pictures SHALL be kept in memory only, for as long as the conversation screen is open; of those not on screen, at most a
 bounded number SHALL be kept, and one dropped SHALL be read again when shown again. A failed call SHALL show no pictures. Each
 picture SHALL be announced to a screen reader as a picture, by the same title.
@@ -35,6 +38,22 @@ spekterm; everything shown before SHALL still be shown.
 - **WHEN** a collapsed run of six calls holds five Reads of screenshots, on a phone 412 dp wide
 - **THEN** under the run's line three thumbnails of the latest ones are shown with "+2", only those three are read, and
   tapping "+2" expands the run, showing each picture under its own call
+
+#### Scenario: Swiping between pictures
+
+- **WHEN** the conversation shows three tool-result pictures and the second is opened full screen
+- **THEN** it shows the second with "2 / 3", swiping left shows the third with "3 / 3", and swiping right from the
+  second shows the first
+
+#### Scenario: Only the pictures near the one open are read
+
+- **WHEN** the conversation shows five tool-result pictures, none read yet, and the first is opened full screen
+- **THEN** the first and second are read and the others are not, until a swipe brings one next to the picture shown
+
+#### Scenario: Swiping while zoomed in
+
+- **WHEN** an opened picture is zoomed in and the user drags sideways
+- **THEN** the picture moves and stays the one shown
 
 #### Scenario: A large picture
 

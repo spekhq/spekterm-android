@@ -25,7 +25,8 @@ side.
 - **Pictures in a tool result are shown without expanding**: under a lone call's line; in a collapsed run of calls as a
   short strip of thumbnails under the run's line; in an expanded run under the call that brought them back. Tapping one
   opens the full-screen viewer the sent files use. Read the same way as sent pictures: small ones by themselves, larger
-  ones on a tap, held in memory only.
+  ones on a tap, held in memory only. Full screen, swiping shows the conversation's other tool-result pictures
+  (added after kewang's first try on the Pixel).
 - **A text Read, expanded, shows the file's content** under a "Content" label with the line numbers in a muted gutter
   instead of glued to each line, and the CLI's notes to the model (a memory file's age, an artifact's source) set apart;
   anything that does not have that shape is shown as it came.
@@ -51,7 +52,7 @@ side.
   `FileLog.kt`, `desktop/ConversationItems.kt` (the CLI's note dropped), `desktop/SentFiles.kt` / `SentFileRead` (the chunked read over either operation), `desktop/Desktop.kt` and
   `net/Frames.kt` (the new operation), `net/Sessions.kt` (`images` on a result), `ui/ToolViews.kt`,
   `ui/MessageViews.kt` (thumbnails shared), `ui/ConversationScreen.kt` (run strip), `ui/SentFileViewer.kt` (opened
-  from a result), strings in `values` and `values-zh-rTW`, `README.md`.
+  from a result, swiping between pictures), strings in `values` and `values-zh-rTW`, `README.md`.
 - Protocol: needs spekterm with `remote-result-images`; the final names and fields are its `docs/remote-protocol.md`'s. Against an older desktop everything shown today stays.
 - Another session (`model-effort-switch`, handed off 2026-10-25) edits `ConversationScreen.kt`, `Desktop.kt` and the
   strings in the same checkout: commits stage explicit paths only.

@@ -198,9 +198,54 @@ that sends no `images` for a result simply has no picture there. Nothing else ch
 - `ShownRow` (the composable that draws one shown item: a call, a run, a lone result) becomes `internal`, so an
   instrumented test can draw a lone call and a run with a fake `ToolContext.read`.
 - `ConversationScreen.kt` is shared with the `model-effort-switch` session. This change touches there only `ShownRow`,
-  `CallLine`, `RunItem`, `ResultLine`, the cache created beside `thumbs` (~line 179), the `ToolContext` built at
+  `CallLine`, `RunItem`, `ResultLine`, `viewing` and the dialog it opens (~lines 183, 316, D8), the cache created
+  beside `thumbs` (~line 179), the `ToolContext` built at
   ~line 263 (`imagesReadable`, the picture cache) and the follow-after-decode hook beside `toNewest` (~line 406); that
   session is told so.
+
+### D8. Swiping between pictures in the full-screen view
+
+Added after kewang's first try on the Pixel (2026-10-25): with a picture open full screen, swiping left or right shows
+the conversation's other tool-result pictures.
+
+- **Which pictures**: the same refs and titles the conversation uses for tool-result pictures (D2, D3), in conversation
+  order — each lone call's, each run's calls' (all of a collapsed run's, not only the strip's three), each lone
+  result's. Opened from a collapsed run's strip, whose tiles are latest first, swiping left goes on to the next call
+  in the conversation, the opposite of the strip's order; kept, since the order is the conversation's.
+  - A pure `ConversationItems.pictureSources(items, imagesReadable)` walks the shown items in order and gives a
+    `Source.Call(tool, result)` or `Source.Lone(result)` for each whose result has pictures by
+    `ToolView.pictures(result, imagesReadable)` (so a failed call, a call without a result, a `Message` and an older
+    desktop give none). A picture already given by `(toolUseId, index)` is not given again (a second result with the
+    same id becomes a `LoneResult` with the same refs).
+  - Pictures the agent sent you (`SendUserFile`) are not in it: they are files, with their own viewer and hand-off;
+    opening one stays as it is.
+- **Where the list is built**: in `ConversationScreen`, when `viewing` becomes a `RESULT` ref, the sources are taken
+  once — `remember(viewing) { pictureSources(group(c.entries, ConversationReducer.keys(c.entries), emptySet()), imagesReadable) }`
+  (anchors do not change the order of calls and results) — and mapped in composition with D3's `picturesOf`
+  functions to `ShownPicture`s (the ref with its title and the `ResultImage` with its size). The opened picture is
+  found by `(toolUseId, index)`, not by `==`
+  (the ref's title takes part in equality); not found, the list is that one picture. Pictures that arrive while the
+  view is open join on the next open.
+- **The view**: `SentFileDialog(sessionId, ref, pictures: List<ShownPicture> = emptyList(), onClose)`. For a `RESULT`
+  ref with more than one picture in `pictures` it is a `HorizontalPager` over them, opened at the tapped one, keyed by `(toolUseId, index)`. Each
+  page reads and decodes its own picture as one does today (memory sink, screen-sized decode, the same failure words).
+  `beyondViewportPageCount = 1`, so the neighbours are ready.
+  - Reading follows D3's rule, by distance, not by being composed (the pager may compose a prefetched page further
+    away): a page whose picture is up to `THUMB_LIMIT` (2 MB, by its `ResultImage.size`) is read once
+    `abs(page − currentPage) <= 1` (`LaunchedEffect` keyed on that), so the one shown and its neighbours; a larger one
+    shows its size (as in the conversation) and is read only once `page == settledPage` — reaching it full screen is
+    the tap. A composed page further away shows a spinner and reads nothing. The spec's sentence says so.
+  - Held: at rest the current page and one either side, so at most 3 decoded pictures; during a swipe the pager may
+    also compose the pages in view and one prefetched ahead, so up to 5. Each is decoded to the screen's longer side,
+    ≈ 10 MB for a 1080 × 2400 picture. A page further away drops its picture and reads it again if shown again.
+- **The title**: the current page's (`pagerState.currentPage`) title, and its place "3 / 8" (`picture_position`),
+  which a screen reader hears as "Picture 3 of 8" (`picture_position_description`).
+- **Gestures**: one `(scale, offset)` held by the dialog applies to `currentPage`; when `settledPage` changes it goes
+  back to 1×. The picture's handler is its own `awaitEachGesture` loop, not `detectTransformGestures` (which consumes
+  every move past the slop): it handles and consumes a change only while two or more pointers are pressed or
+  `scale > 1`, so at 1× a one-finger drag reaches the pager and changes the picture. Zoomed in, the pager's
+  `userScrollEnabled` is false, so a drag pans.
+- **One picture, or a sent file**: no pager and no position; a sideways swipe changes nothing.
 
 ## Risks / Trade-offs
 
@@ -215,6 +260,10 @@ that sends no `images` for a result simply has no picture there. Nothing else ch
 - [The CLI rewords its picture note] → it shows as an injected message again, as today; a test pins the current text.
 - [An expanded run of very many pictures holds them all while shown] → pinned on purpose (evicting what is on screen
   would leave spinners or thrash); released when the run is collapsed or scrolled away.
+- [Swiping through many pictures on a mobile link] → only the pictures in view, one either side and one prefetched
+  are read, each ≤ ≈ 512 KB after the CLI's scaling; a picture over 2 MB only once it is the current one (D8).
+- [Several screen-sized pictures in memory while swiping] → at most 5 composed pages, ≈ 10 MB each, dropped as the
+  pager moves on (D8).
 - [Two sessions edit the same checkout] → `model-effort-switch` was told which parts of the shared files this change
   owns; commits stage explicit paths.
 
