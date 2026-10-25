@@ -241,6 +241,13 @@ internal fun decode(bytes: ByteArray, longest: Int): ImageBitmap? {
     return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
 }
 
+/** The picture's own width in pixels, read from its header; 0 when the bytes are not an image. */
+internal fun pixelWidth(bytes: ByteArray): Int {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    return bounds.outWidth.coerceAtLeast(0)
+}
+
 /** The intent that hands [file] to another app, read-only through the app's provider (design D9). */
 internal fun handOffIntent(context: Context, file: File, mediaType: String): Intent {
     val type = mediaType.takeUnless { it == "application/octet-stream" }

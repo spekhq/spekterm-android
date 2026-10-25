@@ -53,7 +53,8 @@ import kotlinx.coroutines.withContext
 sealed interface Thumb {
     data object Loading : Thumb
 
-    data class Picture(val image: ImageBitmap) : Thumb
+    /** [width]: the picture's own width in pixels, before it was decoded smaller. */
+    data class Picture(val image: ImageBitmap, val width: Int = image.width) : Thumb
 
     /** Over [THUMB_LIMIT]: read only on a tap. */
     data class Large(val size: Long) : Thumb

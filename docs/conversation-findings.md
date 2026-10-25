@@ -988,4 +988,28 @@ A throwaway instrumented test drew a lone Read of a 1080 × 2400 screenshot, a c
 - the lone portrait screenshot, uncapped, stood about 530 dp tall — most of the screen. Capped at 360 dp tall (it
   narrows to about 160 dp); design D3 records it.
 
-Task 2.3 itself, against the dev desktop, waits for spekterm's side.
+### Against the dev desktop (task 2.3)
+
+2026-10-25 09:44–10:00 (+08:00), with kewang's OK: the dev desktop built from a snapshot of spekterm's working tree
+(`613ffe7` plus the uncommitted `remote-result-images`, and `remote-model-switch` part way), profile `spekterm-dev`,
+port 47616; the emulator (`Pixel_9` AVD) paired with it by its link (`startPairing` over CDP, opened in the app). An
+agent session in `go` read test files copied to `~/go/rc-e2e`, prompted from the phone. Driven over adb, the app in
+front each time. Screenshots kept outside the repository.
+
+| What | Outcome |
+|---|---|
+| Nine Reads in one turn (a 1080 × 2400 screenshot, an 800 × 400 JPEG, `a.kt`, five 300 × 300 PNGs, a 6.3 MB 2000 × 1600 noise PNG): the collapsed run showed three tiles, latest first, and "+5", without a tap; the CLI had scaled the 6.3 MB picture, so it read on its own | pass |
+| "+5": the run expanded, each call with its picture; the portrait screenshot 360 dp tall, about 160 dp wide; no "[Image: original …]" line between the calls | pass |
+| The 300 × 300 pictures were blown up to 240 dp wide | fixed: a picture is never wider than its own pixels (design D3); `ResultPicturesTest` checks a 120 px picture stays 120 px wide (red without the fix: 630 px) and a tall one stops at 360 dp |
+| A tapped picture: full screen under its file name | pass |
+| `a.kt` opened: "Content", numbers 1–4 in the gutter, the lines beside them | pass |
+| `a.kt` with offset 2 and limit 1: the line "a.kt:2–2", its content numbered from 2 | pass |
+| A Read of a missing file: failed, its "Error" part with the CLI's text, no picture | pass |
+| A memory file of another project: its 17 lines in two columns, long lines scrolled sideways (the CLI added no age note for another project's memory, so the note above is not seen here; `ReadLinesTest` carries it) | pass |
+| 中文（台灣）, dark: 「9 個工具呼叫」, the strip and "+5" on the dark surface, 「3 個工具呼叫 · 2 個失敗」 | pass |
+| A message cut short (181 of 238 characters) reached the desktop once | adb's text injection, not the app: the same text typed again showed whole in the field and reached the transcript whole (238) |
+| A claude-in-chrome screenshot | not run: it would drive kewang's own Chrome; `ToolViewTest` carries an MCP result's picture |
+| Pinch zoom in the viewer | not run: adb cannot pinch; the viewer is the sent-file one, unchanged |
+| A picture over 2 MB and the no-image answer | not produced by the CLI (it scales pictures); carried by `ResultPicturesTest` and `SentFileViewerTest` |
+
+Also: `./gradlew test assembleDebug` after the fix, 487 JVM tests pass; `ResultPicturesTest` 8 of 8 on the emulator.

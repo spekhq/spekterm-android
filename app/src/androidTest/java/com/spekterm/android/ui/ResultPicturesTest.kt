@@ -36,7 +36,8 @@ import org.junit.runner.RunWith
 class ResultPicturesTest {
     @get:Rule val compose = createComposeRule()
 
-    private val png = ByteArrayOutputStream().also { Bitmap.createBitmap(1080, 2400, Bitmap.Config.RGB_565).compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+    private fun png(width: Int, height: Int) = ByteArrayOutputStream().also { Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565).compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+    private var png = png(1080, 2400)
     private val reads = mutableListOf<String>()
 
     private fun context(imagesReadable: Boolean = true) = ToolContext(null, true, "s1", imagesReadable = imagesReadable, pictures = PictureCache(entries = mutableStateMapOf()), read = { _, ref, _, sink, _ ->
@@ -71,6 +72,23 @@ class ResultPicturesTest {
         compose.onNodeWithContentDescription("Picture: rn.png").assertExists()
         compose.waitUntil(5_000) { drawn > 0 }
         assertEquals(listOf("t1:0"), reads)
+    }
+
+    @Test
+    fun aTallPictureStopsAt360dp() {
+        show(read("t1", "tall.png"))
+        compose.waitUntil(5_000) { reads.isNotEmpty() }
+        compose.waitForIdle()
+        with(compose.density) { assertEquals(360.dp.toPx(), pictureNodes().first().boundsInRoot.height, 2f) }
+    }
+
+    @Test
+    fun aSmallPictureKeepsItsOwnSize() {
+        png = png(120, 120)
+        show(read("t1", "icon.png"))
+        compose.waitUntil(5_000) { reads.isNotEmpty() }
+        compose.waitForIdle()
+        assertEquals(120f, pictureNodes().first().boundsInRoot.width, 2f)
     }
 
     @Test

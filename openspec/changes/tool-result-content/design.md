@@ -101,7 +101,8 @@ can replace it, and `ToolContext.read` picks `readSentFile` or `readResultImage`
   so MCP tools have them. A `LoneResult` shows its pictures under its line too.
 - **A lone call**: the pictures under its line, collapsed or expanded, before the parts; at most 240 dp wide and 360 dp
   tall, by aspect (found during apply: uncapped, a portrait screenshot stood ~530 dp tall on the
-  emulator; capped, it narrows to about 160 dp), at most 2 per row; until decoded, a 4:3 placeholder.
+  emulator; capped, it narrows to about 160 dp), and never wider than its own pixels (found in 2.3: a 300 px picture
+  was blown up to 240 dp), at most 2 per row; until decoded, a 4:3 placeholder.
 - **A run, collapsed**: under the latest call's line, one row of fixed 72 × 72 dp tiles, the picture cropped to fill
   (`ContentScale.Crop`), latest call first, 6 dp apart. How many is known before any picture is read: with `W` the row's
   width (`BoxWithConstraints`) and `P` the run's pictures, show `n = min(3, P, floor((W + 6) / 78))` tiles when all `P`

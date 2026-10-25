@@ -30,6 +30,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -81,7 +82,10 @@ internal fun picturesOf(result: Entry.Result, imagesReadable: Boolean): List<Sho
         ShownPicture(SentFileRef(result.id, i, null, SentFileRef.Source.RESULT, stringResource(R.string.picture_of_result, i + 1)), image)
     }
 
-/** A lone call's pictures, or an expanded run's call's: at most 240 dp wide and 360 dp tall, two to a row (design D3). */
+/**
+ * A lone call's pictures, or an expanded run's call's: at most 240 dp wide and 360 dp tall, a smaller picture at its own
+ * size, two to a row (design D3).
+ */
 @Composable
 internal fun ResultPictures(pictures: List<ShownPicture>, modifier: Modifier = Modifier) {
     if (pictures.isEmpty()) return
@@ -183,8 +187,9 @@ private fun ResultPicture(p: ShownPicture, size: ThumbKey.Size, modifier: Modifi
         is Thumb.Picture -> Image(
             thumb.image,
             null,
-            // A portrait screenshot narrows to stay within the height, so it never fills the screen.
-            modifier.then(if (strip) Modifier else Modifier.heightIn(max = 360.dp).aspectRatio(thumb.image.width.toFloat() / thumb.image.height.coerceAtLeast(1), matchHeightConstraintsFirst = true)).then(node),
+            // A portrait screenshot narrows to stay within the height, so it never fills the screen; a small picture
+            // keeps its own size rather than being blown up.
+            modifier.then(if (strip) Modifier else Modifier.widthIn(max = with(LocalDensity.current) { thumb.width.toDp() }).heightIn(max = 360.dp).aspectRatio(thumb.image.width.toFloat() / thumb.image.height.coerceAtLeast(1), matchHeightConstraintsFirst = true)).then(node),
             contentScale = ContentScale.Crop,
         )
         is Thumb.Large, Thumb.Failed -> Box(
@@ -210,7 +215,7 @@ private suspend fun loadPicture(ctx: ToolContext, p: ShownPicture, pixels: Int):
     val sink = MemorySink()
     return when (val outcome = ctx.read(ctx.sessionId, p.ref, THUMB_LIMIT, sink) { _, _ -> }) {
         is SentFileRead.Outcome.Done -> if (SentFiles.decodable(outcome.mediaType)) {
-            withContext(Dispatchers.Default) { decode(sink.bytes(), pixels) }?.let { Thumb.Picture(it) } ?: Thumb.Failed
+            withContext(Dispatchers.Default) { sink.bytes().let { b -> decode(b, pixels)?.let { Thumb.Picture(it, pixelWidth(b)) } } } ?: Thumb.Failed
         } else {
             Thumb.Failed
         }
