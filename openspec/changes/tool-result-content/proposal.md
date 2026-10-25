@@ -26,7 +26,8 @@ side.
   short strip of thumbnails under the run's line; in an expanded run under the call that brought them back. Tapping one
   opens the full-screen viewer the sent files use. Read the same way as sent pictures: small ones by themselves, larger
   ones on a tap, held in memory only. Full screen, swiping shows the conversation's other tool-result pictures
-  (added after kewang's first try on the Pixel).
+  and the files the agent sent, a file the app does not show by its name with "Open in another app" (added after
+  kewang's first try on the Pixel).
 - **A text Read, expanded, shows the file's content** under a "Content" label with the line numbers in a muted gutter
   instead of glued to each line, and the CLI's notes to the model (a memory file's age, an artifact's source) set apart;
   anything that does not have that shape is shown as it came.
@@ -45,6 +46,8 @@ side.
 - `tool-call-display`: a tool result's pictures are shown and opened; a Read's expanded view shows the content with line
   numbers apart; the CLI's picture note is not shown as an injected message.
 - `conversation-view`: the CLI's picture note may sit inside a run of calls and is not marked as injected.
+- `sent-files`: full screen, a sent file is among the items swiped through; one next to the item shown may be read, and
+  one the app does not show waits for "Open in another app" when reached by swiping.
 
 ## Impact
 
