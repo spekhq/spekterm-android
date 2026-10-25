@@ -112,10 +112,13 @@ and runs on Android 10 (API 29) and later.
 ```sh
 export ANDROID_HOME=~/Android/Sdk        # or put sdk.dir=… in local.properties
 ./gradlew assembleDebug                  # app/build/outputs/apk/debug/app-debug.apk
-./gradlew installDebug                   # onto a phone connected with USB debugging
+./gradlew installDebug                   # onto a phone connected with USB debugging, as "spekterm dev"
 ./gradlew test                           # JVM unit tests
 ./gradlew connectedDebugAndroidTest      # instrumented tests, on the connected phone
 ```
+
+A debug build is `com.spekterm.android.debug`, named "spekterm dev", so it installs beside the Google Play
+build; each pairs with a desktop on its own.
 
 The build never downloads SDK components on its own (`android.builder.sdkDownload=false`); install a missing
 one deliberately, for example once with `./gradlew assembleDebug -Pandroid.builder.sdkDownload=true`.

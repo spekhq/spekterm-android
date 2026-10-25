@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Summarizes an exported connection log (the app's "Export log", or `adb shell run-as com.spekterm.android cat
+// Summarizes an exported connection log (the app's "Export log", or `adb shell run-as com.spekterm.android.debug cat
 // files/log/connection.log`) for the overnight measurement (design D9, task 6.4).
 //
 //   node tools/analyze-log.mjs <log file> [--from <ISO time>] [--to <ISO time>] [--offset-ms <phone minus desktop>]

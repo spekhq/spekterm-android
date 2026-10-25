@@ -41,6 +41,10 @@ android {
     }
 
     buildTypes {
+        // Its own package, so it installs beside the Google Play build on the same phone.
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             // Shrunk and obfuscated; the libraries' own rules suffice (`play-release` D3).
             isMinifyEnabled = true
@@ -53,6 +57,7 @@ android {
         // time, so it stutters until the JIT has warmed up.
         create("profile") {
             initWith(getByName("release"))
+            applicationIdSuffix = ".debug"
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
         }

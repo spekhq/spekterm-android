@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Told apart from the Google Play build in the launcher and the system's lists. -->
+    <string name="app_name" translatable="false">spekterm dev</string>
+</resources>

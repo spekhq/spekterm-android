@@ -26,7 +26,7 @@ Summarizes an exported connection log for the overnight measurement: time connec
 its cause, reconnection times, attempts, every attention event with its delivery delay, battery, idle.
 
 ```sh
-adb shell run-as com.spekterm.android cat files/log/connection.log > night.log   # debug build
+adb shell run-as com.spekterm.android.debug cat files/log/connection.log > night.log   # debug build
 node tools/analyze-log.mjs night.log --from 2026-10-14T15:00:00Z --offset-ms 1230
 ```
 
