@@ -56,7 +56,9 @@ access turned on.
 - **Conversations**: an agent session's messages, thinking, tool calls and results — a tool call shown with its
   result, and a run of calls summarized in one line that opens to each; a dormant session can be woken. Each call
   says what it did: a command and its output told apart, a message to another session with that session's name, an
-  edit's removed and added lines, the subagent and its prompt, the skill. A message from another session or a
+  edit's removed and added lines, the subagent and its prompt, the skill, a file read line by line with its numbers
+  set apart. Pictures a tool brought back — an image the agent read, a screenshot — show in the conversation, a run's
+  as a strip of tiles, and open full screen. A message from another session or a
   subagent's report says who sent it. A file the agent sends you opens on the phone — images, Markdown and text in
   the app, anything else handed to another app. Agent text is Markdown that loads nothing from the network. Your messages and the
   agent's text show when they were written, and the conversation is divided by day ("Today", "Yesterday", the date).
