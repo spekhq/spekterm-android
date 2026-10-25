@@ -186,7 +186,7 @@ as well). `conversation-view`'s run rule names the note among what may sit betwe
 
 The test is the operations list: `images.read` not offered (`imagesReadable` false, D3). Then a Read whose `file_path`
 is an image by extension (`SentFiles.kind`), whose result is not an error and has blank text, shows, expanded, the note
-"Seeing pictures on the phone needs spekterm X or later" (X from spekterm's release, filled in task 3.1). A new desktop
+"Seeing pictures on the phone needs spekterm 0.2.24 or later on the desktop" (0.2.24, the first release with `images.read`, filled in task 3.1). A new desktop
 that sends no `images` for a result simply has no picture there. Nothing else changes against an older desktop.
 
 ### D7. Test seams and the shared file

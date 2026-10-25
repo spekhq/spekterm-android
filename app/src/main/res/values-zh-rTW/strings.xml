@@ -154,7 +154,7 @@
     <string name="tool_note_not_sent_because">沒送出：%1$s</string>
     <string name="tool_note_idle_only">只要求對方閒下來時通知</string>
     <string name="tool_note_replace_all">取代所有出現的地方</string>
-    <string name="tool_note_pictures_need_desktop">要在手機上看圖，桌機的 spekterm 需要更新</string>
+    <string name="tool_note_pictures_need_desktop">要在手機上看圖，桌機的 spekterm 需要 0.2.24 以上</string>
     <plurals name="tool_note_delay">
         <item quantity="other">%d 分鐘後醒來</item>
     </plurals>

@@ -151,7 +151,7 @@
     <string name="tool_note_not_sent_because">Not sent: %1$s</string>
     <string name="tool_note_idle_only">Asked to be told when that session is idle</string>
     <string name="tool_note_replace_all">Replaces every occurrence</string>
-    <string name="tool_note_pictures_need_desktop">Seeing pictures on the phone needs a newer spekterm on the desktop</string>
+    <string name="tool_note_pictures_need_desktop">Seeing pictures on the phone needs spekterm 0.2.24 or later on the desktop</string>
     <plurals name="tool_note_delay">
         <item quantity="one">Wakes in %d minute</item>
         <item quantity="other">Wakes in %d minutes</item>

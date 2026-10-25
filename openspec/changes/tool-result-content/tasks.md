@@ -13,7 +13,7 @@
 
 ## 3. Docs and the build
 
-- [ ] 3.1 Check spekterm's shipped `docs/remote-protocol.md` against D1 and this change's names once it ships. `README.md`: "What it does" says pictures a tool brought back are shown in the conversation; the "These need spekterm …" paragraph names the release with `remote-result-images`, and D6's note names the same version. Verify: it reads so
+- [x] 3.1 Check spekterm's shipped `docs/remote-protocol.md` against D1 and this change's names once it ships. `README.md`: "What it does" says pictures a tool brought back are shown in the conversation; the "These need spekterm …" paragraph names the release with `remote-result-images`, and D6's note names the same version. Verify: it reads so
 - [x] 3.2 `./gradlew test assembleDebug` passes, and the instrumented suites pass on the emulator with `ANDROID_SERIAL=<emulator> ./gradlew connectedDebugAndroidTest` — never on the Pixel: `adb devices` lists only the emulator first. Verify: the commands' output, recorded in the findings section
 
 ## 4. On the phone
