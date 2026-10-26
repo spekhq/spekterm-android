@@ -306,6 +306,9 @@ object InboxView {
         is Linked.Waiting -> !linked.canSend && !replyAnyway
     }
 
+    /** Whether [lifted] — the item key the user chose to reply anyway for, from `Desktop.repliesLifted` — applies to [linked]. */
+    fun repliesLifted(linked: Linked?, lifted: String?): Boolean = linked is Linked.Waiting && lifted != null && linked.item.key == lifted
+
     /** The note for [session] (design D4, D7): for a running agent session only. */
     fun linked(session: Session?, items: List<InboxItem>, sessions: SessionsState, operations: Set<String>): Linked? {
         if (session == null || !session.running || !session.isAgent) return null

@@ -172,6 +172,16 @@ class InboxTest {
         assertFalse(InboxView.holdsReplies(null, replyAnyway = false))
     }
 
+    @Test
+    fun aLiftedHoldAppliesOnlyToTheItemItWasLiftedFor() {
+        val waiting = InboxView.Linked.Waiting(item("m"), canSend = false)
+        assertTrue(InboxView.repliesLifted(waiting, waiting.item.key))
+        assertFalse(InboxView.repliesLifted(waiting, InboxView.Linked.Waiting(item("other"), canSend = false).item.key))
+        assertFalse(InboxView.repliesLifted(waiting, null))
+        assertFalse(InboxView.repliesLifted(InboxView.Linked.Listed(Prefill("p1", "t", ItemRef("a", "m"), edited = true), item("m"), false), item("m").key))
+        assertFalse(InboxView.repliesLifted(null, "x"))
+    }
+
     // ---- 1.4 InboxFailure, InboxLog ----
 
     private fun error(code: String, message: String = "m", state: String? = null) =

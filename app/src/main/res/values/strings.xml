@@ -98,6 +98,9 @@
 
     <!-- Conversation (`conversation-view`, `conversation-reply`, `reply-attachments`) -->
     <string name="conversation_title_fallback">Session</string>
+    <string name="reply_bar_open">Open the conversation</string>
+    <string name="reply_bar_closed">Closed</string>
+    <string name="reply_bar_wake">Open to wake it</string>
     <string name="conversation_openspec_for">OpenSpec for %1$s</string>
     <string name="conversation_paused">The connection is paused. What is shown may be out of date.</string>
     <string name="conversation_out_of_date">%1$s What is shown may be out of date.</string>

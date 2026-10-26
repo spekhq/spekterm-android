@@ -135,8 +135,10 @@ class DesktopTest {
         Desktop.setDraft("s1", "half a reply")
         until { it.draft == "half a reply" }
         Desktop.focus("o2", "s2")
+        Desktop.unfocus("o1")
         assertEquals("", until { it.sessionId == "s2" }.draft)
         Desktop.focus("o3", "s1")
+        Desktop.unfocus("o2")
         assertEquals("half a reply", until { it.sessionId == "s1" }.draft)
     }
 
@@ -317,6 +319,57 @@ class DesktopTest {
         Desktop.unfocus("new")
         withTimeout(5_000) { while (desktop.count("conversation.unwatch") == 0) delay(20) }
         assertNull(Desktop.visibleSession)
+    }
+
+    @Test
+    fun twoScreensOnOneSessionKeepTheWatchWhicheverLeavesFirst() = runBlocking<Unit> {
+        val desktop = Scripted().apply { standard() }
+        connect(desktop)
+        Desktop.focus("o1", "s1")
+        Desktop.focus("o2", "s1")
+        until { it.watch == Watch.Watching }
+        Desktop.unfocus("o2")
+        delay(300)
+        assertEquals(0, desktop.count("conversation.unwatch"))
+        // A back gesture started and cancelled on o1's screen: o2 peeks, then stops.
+        Desktop.focus("o2", "s1")
+        Desktop.unfocus("o2")
+        delay(300)
+        assertEquals(0, desktop.count("conversation.unwatch"))
+        assertEquals("s1", Desktop.visibleSession)
+        Desktop.unfocus("o1")
+        withTimeout(5_000) { while (desktop.count("conversation.unwatch") == 0) delay(20) }
+        assertNull(Desktop.visibleSession)
+    }
+
+    @Test
+    fun aScreenThatStopsBeforeTheNextStartsHandsTheWatchOver() = runBlocking<Unit> {
+        val desktop = Scripted().apply { standard() }
+        connect(desktop)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        // As measured on the emulator: the leaving screen stops before the entering one starts.
+        Desktop.unfocus("o1")
+        delay(100)
+        Desktop.focus("o2", "s1")
+        delay(Desktop.focusLingerMs + 300)
+        assertEquals(0, desktop.count("conversation.unwatch"))
+        assertEquals(1, desktop.count("conversation.watch"))
+    }
+
+    @Test
+    fun anotherSessionIsHeldOnlyOnceTheFirstScreenLeaves() = runBlocking<Unit> {
+        val desktop = Scripted().apply { standard() }
+        connect(desktop)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        Desktop.focus("o2", "s2")
+        delay(300)
+        assertEquals("s1", Desktop.conversation.value?.sessionId)
+        assertEquals("s1", Desktop.visibleSession)
+        Desktop.unfocus("o1")
+        until { it.sessionId == "s2" }
+        assertEquals("s2", Desktop.visibleSession)
     }
 
     @Test
@@ -661,7 +714,27 @@ class DesktopTest {
         attach(file)
         until { it.attachments.isNotEmpty() }
         Desktop.focus("o2", "s2")
+        Desktop.unfocus("o1")
         withTimeout(5_000) { while (file.exists()) delay(20) }
+    }
+
+    @Test
+    fun aCancelledPeekAtAnotherSessionKeepsTheAttachmentAndTheWatch() = runBlocking<Unit> {
+        val desktop = Scripted().apply { answering("attachments.put") { _, _ -> } }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        attach(fileOf(10))
+        until { it.attachments.isNotEmpty() }
+        // A back gesture on s1's screen starts s2's screen below it, then is cancelled.
+        Desktop.focus("o2", "s2")
+        Desktop.unfocus("o2")
+        delay(300)
+        val c = Desktop.conversation.value!!
+        assertEquals("s1", c.sessionId)
+        assertEquals(1, c.attachments.size)
+        assertEquals(Watch.Watching, c.watch)
+        assertEquals(0, desktop.count("conversation.unwatch"))
     }
 
     @Test
@@ -1138,8 +1211,10 @@ class DesktopTest {
         Desktop.focus("o1", "s1")
         assertTrue(watched().switch!!.holds)
         Desktop.focus("o2", "s2")
+        Desktop.unfocus("o1")
         until { it.sessionId == "s2" }
         Desktop.focus("o1", "s1")
+        Desktop.unfocus("o2")
         assertTrue(watched().switch!!.holds)
         desktop.socket!!.send(status("Sonnet 5.5", "high"))
         until { it.switch == null }
@@ -1249,10 +1324,12 @@ class DesktopTest {
         assertTrue(Desktop.switch("s1", Switch.Effort("low")))
         withTimeout(5_000) { while (release == null) delay(20) }
         Desktop.focus("o2", "s2")
+        Desktop.unfocus("o1")
         until { it.sessionId == "s2" }
         release!!()
         delay(300)
         Desktop.focus("o1", "s1")
+        Desktop.unfocus("o2")
         until { it.sessionId == "s1" && it.switch?.state == PendingSwitch.State.Submitted }
     }
 

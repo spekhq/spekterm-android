@@ -2,6 +2,7 @@
 
 package com.spekterm.android.ui
 
+import androidx.annotation.StringRes
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -139,6 +140,7 @@ import com.spekterm.android.desktop.Watch
 import com.spekterm.android.net.Entry
 import com.spekterm.android.net.Operations
 import com.spekterm.android.net.Origin
+import com.spekterm.android.net.Session
 import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.WaitState
 import com.spekterm.android.service.Notifications
@@ -190,11 +192,8 @@ fun ConversationScreen(
     var panelShows by remember { mutableIntStateOf(0) }
     // Held here, not in the item, so it survives the work ending and coming back (`background-tasks` D4).
     var backgroundOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
-    // A first prompt from the inbox waiting in this session (`inbox` design D7).
-    val inbox by Desktop.inbox.collectAsStateWithLifecycle()
-    val linked = InboxView.linked(session, inbox.items, sessions, operations)
-    // An older desktop's hold on replies, lifted by the user until the note changes (design D7).
-    var replyAnyway by remember(sessionId, linked?.javaClass, (linked as? InboxView.Linked.Waiting)?.item?.key) { mutableStateOf(false) }
+    // Whether a prompt is answered above the field, and whether a first prompt from the inbox holds replies.
+    val gate = rememberReplyGate(sessionId, c, session, announcements.paused)
     val toolContext = ToolContext(
         sessions.list, Operations.FILES_READ in operations, sessionId, session?.label, thumbs,
         imagesReadable = Operations.IMAGES_READ in operations, pictures = pictures,
@@ -275,39 +274,29 @@ fun ConversationScreen(
                         CompositionLocalProvider(LocalToolContext provides toolContext) {
                             Entries(c, Modifier.weight(1f), panelShows)
                         }
-                        c?.let { answerNote(it) }?.let { Notice(it.text(), answerTone(c), stringResource(R.string.common_dismiss), { Desktop.dismissAnswer(sessionId) }) }
-                        val offer = c?.prompt?.let { Answers.offer(it, operations, connected, announcements.paused, c.watch, c.answer, c.switch) }
-                        if (offer != null) PromptCard(sessionId, c.prompt!!, offer)
-                        // A held prompt is answered above once the switch shows or the user continues (`session-model-effort` D6).
-                        val answerAbove = offer is Offer.Answerable || offer is Offer.Held
                         if (sheetOpen && c != null && ModelEffort.available(c)) {
                             ModelEffortSheet(
-                                c, operations, connected, announcements.paused, answerAbove, InboxView.holdsReplies(linked, replyAnyway),
+                                c, operations, connected, announcements.paused, gate.answerAbove, gate.inboxHold,
                                 onChoose = { s -> screenScope.launch { Desktop.switch(sessionId, s) } },
                                 onDismiss = { sheetOpen = false },
                             )
                         }
-                        // The agent's offer to close the session, from the last list held (close-offer D5).
-                        if (session != null && SessionActions.offered(session)) {
-                            CloseOffer(
-                                SessionActions.offerActions(session, operations),
-                                actionsEnabled,
-                                { dialogs.answerOffer(it, session) },
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.large)
-                                    .border(1.dp, spekColors.offer, MaterialTheme.shapes.large)
-                                    .padding(start = 14.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
-                            )
+                        ReplyArea(sessionId, c, session, announcements.paused, panelMax, onOpenInbox, onPanel = { panelShows++ }) {
+                            // The agent's offer to close the session, from the last list held (close-offer D5).
+                            if (session != null && SessionActions.offered(session)) {
+                                CloseOffer(
+                                    SessionActions.offerActions(session, operations),
+                                    actionsEnabled,
+                                    { dialogs.answerOffer(it, session) },
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.large)
+                                        .border(1.dp, spekColors.offer, MaterialTheme.shapes.large)
+                                        .padding(start = 14.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
+                                )
+                            }
                         }
-                        linked?.let { InboxNote(it, replyAnyway, onOpenInbox) { replyAnyway = true } }
-                        Composer(
-                            sessionId, c, connected, announcements.paused, answerAbove, Operations.ATTACH in operations && session?.isAgent != false,
-                            inboxPrompt = InboxView.holdsReplies(linked, replyAnyway),
-                            panelMax = panelMax,
-                            onPanel = { panelShows++ },
-                        )
                     }
                 }
             }
@@ -323,6 +312,59 @@ fun ConversationScreen(
         }
     }
     SessionDialogsHost(dialogs, actionsEnabled)
+}
+
+/** Whether a prompt is answered above the field, and whether a first prompt from the inbox holds replies (`inbox` D7). */
+internal data class ReplyGate(val offer: Offer?, val answerAbove: Boolean, val linked: InboxView.Linked?, val lifted: Boolean) {
+    val inboxHold: Boolean get() = InboxView.holdsReplies(linked, lifted)
+}
+
+@Composable
+internal fun rememberReplyGate(sessionId: String, c: Conversation?, session: Session?, paused: Boolean): ReplyGate {
+    val sessions by Desktop.sessions.collectAsStateWithLifecycle()
+    val connected by Desktop.connected.collectAsStateWithLifecycle()
+    val operations by Desktop.operations.collectAsStateWithLifecycle()
+    val inbox by Desktop.inbox.collectAsStateWithLifecycle()
+    val lifted by Desktop.repliesLifted.collectAsStateWithLifecycle()
+    val offer = c?.prompt?.let { Answers.offer(it, operations, connected, paused, c.watch, c.answer, c.switch) }
+    val linked = InboxView.linked(session, inbox.items, sessions, operations)
+    // A held prompt is answered above once the switch shows or the user continues (`session-model-effort` D6).
+    return ReplyGate(offer, offer is Offer.Answerable || offer is Offer.Held, linked, InboxView.repliesLifted(linked, lifted[sessionId]))
+}
+
+/**
+ * What a session's conversation shows below its entries to reply: how an answer went, the open prompt, [offers] (the
+ * conversation's close offer), the inbox note and the composer — also below the screens opened from the conversation
+ * (`reply-from-other-screens` D2).
+ */
+@Composable
+internal fun ReplyArea(
+    sessionId: String,
+    c: Conversation?,
+    session: Session?,
+    paused: Boolean,
+    panelMax: Dp,
+    onOpenInboxItem: (String) -> Unit,
+    onPanel: () -> Unit = {},
+    offers: @Composable () -> Unit = {},
+) {
+    val connected by Desktop.connected.collectAsStateWithLifecycle()
+    val operations by Desktop.operations.collectAsStateWithLifecycle()
+    val gate = rememberReplyGate(sessionId, c, session, paused)
+    c?.let { answerNote(it) }?.let { Notice(it.text(), answerTone(c), stringResource(R.string.common_dismiss), { Desktop.dismissAnswer(sessionId) }) }
+    if (gate.offer != null) PromptCard(sessionId, c!!.prompt!!, gate.offer)
+    offers()
+    gate.linked?.let { linked ->
+        InboxNote(linked, gate.lifted, onOpenInboxItem) {
+            (linked as? InboxView.Linked.Waiting)?.let { Desktop.liftReplies(sessionId, it.item.key) }
+        }
+    }
+    Composer(
+        sessionId, c, connected, paused, gate.answerAbove, Operations.ATTACH in operations && session?.isAgent != false,
+        inboxPrompt = gate.inboxHold,
+        panelMax = panelMax,
+        onPanel = onPanel,
+    )
 }
 
 /** The agent's wait state while watched, for the top bar (D4). */
@@ -794,22 +836,24 @@ private fun WorkingRow() {
     }
 }
 
+/** What a reply not (yet) in the conversation says about itself, here and in the reply bar (`reply-from-other-screens` D4). */
+@StringRes
+internal fun replyLabelText(label: Reply.Label): Int = when (label) {
+    Reply.Label.SENDING -> R.string.conversation_sending
+    Reply.Label.NOT_YET_CONFIRMED -> R.string.conversation_reply_not_yet_confirmed
+    Reply.Label.WAITING_FOR_AGENT -> R.string.conversation_reply_waiting_for_agent
+    Reply.Label.NOT_IN_CONVERSATION_YET -> R.string.conversation_reply_not_in_conversation_yet
+    Reply.Label.NOT_SHOWN_AFTER_WORK -> R.string.conversation_reply_not_shown_after_work
+    Reply.Label.COMMAND_NOT_SHOWN -> R.string.conversation_reply_command_not_shown
+    Reply.Label.MAY_NOT_HAVE_BEEN_SENT -> R.string.conversation_reply_may_not_have_been_sent
+    Reply.Label.NOT_SUBMITTED -> R.string.conversation_reply_not_submitted
+    Reply.Label.SWITCHING -> R.string.conversation_reply_switching
+}
+
 @Composable
 private fun ReplyRow(reply: Reply, now: Long, holding: Boolean) {
     val label = reply.label(now, holding)
-    val text = stringResource(
-        when (label) {
-            Reply.Label.SENDING -> R.string.conversation_sending
-            Reply.Label.NOT_YET_CONFIRMED -> R.string.conversation_reply_not_yet_confirmed
-            Reply.Label.WAITING_FOR_AGENT -> R.string.conversation_reply_waiting_for_agent
-            Reply.Label.NOT_IN_CONVERSATION_YET -> R.string.conversation_reply_not_in_conversation_yet
-            Reply.Label.NOT_SHOWN_AFTER_WORK -> R.string.conversation_reply_not_shown_after_work
-            Reply.Label.COMMAND_NOT_SHOWN -> R.string.conversation_reply_command_not_shown
-            Reply.Label.MAY_NOT_HAVE_BEEN_SENT -> R.string.conversation_reply_may_not_have_been_sent
-            Reply.Label.NOT_SUBMITTED -> R.string.conversation_reply_not_submitted
-            Reply.Label.SWITCHING -> R.string.conversation_reply_switching
-        },
-    )
+    val text = stringResource(replyLabelText(label))
     val colors = MaterialTheme.colorScheme
     // The user's bubble, outlined: not (yet) part of the conversation (D7).
     Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 12.dp, top = 6.dp, bottom = 6.dp), contentAlignment = Alignment.CenterEnd) {

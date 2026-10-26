@@ -30,8 +30,8 @@ access turned on.
   arrives — over the app's own held connection. Tapping one about a session opens its conversation.
 - **Sessions**: the desktop's sessions by folder, with each agent's state (waiting for you, working, asks for a
   choice, idle) or dormant, kept live. An agent whose finished turn you already looked at — on the desktop, or by
-  opening its conversation on the phone — says "Idle" instead of "Waiting for you", and its waiting notification
-  goes away. Folders can be collapsed; a collapsed folder still shows what waits for you.
+  opening its conversation on the phone, or a screen opened from it that can reply to it — says "Idle" instead of
+  "Waiting for you", and its waiting notification goes away. Folders can be collapsed; a collapsed folder still shows what waits for you.
   Long-pressing a session (or the menu on its screen) renames, hibernates, wakes or closes it. Closing asks first,
   and so does stopping a session the desktop says is busy. When an agent asks to close its own session, its row
   and its screen say so with "Close" and "Keep"; that Close is the answer, so it does not ask again.
@@ -80,7 +80,10 @@ access turned on.
   active and archived changes, a change's proposal, design, delta specs, tasks and data files, and the main specs
   with the changes that touched them. While a folder is on screen, it follows the desktop's files — an agent
   ticking a task shows up by itself — on a desktop that offers that; otherwise a refresh reads them again.
-  Repository text loads nothing and opens a link only when tapped.
+  Repository text loads nothing and opens a link only when tapped. Opened from a session's screen, the OpenSpec —
+  and the session's handoff screen — keeps that session's reply field at the bottom, attachments, skills and
+  prompts included, with a line saying how the agent and your last reply stand; tapping it goes back to the
+  conversation.
 
 These need spekterm 29a5d0a (0.2.6) or later (hibernating and closing: 9b02f53; an agent's close offer: 3feaac0;
 following OpenSpec files live: 0fcdc1f, 0.2.8; "Idle": 01cb50a;

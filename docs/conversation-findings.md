@@ -1146,3 +1146,43 @@ showed its line numbers; then asked for swiping between pictures (D8) and for a 
 the Pixel: "測試沒問題". The Play build's pairing was left as it was (it is not debuggable, so it could not be saved,
 and it was not touched).
 
+
+## Reply from other screens (`reply-from-other-screens`)
+
+### On the emulator against the dev desktop (task 3.2)
+
+2026-10-26 09:35–09:58 (+08:00), the `Pixel_9` AVD (Android 16, predictive back on by default for target SDK 36)
+paired by link with the dev desktop started from spekterm `c0d42a7` (0.2.24) on port 47616, agent CLI in auto mode
+(so no permission prompts). The OpenSpec screens read a copy of this change and of `conversation-reply`'s spec put in
+`~/go/openspec` for the run and removed afterwards. Session `go-b8ad` was woken for the run and hibernated again; a
+session `go-fdd0` was started and closed. Driven over adb, the app in front each time. Screenshots kept outside the
+repository.
+
+| What | Outcome |
+|---|---|
+| A dormant session's folder opened from its conversation: the bar is one line, "go-b8ad · Dormant · Open to wake it"; tapping it lands on the conversation with Wake | pass |
+| Conversation → folder → change → back to the conversation: in the first build, each move logged `conversation event=unwatch` and `watch` ~0.1 s apart (the leaving screen stops before the entering one starts, against design D3's assumption); fixed with a 1 s linger (D3), after which the same moves logged one `watch` and nothing else | fixed, pass |
+| On a change's proposal with the keyboard up: the tabs and the field stay in view, the header reads "go-b8ad · Idle" | pass |
+| Text typed in the change's bar, then back to the conversation: the conversation's field holds it | pass |
+| A photo (photo picker) and a file (`note.txt`, files app) attached in the change's bar, both "Ready", sent with text: the header read "Working", then "Idle"; the agent named both files and their content | pass |
+| A turn ending with the change on screen: "Idle", no notification raised | pass |
+| On a spec, the agent asked a choice (AskUserQuestion): "Asks for a choice" in the header, the prompt card above the field, the field blocked with "Answer the choice above."; Blue chosen from the card, the agent answered "你選了 Blue（藍色）" | pass |
+| The header tapped on a spec opened through the folder: the conversation shows; back goes to the session list | pass |
+| Back from a change to the list through the conversation: `unwatch` logged | pass |
+| A back gesture held halfway on a change (the folder screen with its bar peeks below) and cancelled: no `unwatch`; a reply sent from the bar afterwards was answered | pass |
+| `/op` typed in the change's bar: the skills panel shows above the field, limited to a quarter of the room | pass |
+| The OpenSpec opened from the session list (folder, then a change): no bar | pass |
+| The OpenSpec opened from a shell session's screen: no bar | pass |
+| The handoff screen from the conversation's menu: the bar; a reply sent there was answered ("handoff") | pass |
+| A session's handoff opened from the list (no bar), then a child's conversation, its handoff, the source's conversation, and its handoff from the menu: the bar; back returns to the source's conversation | pass |
+| A photo attached in the change's bar shows on the handoff screen's bar and in the conversation; removed there | pass |
+| The closed line | not seen: the agent's request to close itself became the desktop's close offer, which only the conversation answers; covered by `ReplyBarViewTest` |
+| 中文（台灣）, dark: the change with the bar (「閒置」, 「傳訊息給 agent · 打 / 選 skill」), with an attachment 「就緒」, the handoff screen with the bar, the asleep line 「休眠中　開啟對話以喚醒」 | pass |
+
+### The suites (task 3.3)
+
+`./gradlew test assembleDebug`: 530 JVM tests pass. `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`
+with the Pixel disconnected first (adb's mDNS reconnected it during the run; the run was pinned to the emulator, and
+the Pixel's debug build was left untouched: installed 2026-10-25, pairing in place): 195 tests, all pass but
+`DesktopRaceTest`'s assumption (no race arguments; reported as an assumption failure, as before). `DesktopTest` alone
+after the linger: 61 of 61.

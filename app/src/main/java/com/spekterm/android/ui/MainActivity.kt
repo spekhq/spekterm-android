@@ -69,18 +69,18 @@ private sealed interface Nav {
 
 @Serializable private data object LicensesRoute
 
-@Serializable private data class HandoffRoute(val sessionId: String)
+@Serializable private data class HandoffRoute(val sessionId: String, val replyTo: String? = null)
 
 /** The inbox, scrolled to [focus] (an item key) when given (`inbox` design D10). */
 @Serializable internal data class InboxRoute(val focus: String? = null)
 
 @Serializable private data object OpenSpecFoldersRoute
 
-@Serializable private data class OpenSpecFolderRoute(val folderId: String)
+@Serializable private data class OpenSpecFolderRoute(val folderId: String, val replyTo: String? = null)
 
-@Serializable private data class OpenSpecChangeRoute(val folderId: String, val slug: String)
+@Serializable private data class OpenSpecChangeRoute(val folderId: String, val slug: String, val replyTo: String? = null)
 
-@Serializable private data class OpenSpecSpecRoute(val folderId: String, val topic: String)
+@Serializable private data class OpenSpecSpecRoute(val folderId: String, val topic: String, val replyTo: String? = null)
 
 /**
  * Pairing when nothing is paired (outside the navigation graph); otherwise the session list, a session's
@@ -237,8 +237,9 @@ class MainActivity : ComponentActivity() {
                     owner = entry.id,
                     announcements = announcements,
                     onBack = { nav.popBackStack() },
-                    onOpenChange = { nav.navigate(OpenSpecChangeRoute(route.folderId, it)) },
-                    onOpenSpec = { nav.navigate(OpenSpecSpecRoute(route.folderId, it)) },
+                    onOpenChange = { nav.navigate(OpenSpecChangeRoute(route.folderId, it, route.replyTo)) },
+                    onOpenSpec = { nav.navigate(OpenSpecSpecRoute(route.folderId, it, route.replyTo)) },
+                    replyTo = replyTarget(nav, route.replyTo),
                 )
             }
             composable<OpenSpecChangeRoute> { entry ->
@@ -251,8 +252,9 @@ class MainActivity : ComponentActivity() {
                     onBack = { nav.popBackStack() },
                     // The archived copy replaces the vanished change (design D5).
                     onOpenArchived = { slug ->
-                        nav.navigate(OpenSpecChangeRoute(route.folderId, slug)) { popUpTo(entry.destination.id) { inclusive = true } }
+                        nav.navigate(OpenSpecChangeRoute(route.folderId, slug, route.replyTo)) { popUpTo(entry.destination.id) { inclusive = true } }
                     },
+                    replyTo = replyTarget(nav, route.replyTo),
                 )
             }
             composable<OpenSpecSpecRoute> { entry ->
@@ -263,31 +265,37 @@ class MainActivity : ComponentActivity() {
                     owner = entry.id,
                     announcements = announcements,
                     onBack = { nav.popBackStack() },
-                    onOpenChange = { nav.navigate(OpenSpecChangeRoute(route.folderId, it)) },
+                    onOpenChange = { nav.navigate(OpenSpecChangeRoute(route.folderId, it, route.replyTo)) },
+                    replyTo = replyTarget(nav, route.replyTo),
                 )
             }
             composable<ConversationRoute> { entry ->
+                val sessionId = entry.toRoute<ConversationRoute>().sessionId
                 ConversationScreen(
-                    sessionId = entry.toRoute<ConversationRoute>().sessionId,
+                    sessionId = sessionId,
                     owner = entry.id,
                     announcements = announcements,
                     onBack = { nav.popBackStack() },
                     onStatus = { nav.navigate(StatusRoute) { launchSingleTop = true } },
                     onResume = { resume() },
-                    onHandoff = { openHandoff(nav, it) },
-                    onOpenSpecFolder = { nav.navigate(OpenSpecFolderRoute(it)) },
+                    // Screens opened from here reply to this session (`reply-from-other-screens` D1).
+                    onHandoff = { openHandoff(nav, it, replyTo = sessionId) },
+                    onOpenSpecFolder = { nav.navigate(OpenSpecFolderRoute(it, sessionId)) },
                     onOpenInbox = { nav.openInbox(it) },
                 )
             }
             // A session's handoff, pushed over where it was opened from (`session-relations` design D4).
             composable<HandoffRoute> { entry ->
+                val route = entry.toRoute<HandoffRoute>()
                 HandoffScreen(
-                    sessionId = entry.toRoute<HandoffRoute>().sessionId,
+                    sessionId = route.sessionId,
+                    owner = entry.id,
                     announcements = announcements,
                     onBack = { nav.popBackStack() },
                     onStatus = { nav.navigate(StatusRoute) { launchSingleTop = true } },
                     onResume = { resume() },
                     onOpen = { nav.navigate(ConversationRoute(it)) },
+                    replyTo = replyTarget(nav, route.replyTo),
                 )
             }
             composable<StatusRoute> {
@@ -310,9 +318,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** A session's handoff screen; one already on the back stack is returned to, not stacked again (D4). */
-    private fun openHandoff(nav: NavHostController, sessionId: String) {
-        if (!nav.popBackStack(HandoffRoute(sessionId), inclusive = false)) nav.navigate(HandoffRoute(sessionId))
+    /**
+     * A session's handoff screen; one already on the back stack is returned to, not stacked again (D4) — unless it
+     * replies elsewhere: then it is opened on top, so one opened from a conversation has its bar
+     * (`reply-from-other-screens` D1).
+     */
+    private fun openHandoff(nav: NavHostController, sessionId: String, replyTo: String? = null) {
+        if (!nav.popBackStack(HandoffRoute(sessionId, replyTo), inclusive = false)) nav.navigate(HandoffRoute(sessionId, replyTo))
+    }
+
+    /** The reply bar's session for a screen opened from its conversation, if it was (`reply-from-other-screens` D1). */
+    private fun replyTarget(nav: NavHostController, replyTo: String?): ReplyTarget? = replyTo?.let { sessionId ->
+        ReplyTarget(
+            sessionId,
+            // Back to the conversation below, closing what was opened from it; or a new one when it is not there (D4).
+            onOpenConversation = { if (!nav.popBackStack(ConversationRoute(sessionId), inclusive = false)) nav.navigate(ConversationRoute(sessionId)) },
+            onOpenInboxItem = { nav.openInbox(it) },
+        )
     }
 
     override fun onNewIntent(intent: Intent) {

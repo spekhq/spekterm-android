@@ -45,6 +45,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
@@ -86,6 +87,14 @@ object Desktop {
 
     /** The last action on each inbox item, by item key, until the next one (`inbox` design D6). */
     val inboxActions: StateFlow<Map<String, ItemAction>> = mutableInboxActions
+
+    private val mutableRepliesLifted = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    /**
+     * Per session, the inbox item whose hold on replies the user lifted ("Reply anyway", `inbox` design D7), shared by
+     * every screen that replies to it (`reply-from-other-screens` D2). In memory only.
+     */
+    val repliesLifted: StateFlow<Map<String, String>> = mutableRepliesLifted
 
     /** Whether the Inbox is at the front: an accepted item's conversation opens by itself only then (design D6). */
     @Volatile var inboxOnScreen: Boolean = false
@@ -140,6 +149,9 @@ object Desktop {
     /** How long after the last OpenSpec screen is left the folder's watch stops (design D3); shortened by tests. */
     @Volatile var openspecLingerMs: Long = 5_000L
 
+    /** How long a focus outlives its last screen, for the next one to take it over (`reply-from-other-screens` D3); shortened by tests. */
+    @Volatile var focusLingerMs: Long = 1_000L
+
     /** The session whose conversation is on screen: no notification is raised for it (design D8). */
     @Volatile var visibleSession: String? = null
         private set
@@ -150,6 +162,10 @@ object Desktop {
 
     private var attached: Attached? = null
     private var focus: Focus? = null
+    /** Every visible screen's focus, oldest first; [focus] moves only when they all name one session (`reply-from-other-screens` D3). */
+    private val focuses = ArrayList<Focus>()
+    /** Ends the focus once no screen took it within [focusLingerMs] of the last one leaving (D3). */
+    private var focusLinger: Job? = null
     private val clock = ListClock()
     private val seen = SeenTransitions()
     private var nextReplyId = 0L
@@ -284,29 +300,60 @@ object Desktop {
 
     /** The screen [owner] (its back-stack entry id) shows [sessionId] and is visible. */
     fun focus(owner: String, sessionId: String) {
-        visibleSession = sessionId
+        // At once, unless another session's screen is still visible: that one stays until it leaves (D3).
+        if (visibleSession == null || visibleSession == sessionId) visibleSession = sessionId
         scope.launch {
-            focus = Focus(owner, sessionId)
-            visibleSession = sessionId
-            val c = mutableConversation.value
-            if (c == null || c.sessionId != sessionId) {
-                // Another session: drop what was held for the previous one, after unwatching it; its draft stays.
-                if (c != null && c.watch.active) unwatch(c)
-                if (c != null) keepDraft(c)
-                setHeld(Conversation(sessionId, listedRunning = listedRunning(sessionId), draft = drafts.remove(sessionId).orEmpty()))
-            }
-            reconcile()
+            focusLinger?.cancel()
+            focusLinger = null
+            focuses.removeAll { it.owner == owner }
+            focuses += Focus(owner, sessionId)
+            settleFocus()
         }
     }
 
-    /** The screen [owner] is no longer visible. Ignored unless [owner] holds the focus. */
+    /** The screen [owner] is no longer visible. Ignored unless [owner] is focused. */
     fun unfocus(owner: String) {
         scope.launch {
-            if (focus?.owner != owner) return@launch
-            focus = null
-            visibleSession = null
-            reconcile()
+            if (focuses.removeAll { it.owner == owner }) settleFocus()
         }
+    }
+
+    /**
+     * The focus follows the visible screens once they agree on one session: while a transition shows two sessions'
+     * screens — or a back gesture peeks at one and is cancelled — what is held stays, attachments included (D3).
+     */
+    private fun settleFocus() {
+        val sessionId = focuses.map { it.sessionId }.distinct().singleOrNull()
+        if (focuses.isNotEmpty() && sessionId == null) return
+        if (sessionId == null) {
+            // The screen being left stops before the one entering starts: give it a moment to take the focus over,
+            // so moving between a conversation and a screen with its reply bar keeps the watch (D3, measured).
+            if (focus == null || focusLinger != null) return
+            focusLinger = scope.launch {
+                delay(focusLingerMs)
+                focusLinger = null
+                if (focuses.isNotEmpty()) return@launch
+                focus = null
+                visibleSession = null
+                reconcile()
+            }
+            return
+        }
+        focus = focuses.last()
+        visibleSession = sessionId
+        val c = mutableConversation.value
+        if (c == null || c.sessionId != sessionId) {
+            // Another session: drop what was held for the previous one, after unwatching it; its draft stays.
+            if (c != null && c.watch.active) unwatch(c)
+            if (c != null) keepDraft(c)
+            setHeld(Conversation(sessionId, listedRunning = listedRunning(sessionId), draft = drafts.remove(sessionId).orEmpty()))
+        }
+        reconcile()
+    }
+
+    /** The user lifted the hold [itemKey]'s first prompt puts on [sessionId]'s replies. */
+    fun liftReplies(sessionId: String, itemKey: String) {
+        mutableRepliesLifted.update { it + (sessionId to itemKey) }
     }
 
     /** Keeps the draft of [sessionId] across leaving its screen. */
@@ -788,7 +835,11 @@ object Desktop {
             attached?.scope?.cancel()
             attached = null
             focus = null
+            focuses.clear()
+            focusLinger?.cancel()
+            focusLinger = null
             visibleSession = null
+            mutableRepliesLifted.value = emptyMap()
             clock.reset()
             seen.reset()
             mutableConnected.value = false
@@ -810,7 +861,11 @@ object Desktop {
         attached?.scope?.cancel()
         attached = null
         focus = null
+        focuses.clear()
+        focusLinger?.cancel()
+        focusLinger = null
         visibleSession = null
+        mutableRepliesLifted.value = emptyMap()
         clock.reset()
         seen.reset()
         nextReplyId = 0
@@ -988,6 +1043,7 @@ object Desktop {
         track(CreateTracker.listed(trackerState(), list, a, listOnScreen))
         if (list.window) {
             drafts.keys.retainAll(list.sessions.map { it.id }.toSet())
+            mutableRepliesLifted.update { lifted -> lifted.filterKeys { id -> list.sessions.any { it.id == id } } }
             // A session closed, gone or not running any more takes any box it held open along (D6).
             val running = list.sessions.filter { it.running }.map { it.id }.toSet()
             switches.keys.filter { it !in running }.forEach { endSwitch(it, "gone") }

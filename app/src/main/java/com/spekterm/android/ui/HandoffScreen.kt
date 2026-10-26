@@ -62,11 +62,13 @@ private sealed interface Note {
 @Composable
 fun HandoffScreen(
     sessionId: String,
+    owner: String,
     announcements: Announcements,
     onBack: () -> Unit,
     onStatus: () -> Unit,
     onResume: () -> Unit,
     onOpen: (String) -> Unit,
+    replyTo: ReplyTarget? = null,
 ) {
     val sessions by Desktop.sessions.collectAsStateWithLifecycle()
     val connected by Desktop.connected.collectAsStateWithLifecycle()
@@ -113,7 +115,7 @@ fun HandoffScreen(
             )
         },
     ) {
-        Column(Modifier.fillMaxSize()) {
+        WithReplyBar(replyTo, owner, announcements) {
             when (shows) {
                 Shows.PAUSED -> Notice(stringResource(R.string.conversation_paused), Tone.Warning, stringResource(R.string.common_resume), onResume)
                 Shows.NOT_CONNECTED -> Notice(stringResource(R.string.conversation_out_of_date, notConnectedReason(status, announcements).text()), Tone.Warning, stringResource(R.string.common_details), onStatus)
@@ -122,7 +124,7 @@ fun HandoffScreen(
             }
             if (shows == Shows.CLOSED || session == null || list == null) {
                 CenteredMessage(SpekIcons.Info, stringResource(R.string.conversation_closed))
-                return@Column
+                return@WithReplyBar
             }
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 if (session.lineage != null) {

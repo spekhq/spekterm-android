@@ -3,7 +3,7 @@
 ### Requirement: Watch only while on screen, and resume after a reconnect
 
 The app SHALL watch a session's conversation only while its conversation screen, or a screen carrying its reply
-bar (`conversation-reply`), is visible, and SHALL stop watching it when none is visible any more — the user leaves
+bar (`conversation-reply`), is visible, and SHALL stop watching it within a second once none is visible any more — the user leaves
 them, switches app, or the screen turns off — because a watched session counts as in use on the desktop and is not
 put to sleep. Moving between the conversation screen and a screen carrying its reply bar SHALL keep the watch,
 without stopping and starting it again. When one of them becomes

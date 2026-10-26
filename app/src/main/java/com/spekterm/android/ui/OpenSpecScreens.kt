@@ -228,6 +228,7 @@ fun OpenSpecFolderScreen(
     onBack: () -> Unit,
     onOpenChange: (String) -> Unit,
     onOpenSpec: (String) -> Unit,
+    replyTo: ReplyTarget? = null,
 ) {
     val sessions by Desktop.sessions.collectAsStateWithLifecycle()
     val folder = sessions.list?.folders?.firstOrNull { it.id == folderId }
@@ -250,7 +251,7 @@ fun OpenSpecFolderScreen(
             actions = { RefreshButton(r) },
         )
     }) {
-        Column(Modifier.fillMaxSize()) {
+        WithReplyBar(replyTo, owner, announcements) {
             if (specsShown) {
                 PrimaryTabRow(selectedTabIndex = pager.currentPage) {
                     OsTab(selected = pager.currentPage == 0, onClick = { scope.launch { pager.animateScrollToPage(0) } }, text = { Text(stringResource(R.string.openspec_tab_changes)) })
@@ -374,6 +375,7 @@ fun OpenSpecChangeScreen(
     announcements: Announcements,
     onBack: () -> Unit,
     onOpenArchived: (String) -> Unit,
+    replyTo: ReplyTarget? = null,
 ) {
     val target = OpenSpecTarget.Change(folderId, slug)
     FocusWhileShown(owner, target)
@@ -399,7 +401,7 @@ fun OpenSpecChangeScreen(
             actions = { RefreshButton(r) },
         )
     }) {
-        Column(Modifier.fillMaxSize()) {
+        WithReplyBar(replyTo, owner, announcements) {
             val artifacts = detail?.artifacts.orEmpty()
             // The artifacts are pages: a tab or a sideways swipe moves between them.
             val pager = rememberPagerState { artifacts.size }
@@ -542,6 +544,7 @@ fun OpenSpecSpecScreen(
     announcements: Announcements,
     onBack: () -> Unit,
     onOpenChange: (String) -> Unit,
+    replyTo: ReplyTarget? = null,
 ) {
     val target = OpenSpecTarget.Spec(folderId, topic)
     FocusWhileShown(owner, target)
@@ -561,7 +564,7 @@ fun OpenSpecSpecScreen(
             actions = { RefreshButton(r) },
         )
     }) {
-        Column(Modifier.fillMaxSize()) {
+        WithReplyBar(replyTo, owner, announcements) {
             if (spec != null) {
                 PrimaryTabRow(selectedTabIndex = pager.currentPage) {
                     OsTab(selected = pager.currentPage == 0, onClick = { scope.launch { pager.animateScrollToPage(0) } }, text = { Text(stringResource(R.string.openspec_tab_spec)) })

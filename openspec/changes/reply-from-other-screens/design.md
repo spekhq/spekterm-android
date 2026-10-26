@@ -93,6 +93,12 @@ Checked against the moves: a push from A's screen to B's ([oA, oB]) switches to 
 ([oB, oA]) switches to A once oB leaves; a back gesture cancelled on B's screen ([oB, oA], then oA leaves) changes
 nothing, so B keeps its watch and its composer's attachments, which switching the held conversation would drop. Two
 owners on the same session keep the watch whichever leaves first. The cost is a switch one transition later than today.
+
+Measured on the emulator (task 3.2), the assumed order does not hold: the leaving entry stops before the entering
+one starts, so every move between the conversation and a bar screen logged an `unwatch` and a `watch` about 0.1 s
+apart. So the last owner leaving does not end the focus at once: it lingers for `focusLingerMs` (1 s), and a focus
+arriving meanwhile takes it over with nothing unwatched. Leaving to the session list or another app unwatches 1 s
+later than before.
 `clear()` and `resetForTest()` empty the list along with `visibleSession`.
 
 The OpenSpec screens keep their own folder watch (`openspec.watch`, owner = entry id) unchanged; the two are

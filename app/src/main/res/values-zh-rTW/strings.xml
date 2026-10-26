@@ -105,6 +105,9 @@
 
     <!-- 對話 -->
     <string name="conversation_title_fallback">Session</string>
+    <string name="reply_bar_open">開啟對話</string>
+    <string name="reply_bar_closed">已關閉</string>
+    <string name="reply_bar_wake">開啟對話以喚醒</string>
     <string name="conversation_openspec_for">%1$s 的 OpenSpec</string>
     <string name="conversation_paused">連線已暫停。畫面上的內容可能不是最新的。</string>
     <string name="conversation_out_of_date">%1$s畫面上的內容可能不是最新的。</string>
