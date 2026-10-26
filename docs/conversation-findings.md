@@ -1186,3 +1186,12 @@ with the Pixel disconnected first (adb's mDNS reconnected it during the run; the
 the Pixel's debug build was left untouched: installed 2026-10-25, pairing in place): 195 tests, all pass but
 `DesktopRaceTest`'s assumption (no race arguments; reported as an assumption failure, as before). `DesktopTest` alone
 after the linger: 61 of 61.
+
+### On the Pixel (task 4.1)
+
+2026-10-26 10:55 (+08:00), with kewang's OK: the debug build `adb install -r`'d over `com.spekterm.android.debug`
+(its pairing saved first and kept), against the installed desktop (0.2.24). kewang replied from a change and from a
+spec of a working session, one reply with a file, and went back through the bar's line: "測試沒問題". The
+connection log from 10:59:05 to 11:00:24: one `conversation event=watch`, the OpenSpec reads of each screen, `send
+outcome=Submitted attachments=0`, the file prepared and uploaded (168587 bytes, complete), `send outcome=Submitted
+attachments=1`, and one `unwatch` when leaving — no unwatch between the screens.
