@@ -29,9 +29,10 @@ and the phone restarting.
 
 For each live `attention` event, and for each event of a `complete: true` answer, whose `suppressed` is false,
 the app SHALL raise a system notification, subject to the replacement rules below and to one exception: while a
-session's conversation is visible on the phone (`conversation-view`), the app SHALL raise no notification for
-that session, SHALL remove any it shows for that session, and SHALL still store the event's position, as for a
-suppressed event; once the conversation is no longer visible, notifications for that session resume. The
+session's conversation, or a screen carrying its reply bar (`conversation-reply`), is visible on the phone
+(`conversation-view`), the app SHALL raise no notification for that session, SHALL remove any it shows for that
+session, and SHALL still store the event's position, as for a suppressed event; once none of them is visible any
+more, notifications for that session resume. The
 notification SHALL state what happened according to the kind —
 `waiting` (an agent waits for input), `choice` (an agent asks for a choice, naming `tool`), `handoff-done` (a
 handoff finished, with `summary`), `intake` (a new inbox item) — together with `title` and `folderName`. Text
@@ -109,6 +110,12 @@ current — each with the session list behind it; any other attention notificati
 
 - **WHEN** the app's process was killed, the phone cannot reach the desktop, and the user taps an inbox item's notification
 - **THEN** the Inbox opens and says it is not current
+
+#### Scenario: The agent finishes while a change with its reply bar is on screen
+
+- **WHEN** an agent finishes its turn while a change opened from its conversation, carrying its reply bar, is visible
+  on the phone
+- **THEN** the phone raises no notification for it, and the bar says the session is idle
 
 ### Requirement: Do not notify for a suppressed event
 
