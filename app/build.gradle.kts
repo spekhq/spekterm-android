@@ -24,8 +24,8 @@ android {
         minSdk = 29
         targetSdk = 36
         // Raised for every upload to Google Play, versionName never reused (docs/play-release.md, `play-release` D2).
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
