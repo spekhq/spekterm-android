@@ -130,11 +130,23 @@ fun SessionMenu(
     onDismiss: () -> Unit,
     actions: List<SessionActions.Action>,
     enabled: Boolean,
-    /** Items of the screen alone, after the session's actions: a label and what it does (`session-model-effort` D1). */
+    /**
+     * Items of the screen alone, before the session's actions, so Close stays last: a label and what it does
+     * (`session-model-effort` D1).
+     */
     extra: List<Pair<String, () -> Unit>> = emptyList(),
     onChoose: (SessionActions.Action) -> Unit,
 ) {
     DropdownMenu(expanded = expanded && (actions.isNotEmpty() || extra.isNotEmpty()), onDismissRequest = onDismiss) {
+        for ((label, onClick) in extra) {
+            DropdownMenuItem(
+                text = { Text(label) },
+                onClick = {
+                    onDismiss()
+                    onClick()
+                },
+            )
+        }
         for (action in actions) {
             DropdownMenuItem(
                 text = {
@@ -152,15 +164,6 @@ fun SessionMenu(
                 onClick = {
                     onDismiss()
                     onChoose(action)
-                },
-            )
-        }
-        for ((label, onClick) in extra) {
-            DropdownMenuItem(
-                text = { Text(label) },
-                onClick = {
-                    onDismiss()
-                    onClick()
                 },
             )
         }

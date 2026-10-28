@@ -46,4 +46,24 @@ object OpenSpecText {
         val mb = bytes / (1024.0 * 1024)
         return if (mb == Math.floor(mb)) "${mb.toLong()} MB" else String.format(Locale.ROOT, "%.1f MB", mb)
     }
+
+    private val LEAD = Regex("""^(\s*(?:(?:[-*+]|\d+[.)])\s+(?:\[[ xX]]\s+)?)?)(.*?)\s*$""")
+
+    /**
+     * A done task's Markdown with every line's text inside `~~`, so the renderer strikes all of it, bold and code
+     * included (a struck text style alone skips their spans). A line's indent and list marker stay outside; blank
+     * lines and fenced code are left as they are.
+     */
+    fun struck(text: String): String {
+        var fenced = false
+        return text.lines().joinToString("\n") { line ->
+            val fence = line.trimStart().startsWith("```")
+            if (fence) fenced = !fenced
+            val m = LEAD.matchEntire(line)
+            when {
+                fence || fenced || m == null || m.groupValues[2].isEmpty() -> line
+                else -> m.groupValues[1] + "~~" + m.groupValues[2] + "~~"
+            }
+        }
+    }
 }

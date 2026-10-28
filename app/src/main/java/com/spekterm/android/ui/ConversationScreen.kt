@@ -126,11 +126,13 @@ import com.spekterm.android.desktop.Desktop
 import com.spekterm.android.desktop.InboxView
 import com.spekterm.android.desktop.OpenSpecGates
 import com.spekterm.android.desktop.Phase
+import com.spekterm.android.desktop.Relations
 import com.spekterm.android.desktop.Replies
 import com.spekterm.android.desktop.Reply
 import com.spekterm.android.desktop.Screen
 import com.spekterm.android.desktop.SessionAction
 import com.spekterm.android.desktop.SessionsView
+import com.spekterm.android.desktop.SessionsView.RowState
 import com.spekterm.android.desktop.PeerText
 import com.spekterm.android.desktop.SessionNames
 import com.spekterm.android.desktop.SkillInsert
@@ -228,7 +230,10 @@ fun ConversationScreen(
                 title = session?.label?.ifEmpty { null } ?: stringResource(R.string.conversation_title_fallback),
                 scroll = scroll,
                 onBack = onBack,
-                subtitle = c?.let { SessionsView.screenState(it, session) }?.let { state -> { StateLabel(state) } },
+                subtitle = conversationSubtitle(
+                    session?.let { s -> sessions.list?.let { Relations.groupName(s, it) } },
+                    c?.let { SessionsView.screenState(it, session) },
+                ),
             ) {
                 // The session's folder's OpenSpec, as its group heading offers it (`session-detail-openspec` D1, D2).
                 OpenSpecGates.of(operations).folder(session, sessions.list?.folders.orEmpty())?.let { folder ->
@@ -1135,3 +1140,25 @@ private fun refusedText(code: String): UiText = when (code) {
     RemoteError.UNKNOWN_OPERATION -> UiText.Res(R.string.switch_refused_unknown_operation)
     else -> UiText.Res(R.string.switch_refused_other, code)
 }
+
+/** Under the session's name: the repository it runs in (its group on the list), then its state. */
+private fun conversationSubtitle(repo: UiText?, state: RowState?): (@Composable () -> Unit)? =
+    if (repo == null && state == null) {
+        null
+    } else {
+        {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repo?.let {
+                    Text(
+                        it.text(),
+                        Modifier.weight(1f, fill = false),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                state?.let { StateLabel(it) }
+            }
+        }
+    }

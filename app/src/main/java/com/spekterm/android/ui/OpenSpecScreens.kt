@@ -496,7 +496,7 @@ private fun TaskRow(task: TaskList.Task) {
             Modifier.padding(top = 2.dp).size(20.dp),
             tint = if (task.completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         )
-        RepositoryMarkdown(task.text, lazy = false, modifier = Modifier.weight(1f))
+        RepositoryMarkdown(task.text, lazy = false, modifier = Modifier.weight(1f), struck = task.completed)
     }
 }
 

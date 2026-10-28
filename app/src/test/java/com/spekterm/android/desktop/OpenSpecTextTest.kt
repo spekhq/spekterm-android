@@ -46,4 +46,12 @@ class OpenSpecTextTest {
         assertEquals(UiText.Res(R.string.openspec_not_connected), OpenSpecText.error(spec, RemoteError(Desktop.NOT_CONNECTED)))
         assertEquals(UiText.Res(R.string.openspec_error_other, RemoteError.BAD_PARAMS), OpenSpecText.error(spec, RemoteError(RemoteError.BAD_PARAMS)))
     }
+
+    @Test
+    fun aDoneTaskIsStruckLineByLine() {
+        assertEquals("~~1.1 Do **this** with `code`~~", OpenSpecText.struck("1.1 Do **this** with `code`  "))
+        assertEquals("~~first~~\n~~second~~", OpenSpecText.struck("first\nsecond"))
+        assertEquals("~~intro~~\n\n  - ~~sub~~\n  1. ~~num~~\n- [x] ~~box~~", OpenSpecText.struck("intro\n\n  - sub\n  1. num\n- [x] box"))
+        assertEquals("~~run:~~\n```\nnpm test\n```", OpenSpecText.struck("run:\n```\nnpm test\n```"))
+    }
 }

@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import com.mikepenz.markdown.compose.LazyMarkdownSuccess
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
@@ -19,6 +20,7 @@ import com.mikepenz.markdown.compose.elements.MarkdownTable
 import com.mikepenz.markdown.compose.elements.MarkdownTableHeader
 import com.mikepenz.markdown.compose.elements.MarkdownTableRow
 import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.MarkdownAnnotator
 import com.mikepenz.markdown.model.NoOpImageTransformerImpl
@@ -26,6 +28,7 @@ import com.mikepenz.markdown.model.markdownAnimations
 import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.model.rememberMarkdownState
+import com.spekterm.android.desktop.OpenSpecText
 import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
@@ -111,21 +114,25 @@ private fun HtmlBlock(type: IElementType, model: MarkdownComponentModel) {
  * opens only `http`/`https` links on tap, shows HTML as text, joins soft line breaks, and makes relative inline links
  * plain text. [immediate] false parses off the main thread (a sent file, `tool-call-display` D6). [lazy] lays its blocks out as a lazy list that fills its space (an artifact, a spec); otherwise it is
  * one block for an item of a list (a task, a delta). Parsed at once, so a re-read never passes through loading.
+ * [struck] shows the text faded and struck through, as the desktop shows a done task ([OpenSpecText.struck]).
  */
 @Composable
-fun RepositoryMarkdown(text: String, lazy: Boolean, modifier: Modifier = Modifier, contentPadding: PaddingValues = PaddingValues(), immediate: Boolean = true) {
+fun RepositoryMarkdown(text: String, lazy: Boolean, modifier: Modifier = Modifier, contentPadding: PaddingValues = PaddingValues(), immediate: Boolean = true, struck: Boolean = false) {
     val context = LocalContext.current
     val handler = remember(context) { SafeUriHandler(context) }
     val annotator = remember { safeAnnotator(softBreaks = true, inertLinks = true) }
+    val faded = MaterialTheme.colorScheme.outline
+    val body = MaterialTheme.typography.bodyLarge.let { if (struck) it.copy(color = faded, textDecoration = TextDecoration.LineThrough) else it }
     CompositionLocalProvider(LocalUriHandler provides handler) {
         Markdown(
-            markdownState = rememberMarkdownState(text, immediate = immediate),
+            markdownState = rememberMarkdownState(if (struck) OpenSpecText.struck(text) else text, immediate = immediate),
             modifier = modifier,
             error = { Text(text, modifier = it, style = MaterialTheme.typography.bodyMedium) },
             imageTransformer = NoOpImageTransformerImpl(),
             animations = markdownAnimations(animateTextSize = { this }),
             annotator = annotator,
             components = safeComponents(),
+            colors = if (struck) markdownColor(text = faded) else markdownColor(),
             // Documents have many headings: title sizes, not display sizes.
             typography = markdownTypography(
                 h1 = MaterialTheme.typography.titleLarge,
@@ -134,6 +141,11 @@ fun RepositoryMarkdown(text: String, lazy: Boolean, modifier: Modifier = Modifie
                 h4 = MaterialTheme.typography.titleSmall,
                 h5 = MaterialTheme.typography.titleSmall,
                 h6 = MaterialTheme.typography.titleSmall,
+                text = body,
+                paragraph = body,
+                ordered = body,
+                bullet = body,
+                list = body,
             ),
             success = if (lazy) {
                 { state, components, m -> LazyMarkdownSuccess(state, components, m, contentPadding) }
