@@ -55,7 +55,6 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
@@ -1057,31 +1056,56 @@ internal fun Composer(
                 }
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (canAttach && !commandMode) {
-                    Box {
-                        IconButton(enabled = connected && !paused && c?.closed != true, onClick = { picking = true }) { Icon(SpekIcons.Attach, stringResource(R.string.conversation_attach)) }
-                        DropdownMenu(expanded = picking, onDismissRequest = { picking = false }) {
-                            DropdownMenuItem(text = { Text(stringResource(R.string.conversation_photo)) }, leadingIcon = { Icon(SpekIcons.Image, null) }, onClick = {
-                                picking = false
-                                photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                            })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.conversation_file)) }, leadingIcon = { Icon(SpekIcons.File, null) }, onClick = {
-                                picking = false
-                                files.launch(arrayOf("*/*"))
-                            })
+                // One button for what goes with the field: attaching, and command mode (`run-shell-commands` D4). In command
+                // mode it shows the mode, colored, and takes the field back to a reply in one tap.
+                Box {
+                    val modeState = stringResource(if (commandMode) R.string.command_mode_on else R.string.command_mode_off)
+                    IconButton(
+                        enabled = c != null && !c.closed,
+                        onClick = {
+                            if (commandMode) {
+                                Desktop.setCommandMode(sessionId, false)
+                                focus.requestFocus()
+                            } else {
+                                picking = true
+                            }
+                        },
+                        modifier = Modifier.semantics { stateDescription = modeState },
+                    ) {
+                        if (commandMode) {
+                            Icon(SpekIcons.Terminal, stringResource(R.string.command_mode_exit), tint = colors.tertiary)
+                        } else {
+                            Icon(SpekIcons.Add, stringResource(R.string.conversation_more))
                         }
                     }
+                    DropdownMenu(expanded = picking, onDismissRequest = { picking = false }) {
+                        if (canAttach) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.conversation_photo)) },
+                                leadingIcon = { Icon(SpekIcons.Image, null) },
+                                enabled = connected && !paused,
+                                onClick = {
+                                    picking = false
+                                    photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.conversation_file)) },
+                                leadingIcon = { Icon(SpekIcons.File, null) },
+                                enabled = connected && !paused,
+                                onClick = {
+                                    picking = false
+                                    files.launch(arrayOf("*/*"))
+                                },
+                            )
+                        }
+                        DropdownMenuItem(text = { Text(stringResource(R.string.command_mode)) }, leadingIcon = { Icon(SpekIcons.Terminal, null) }, onClick = {
+                            picking = false
+                            Desktop.setCommandMode(sessionId, true)
+                            focus.requestFocus()
+                        })
+                    }
                 }
-                val modeState = stringResource(if (commandMode) R.string.command_mode_on else R.string.command_mode_off)
-                IconToggleButton(
-                    checked = commandMode,
-                    onCheckedChange = { on ->
-                        Desktop.setCommandMode(sessionId, on)
-                        focus.requestFocus()
-                    },
-                    enabled = c != null && !c.closed,
-                    modifier = Modifier.semantics { stateDescription = modeState },
-                ) { Icon(SpekIcons.Terminal, stringResource(R.string.command_mode), tint = if (commandMode) colors.tertiary else colors.onSurfaceVariant) }
                 TextField(
                     value = if (commandMode) command else field,
                     onValueChange = {
@@ -1094,8 +1118,13 @@ internal fun Composer(
                         }
                     },
                     modifier = Modifier.weight(1f).focusRequester(focus).onFocusChanged { focused = it.isFocused },
+                    // One line: a hint that wraps makes the field look taller than what it holds.
                     placeholder = {
-                        Text(stringResource(if (commandMode) R.string.command_hint else if (skills != null) R.string.conversation_reply_hint_skills else R.string.conversation_reply_hint))
+                        Text(
+                            stringResource(if (commandMode) R.string.command_hint else if (skills != null) R.string.conversation_reply_hint_skills else R.string.conversation_reply_hint),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     },
                     prefix = if (commandMode) ({ Text("$ ", fontFamily = FontFamily.Monospace) }) else null,
                     textStyle = if (commandMode) LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace) else LocalTextStyle.current,

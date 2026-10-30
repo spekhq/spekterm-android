@@ -192,7 +192,7 @@ class SlashSkillsTest {
     @Test
     fun theHintSaysSlash() {
         show(watched(skills))
-        assertTrue(shown("Reply to the agent · / for skills"))
+        assertTrue(shown("Reply · / for skills"))
     }
 
     @Test

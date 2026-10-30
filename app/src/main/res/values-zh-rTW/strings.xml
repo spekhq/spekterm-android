@@ -228,11 +228,10 @@
     <string name="conversation_reply_may_not_have_been_sent">可能沒有送出 —— 請到桌機確認</string>
     <string name="conversation_reply_not_submitted">已輸入到 agent 的輸入框但沒有送出 —— agent 的狀態變了（例如出現了選項）。請到桌機上完成。</string>
     <string name="conversation_attachments">附件</string>
-    <string name="conversation_attach">附加</string>
     <string name="conversation_photo">照片</string>
     <string name="conversation_file">檔案</string>
     <string name="conversation_reply_hint">傳訊息給 agent</string>
-    <string name="conversation_reply_hint_skills">傳訊息給 agent · 打 / 選 skill</string>
+    <string name="conversation_reply_hint_skills">傳訊息 · 打 / 選 skill</string>
     <string name="conversation_send">送出</string>
     <string name="conversation_remove_attachment">移除附件</string>
     <string name="conversation_attachment_preparing">準備中…</string>
@@ -739,4 +738,6 @@
     <string name="command_no_output">沒有輸出</string>
     <string name="command_saved_on_desktop">完整輸出存在桌機</string>
     <string name="command_run_myself">我自己跑</string>
+    <string name="conversation_more">附加或執行指令</string>
+    <string name="command_mode_exit">回到回覆</string>
 </resources>

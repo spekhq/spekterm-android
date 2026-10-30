@@ -5,15 +5,17 @@ taken from the agent's tool calls and text — and shows honestly whether it rea
 
 ## ADDED Requirements
 
-### Requirement: A switch turns the composer into a command field
+### Requirement: A button beside the field turns the composer into a command field
 
-Wherever the composer is offered for an agent session, a switch beside the reply field SHALL turn it into a command
-field and back. In command mode the field SHALL be set apart from a reply in more than color: it SHALL show a `$`
+Wherever the composer is offered for an agent session, one button beside the reply field SHALL offer attaching (when
+attaching is offered) and command mode in one menu; in command mode the same button SHALL show that the mode is on, in
+its own color, and SHALL turn the field back into a reply field in one tap. The field's hint, in either mode, SHALL
+stay on one line. In command mode the field SHALL be set apart from a reply in more than color: it SHALL show a `$`
 before the text, the text in a monospace face, a hint that names it a command, and a line above it saying that the
 command runs in the agent's terminal on the desktop, without a permission prompt and without a way to type into it,
 and that the agent sees its output; the send button SHALL read "Run" and show a different icon. In command mode
 attachments SHALL NOT be offered or shown, typing a slash SHALL NOT offer the session's skills, and no note about long
-slash commands SHALL be shown. The switch SHALL be usable whenever the field is, and SHALL say whether command mode is
+slash commands SHALL be shown. The button SHALL be usable whenever the field is, and SHALL say whether command mode is
 on to a screen reader.
 
 The command being written SHALL be kept apart from the reply being written: turning the mode on shows the command
@@ -24,13 +26,13 @@ unpaired — also when the mode is on and the command draft is empty.
 
 #### Scenario: Turning command mode on
 
-- **WHEN** the user has typed half a reply with a photo attached and turns command mode on
-- **THEN** the field is empty and set apart as a command field, the photo is not shown, and the attach button is
-  not offered
+- **WHEN** the user has typed half a reply with a photo attached and chooses command mode from the button's menu
+- **THEN** the field is empty and set apart as a command field, the photo is not shown, and the button shows command
+  mode instead of opening the menu
 
 #### Scenario: Turning it off again
 
-- **WHEN** the user then types `git status`, and turns command mode off
+- **WHEN** the user then types `git status`, and taps the button
 - **THEN** the half reply and the photo are back, and turning the mode on again shows `git status`
 
 #### Scenario: Leaving and coming back

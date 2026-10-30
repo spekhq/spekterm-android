@@ -132,8 +132,14 @@ blocking (`Reply.cleared = true`; the row keeps its "not submitted" label).
 
 ### D4. The command field's look
 
-- Switch: an `IconToggleButton` with a terminal icon (`>_`) left of the field (right of the attach button when that
-  is shown; the attach button is hidden in command mode). Content description "Command mode", state on/off.
+- One button left of the field, in place of the attach button (kewang, 2026-10-30, after using a first build with two
+  buttons on the Pixel: the field had become too narrow and the Chinese hint wrapped to two lines). In reply mode it is
+  `+`, "Attach or run a command", and opens a menu: Photo and File when attaching is offered, then Command mode. In
+  command mode it is the terminal icon (`>_`) in the tertiary color, "Back to a reply", and one tap turns the mode off.
+  Its state (on/off) is said to a screen reader. Alternatives shown to kewang: two smaller buttons (little width
+  gained), the switch inside the field (in between); he chose the menu.
+- Hint: one line, ellipsized; the skills hint shortened ("Reply · / for skills", 「傳訊息 · 打 / 選 skill」) so it
+  fits beside one button.
 - Field: monospace text, a leading `$`, container `tertiaryContainer` instead of `surfaceContainerHigh`, hint
   "Command to run". Up to 6 lines as a reply.
 - Line above the field (always while in command mode): "Runs in the agent's terminal on the desktop, without asking
@@ -215,5 +221,5 @@ if that proves brittle, fall back to a long-press on the agent text entry offeri
   arm for a leading `!`) can be raised separately.
 - [A command sent while the agent works runs only at the turn's end] → said on the line before sending; the pending
   row carries the "waiting for the agent to take it" label as a reply does.
-- [Shared composer in the reply bar] → the switch and command mode work there too (same `Composer`); "Run it myself"
+- [Shared composer in the reply bar] → the button and command mode work there too (same `Composer`); "Run it myself"
   is only on the conversation screen, where the tool calls are.

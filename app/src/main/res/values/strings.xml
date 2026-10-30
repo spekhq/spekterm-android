@@ -231,11 +231,10 @@
     <string name="conversation_reply_may_not_have_been_sent">May not have been sent — check the desktop</string>
     <string name="conversation_reply_not_submitted">Typed into the agent\'s input but not sent — the agent\'s state changed (for example, a choice appeared). Finish it on the desktop.</string>
     <string name="conversation_attachments">Attachments</string>
-    <string name="conversation_attach">Attach</string>
     <string name="conversation_photo">Photo</string>
     <string name="conversation_file">File</string>
     <string name="conversation_reply_hint">Reply to the agent</string>
-    <string name="conversation_reply_hint_skills">Reply to the agent · / for skills</string>
+    <string name="conversation_reply_hint_skills">Reply · / for skills</string>
     <string name="conversation_send">Send</string>
     <string name="conversation_remove_attachment">Remove attachment</string>
     <string name="conversation_attachment_preparing">Preparing…</string>
@@ -773,4 +772,6 @@
     <string name="command_no_output">No output</string>
     <string name="command_saved_on_desktop">Full output saved on the desktop</string>
     <string name="command_run_myself">Run it myself</string>
+    <string name="conversation_more">Attach or run a command</string>
+    <string name="command_mode_exit">Back to a reply</string>
 </resources>

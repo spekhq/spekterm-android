@@ -72,7 +72,7 @@ access turned on.
   text files attached, shown as unconfirmed until it appears in the conversation. Typing `/` at the start of
   the reply shows the session's skills, filtered as you type; choosing one fills it in as a slash command. A command that never appears says
   why it may not have, and one too long to run as a command says so before it is sent.
-- **Shell commands**: the switch beside the reply field turns it into a command field that runs a command in the
+- **Shell commands**: Command mode, in the menu of the button beside the reply field, turns it into a command field that runs a command in the
   agent's terminal on the desktop, as `!` does there — without a permission prompt and without input, so a login
   that asks for a password or opens a browser cannot be finished from the phone. "Run it myself" under an agent's
   `Bash` call, or tapping a `` `! command` `` in its text, puts that command in the field without running it. A

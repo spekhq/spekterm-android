@@ -3,7 +3,7 @@
 When a command is blocked by the permission rules, or the agent asks the user to run one themselves (`! gcloud auth
 login` — though that one is interactive, see below), or the user simply wants to run something in the session's directory, the phone has no way to do it: the
 user has to walk back to the desktop and type `!` in the agent's terminal. kewang asked (2026-10-30, from the phone)
-for a way to type commands from the phone, and chose a command-mode switch next to the reply field plus one-tap
+for a way to type commands from the phone, and chose a command mode beside the reply field plus one-tap
 "run it myself" from the conversation, over a typed `!` prefix (hard to type on a phone keyboard, and nothing shows
 the feature exists).
 
@@ -15,7 +15,7 @@ browser cannot be finished from the phone.
 
 ## What Changes
 
-- **Command mode** in the composer: a switch beside the reply field turns it into a command field — set apart in
+- **Command mode** in the composer: the button beside the reply field (attaching and command mode in one menu) turns it into a command field — set apart in
   look (monospace, a `$`, its own color), saying the command runs in the agent's terminal on the desktop without a
   permission prompt and takes no input, and that the agent sees its output, with a "Run" button instead of "Send". Attachments and the
   slash skills are not offered in it. The command has its own draft, kept per session like the reply's, so turning
@@ -53,7 +53,7 @@ browser cannot be finished from the phone.
 - `desktop/Replies.kt`: the gate for a command; matching a command reply against a `<bash-input>` entry.
 - `desktop/ConversationItems.kt`, `desktop/ConversationTimes.kt`: two new shown items for a shell command and its
   output, counted for their day.
-- `ui/ConversationScreen.kt`: the mode switch, the command field and its line, the "Run" button; the pending command
+- `ui/ConversationScreen.kt`: the attach-and-command-mode button, the command field and its line, the "Run" button; the pending command
   row; the two new items.
 - `ui/ToolViews.kt`: "Run it myself" under a `Bash` call's command.
 - `ui/AgentMarkdown.kt` / `ui/RepositoryMarkdown.kt`: a tappable `! command` code span in the agent's text.

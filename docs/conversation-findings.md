@@ -1246,6 +1246,22 @@ phone for the run. Driven over adb, the app in front each time. Screenshots kept
 | A command withheld by the desktop | not timed live; covered by `DesktopTest.aWithheldCommandBlocksEverySendUntilCleared` and `RepliesTest` |
 | 中文（台灣）, dark: the command field (「要執行的指令」), the line 「會在桌機的 agent 終端機直接執行，不經權限確認，也無法輸入。agent 看得到輸出。」, 「你執行的指令」 / 「輸出」, 「我自己跑」 under a `Bash` call | pass |
 
+### One button for attaching and command mode (task 2.5)
+
+After using the first build on the Pixel (4.1), kewang found the field too narrow beside two buttons, and the Chinese
+hint wrapping to two lines (the English one wrapped too). He chose one `+` button with a menu over two smaller buttons
+or the switch inside the field. On the emulator against the dev desktop, 2026-10-30 15:36–15:38 (+08:00):
+
+| What | Outcome |
+|---|---|
+| English: one `+` left of the field, the hint "Reply · / for skills" on one line | pass |
+| `+` opens Photo, File, Command mode; Command mode turns the field into the command field and the button into the terminal icon | pass |
+| 中文（台灣）: 「傳訊息 · 打 / 選 skill」 on one line; the menu 照片／檔案／指令模式; 「要執行的指令」 | pass |
+| The terminal icon tapped once in command mode: back to a reply, `+` again | pass |
+
+`SlashSkillsTest.theHintSaysSlash` updated for the shorter hint. `./gradlew test assembleDebug` green; the
+instrumented suites on the emulator: 203 tests, all pass but `DesktopRaceTest`'s assumption.
+
 ### The suites (task 3.3)
 
 `./gradlew test assembleDebug`: 550 JVM tests pass. `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`
