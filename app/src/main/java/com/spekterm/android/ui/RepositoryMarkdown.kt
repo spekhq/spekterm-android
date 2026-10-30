@@ -1,8 +1,13 @@
 package com.spekterm.android.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -10,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -17,7 +23,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.compose.LazyMarkdownSuccess
+import com.mikepenz.markdown.compose.components.CurrentComponentsBridge
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
 import com.mikepenz.markdown.compose.components.MarkdownComponents
 import com.mikepenz.markdown.compose.components.markdownComponents
@@ -33,6 +41,7 @@ import com.mikepenz.markdown.model.markdownAnimations
 import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.model.rememberMarkdownState
+import com.spekterm.android.R
 import com.spekterm.android.desktop.OpenSpecText
 import com.spekterm.android.desktop.Replies
 import org.intellij.markdown.IElementType
@@ -105,10 +114,42 @@ private fun webLink(link: ASTNode, content: String): Boolean {
  * whole.
  */
 @Composable
-fun safeComponents(): MarkdownComponents = markdownComponents(
+fun safeComponents(onCommand: ((String) -> Unit)? = null): MarkdownComponents = markdownComponents(
     table = { WholeTable(it) },
     custom = { type, model -> HtmlBlock(type, model) },
+    codeFence = { CommandCode(it, CurrentComponentsBridge.codeFence, onCommand) },
+    codeBlock = { CommandCode(it, CurrentComponentsBridge.codeBlock, onCommand) },
 )
+
+/**
+ * A code block as the renderer draws it; one that holds `!`, white space and a command — how agents most often write a
+ * command for the user to run — gets "Run it myself" under it, which puts the command in the command field
+ * (`run-shell-commands` D7).
+ */
+@Composable
+private fun CommandCode(model: MarkdownComponentModel, block: @Composable (MarkdownComponentModel) -> Unit, onCommand: ((String) -> Unit)?) {
+    val command = if (onCommand == null) null else remember(model.node, model.content) { Replies.suggested(codeText(model.node, model.content)) }
+    if (command == null) {
+        block(model)
+        return
+    }
+    Column {
+        block(model)
+        TextButton(onClick = { onCommand!!(command) }) {
+            Icon(SpekIcons.Terminal, null, Modifier.size(18.dp))
+            Text(stringResource(R.string.command_run_myself), Modifier.padding(start = 6.dp))
+        }
+    }
+}
+
+/** A code block's text: a fence without its opening and closing lines, an indented block without its indent. */
+private fun codeText(node: ASTNode, content: String): String {
+    val lines = node.getTextInNode(content).toString().lines()
+    if (node.type != MarkdownElementTypes.CODE_FENCE) return lines.joinToString("\n") { it.removePrefix("    ").removePrefix("\t") }
+    val body = lines.drop(1)
+    val closed = body.lastOrNull()?.trim()?.let { it.startsWith("```") || it.startsWith("~~~") } == true
+    return (if (closed) body.dropLast(1) else body).joinToString("\n")
+}
 
 /**
  * The renderer cuts every table cell to one line with an ellipsis; here a cell wraps onto as many lines as its text

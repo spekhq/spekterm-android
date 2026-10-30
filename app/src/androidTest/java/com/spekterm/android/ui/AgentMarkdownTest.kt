@@ -10,6 +10,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import mockwebserver3.MockWebServer
@@ -187,5 +188,24 @@ class AgentMarkdownTest {
         compose.waitForIdle()
         val text = compose.onNodeWithText("npm login", substring = true).fetchSemanticsNode().config[SemanticsProperties.Text].single()
         assertTrue(text.getLinkAnnotations(0, text.length).isEmpty())
+    }
+
+    @Test
+    fun aCodeBlockHoldingABangCommandOffersRunItMyself() {
+        val got = mutableListOf<String>()
+        val text = "Run this:\n\n```\n! cd ~/repo && git push origin master\n```\n\nAnd this is only code:\n\n```sh\nls -la\n```"
+        compose.setContent { English { AgentMarkdown(text, onCommand = { got += it }) } }
+        compose.waitForIdle()
+        val buttons = compose.onAllNodesWithText("Run it myself").fetchSemanticsNodes()
+        assertEquals("one button, under the block holding the command", 1, buttons.size)
+        compose.onAllNodesWithText("Run it myself")[0].performClick()
+        assertEquals(listOf("cd ~/repo && git push origin master"), got)
+    }
+
+    @Test
+    fun withoutOnCommandACodeBlockHasNoButton() {
+        compose.setContent { English { AgentMarkdown("```\n! git push\n```") } }
+        compose.waitForIdle()
+        assertTrue(compose.onAllNodesWithText("Run it myself").fetchSemanticsNodes().isEmpty())
     }
 }

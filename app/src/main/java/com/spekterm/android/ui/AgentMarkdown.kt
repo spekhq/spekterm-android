@@ -58,7 +58,7 @@ fun AgentMarkdown(text: String, modifier: Modifier = Modifier, onCommand: ((Stri
             // joining them with spaces breaks poems, lists without markers, and CJK text.
             annotator = remember(commands) { safeAnnotator(softBreaks = false, inertLinks = false, commands = commands) },
             // Called for every block type the renderer does not know; only HTML blocks are shown.
-            components = safeComponents(),
+            components = safeComponents(onCommand),
             colors = colors,
             // A chat message's headings stand out from its text without dwarfing the conversation: no display sizes.
             typography = typography,

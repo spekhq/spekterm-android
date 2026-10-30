@@ -598,6 +598,8 @@ class RepliesTest {
         assertEquals("npm login", Replies.suggested("! npm login"))
         assertEquals("ls", Replies.suggested(" !  ls "))
         assertEquals("gcloud auth login --x", Replies.suggested("! gcloud auth login --x"))
+        // A code block's text may hold several lines.
+        assertEquals("cd x &&\ngit push", Replies.suggested("! cd x &&\ngit push\n"))
         for (not in listOf("!important", "a != b", "!", "! ", "npm login", "!!")) assertNull(not, Replies.suggested(not))
     }
 }

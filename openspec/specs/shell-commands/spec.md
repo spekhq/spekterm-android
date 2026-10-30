@@ -135,8 +135,10 @@ The expanded view of the agent's `Bash` tool call SHALL offer "Run it myself" be
 outcome, while the conversation's composer can be used for that session — unless the desktop cut the command short,
 in which case it SHALL NOT be offered. An inline code span in the agent's own text whose content, without white space
 at either end, is `!`, white space, and a command SHALL be shown as something to tap, while the composer can be used;
-in the user's own messages, in messages from other sessions, and in code blocks it SHALL stay as it is. Either SHALL
-put the command — the call's command, or the span's text after the `!` without white space at either end — into the
+a code block in the agent's own text whose content, so trimmed, is the same SHALL offer "Run it myself" below it, the
+same while; in the user's own messages and in messages from other sessions both SHALL stay as they are. Each SHALL
+put the command — the call's command, or the span's or block's text after the `!` without white space at either end
+— into the
 command draft in place of what it held, turn command mode on, and focus the field. It SHALL NOT send anything. The
 reply draft and its attachments SHALL stay as they were.
 
@@ -154,6 +156,13 @@ reply draft and its attachments SHALL stay as they were.
 
 - **WHEN** the agent's text reads "please run `! npm run deploy` yourself" and the user taps the code span
 - **THEN** the composer is in command mode holding `npm run deploy`, and nothing was sent
+
+#### Scenario: The agent writes the command in a code block
+
+- **WHEN** the agent's text holds a code block reading `! cd ~/repo && git push origin master` and the user taps "Run
+  it myself" below it
+- **THEN** the composer is in command mode holding `cd ~/repo && git push origin master`, and nothing was sent; a code
+  block reading `ls -la` offers no button
 
 #### Scenario: A code span that is not a command
 

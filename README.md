@@ -75,7 +75,8 @@ access turned on.
 - **Shell commands**: Command mode, in the menu of the button beside the reply field, turns it into a command field that runs a command in the
   agent's terminal on the desktop, as `!` does there — without a permission prompt and without input, so a login
   that asks for a password or opens a browser cannot be finished from the phone. "Run it myself" under an agent's
-  `Bash` call, or tapping a `` `! command` `` in its text, puts that command in the field without running it. A
+  `Bash` call or under a `! command` code block in its text, or tapping a `` `! command` `` in a line, puts that
+  command in the field without running it. A
   command shows as running until it finishes; commands run from the phone or the desktop show with their output,
   marked failed when they printed errors.
 - **Prompts**: a permission request, the agent's questions or a plan to approve is shown as plain text and,
