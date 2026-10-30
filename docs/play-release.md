@@ -81,14 +81,43 @@ What was measured and tried is in [`docs/release-findings.md`](release-findings.
     release notes; **Review release** → **Send for review** (Publishing overview → **Send changes for review** if asked).
     Review takes from hours to days; a rejection names its policy and reason (`play-release` design, Risks).
 
+## Once: publishing through the API
+
+Every release is uploaded and released with `tools/play-publish.mjs` through the Google Play Developer API
+(`play-api-upload`), so no browser limits the bundle's size. It needs a service account with a key, set up once:
+
+17. 【桌機】 [Google Cloud console](https://console.cloud.google.com), signed in as the account that owns the developer
+    account: pick a project of your own (or create one) and enable **Google Play Android Developer API** (APIs & Services →
+    Library).
+18. 【桌機】 IAM & Admin → **Service accounts** → **Create service account**: name `play-publisher`, no roles (Play Console
+    grants its access).
+19. 【桌機】 The account → **Keys** → **Add key** → **Create new key** → JSON. Save it as
+    `~/.android/spekterm-play-publisher.json` — or move it there from the download folder, so no copy stays behind — and
+    `chmod 600` it. Back it up in the password manager. Never paste its contents into a chat, an issue or a file in a
+    repository.
+20. 【桌機】 Play Console, developer account of the app → **Users and permissions** → **Invite new users**: the service
+    account's e-mail; **App permissions** → add spekterm → **Release to production, exclude devices, and use Play App
+    Signing** and **Release apps to testing tracks** (View app information comes ticked) → **Invite user**.
+21. 【我】 `node tools/play-publish.mjs check`: it prints the account's e-mail and the internal and production releases. A
+    403 right after inviting the account can mean its access has not taken effect yet: try again in a few hours.
+
+A leaked key: delete it on the service account's Keys page (it stops working at once) and create another.
+
 ## Every later release
 
 1. 【我】 Raise the version in `app/build.gradle.kts`: `versionCode` by one, and a `versionName` never uploaded before —
    before 1.0, a new feature raises MINOR, anything else PATCH, a rebuild after a rejected review included.
 2. 【我】 If a change altered a screen in `play/listings/*/graphics/phone-screenshots/`, retake those screenshots (the
    `play-release` design, D6, says how); if a change altered what the app sends or to whom, update the privacy policy on
-   spekterm.com (handoff to the spekterm repository) and `play/forms.md` first.
-3. 【我】 `./gradlew check bundleRelease`; use the profile build on the emulator and, with the maintainer's OK, on the phone.
-4. 【桌機】 Internal testing → **Create new release** → upload, notes, roll out; then the same bundle to Production as in step 16.
+   spekterm.com (handoff to the spekterm repository) and `play/forms.md` first. Write the release notes for users into
+   `play/release-notes/en-US/default.txt` and `play/release-notes/zh-TW/default.txt` (at most 500 characters each).
+3. 【我】 `./gradlew check bundleRelease` (it checks the notes' length); use the profile build on the emulator and, with the
+   maintainer's OK, on the phone. Commit the release with the notes.
+4. 【我】 `node tools/play-publish.mjs check`, then `node tools/play-publish.mjs internal`: the bundle goes to internal
+   testing as `<versionName> (<versionCode>)` with the notes (`--same-notes` when they stay as they were, as for a rebuild
+   after a rejected review). 【手機】 The maintainer updates from Play and tries it. After the maintainer's OK,
+   【我】 `node tools/play-publish.mjs production --version-code <versionCode>` sends the same release to review, and
+   `check` shows it in review. `tools/README.md` says what each refusal means. When the API cannot do it, 【桌機】 Internal
+   testing → **Create new release** → upload, notes, roll out; then the same bundle to Production as in step 16.
 5. 【我】 `git tag v<versionName>` on the commit built from; push with the maintainer's OK. A tag never moves.
 6. 【桌機】 A bad release: Production → **Halt rollout**, then a fixed build with a higher `versionCode`.

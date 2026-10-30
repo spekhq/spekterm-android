@@ -1,0 +1,3 @@
+- Run a shell command in the agent's terminal from your phone: choose Command mode from the + button beside the reply field.
+- "Run it myself" under a command the agent ran or suggests (! command) puts it in the field, ready to run.
+- Commands you run, from the phone or the desktop, show in the conversation with their output.

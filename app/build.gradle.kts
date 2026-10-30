@@ -199,9 +199,10 @@ tasks.configureEach {
 }
 
 // Tests that read files — the listing's limits, the strings, the sources' literals and comments — run again when those
-// files change, not only when the compiled classes do (`play-release` D6).
+// files change, not only when the compiled classes do (`play-release` D6; the release notes, `play-api-upload` D4).
 tasks.withType<Test>().configureEach {
     inputs.dir(rootProject.layout.projectDirectory.dir("play/listings")).withPropertyName("playListings").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(rootProject.layout.projectDirectory.dir("play/release-notes")).withPropertyName("playReleaseNotes").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir(layout.projectDirectory.dir("src/main/res")).withPropertyName("mainResources").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir(layout.projectDirectory.dir("src/main/java")).withPropertyName("mainSources").withPathSensitivity(PathSensitivity.RELATIVE)
 }

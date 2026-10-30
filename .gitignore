@@ -16,6 +16,8 @@ local.properties
 *.jks
 *.p12
 keystore.properties
+# The Play Developer API key lives in ~/.android/ (docs/play-release.md); never here, renamed or not.
+*play-publisher*.json
 
 # OS
 .DS_Store

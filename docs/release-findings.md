@@ -164,3 +164,44 @@ Play Console warns that the bundle has native code without debug symbols. All 16
 libraries (zxing-cpp's Android wrapper, CameraX's two JNI helpers, `androidx.graphics.path`; `file` says "stripped", no
 `.symtab`), so `ndk.debugSymbolLevel` has nothing to extract and the app has no native code of its own; the warning
 stays, and a native crash in those libraries reads as addresses. No NDK is installed here either.
+
+## Publishing through the API (`play-api-upload`, 2026-10-30)
+
+Why: Claude in Chrome's `file_upload` takes at most 10 MB a call; 0.5.0's bundle was 10,650,257 bytes and had to be
+dragged in by hand.
+
+Setup (3.1): the maintainer's existing Google Cloud project for spekterm (no organization; its display name changed to
+`spekterm`, its ID cannot change) got the Google Play Android Developer API enabled and a service account
+`play-publisher` with no Cloud roles; its JSON key was saved from the browser into the download folder and moved, unread,
+to `~/.android/spekterm-play-publisher.json` (mode 600). In Play Console (developer account of the app) → Users and
+permissions, the account was invited to spekterm with "Release to production, exclude devices, and use Play App Signing"
+and "Release apps to testing tracks"; "View app information (read-only)" came ticked. The account showed as active at
+once, and `check` worked at once — no waiting for the access to take effect.
+
+`node tools/play-publish.mjs check`, right after (notes shortened here):
+
+```
+Service account: play-publisher@<project>.iam.gserviceaccount.com
+internal:
+  0.5.0 (5) — published — version codes 5
+production:
+  0.5.0 (5) — published — version codes 5
+production in an edit:
+  0.5.0 (5) — completed — version codes 5
+    <en-US> … <zh-TW> …   (the notes as entered in Play Console)
+internal in an edit:
+  0.5.0 (5) — completed — version codes 5
+    <en-US> … <zh-TW> …
+Edit deleted (HTTP 204); asked for again, it is gone (HTTP 400). Nothing was committed.
+```
+
+- 0.5.0's production review had already ended (`published`), so whether an internal release is refused while production
+  is in review (design D5) could not be tried; it stays open for the first release with a review in progress.
+- Play answers `edits.get` on a deleted edit with 400, not 404; the fake Play in the tests answers the same.
+- `play/release-notes/*/default.txt` were seeded from the internal release's notes as printed (3.2). `PlayListingTest`
+  checks them: with a 501-character zh-TW file `testDebugUnitTest` ran again and failed with
+  `zh-TW/default.txt: 501 characters, over 500`; restored, green.
+
+Tests (1.2, 3.3): `node --test tools/*.test.mjs` 23 of 23 pass; with the commit's `ERROR_IF_IN_REVIEW` replaced by
+`CANCEL_IN_REVIEW_AND_SUBMIT`, 4 fail (the query itself, internal, internal `--send-in-console`, production); restored,
+23 pass. `./gradlew check`: `BUILD SUCCESSFUL`.
