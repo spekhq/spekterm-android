@@ -1269,3 +1269,13 @@ with only the emulator listed by `adb devices`: 202 tests, all pass but `Desktop
 arguments, as before). The first full run found `AgentMarkdown` reading the renderer's code-span style outside the
 renderer (`No local MarkdownColors`, 7 UI tests); fixed by providing its colors and typography first. `ToolViewsTest`
 (6) and `AgentMarkdownTest` (9) rerun after the last changes: all pass.
+
+### On the Pixel (task 4.1)
+
+2026-10-30 15:28–15:45 (+08:00), with kewang's OK: the debug build `adb install -r`'d over
+`com.spekterm.android.debug` (its pairing saved first; the app rewrote the file on its first start and authenticated
+with it afterwards), against the installed desktop. kewang ran `git status` in command mode in this change's own
+session, and "Run it myself" on an adb command the agent had run there; both records and their output reached the
+session. The connection log: `send outcome=Submitted length=10 command=true` at 07:29:50Z and
+`send outcome=Submitted length=239 command=true` at 07:30:59Z. After that first build kewang asked for more room in the
+field (task 2.5); the second build, installed at 15:43, he tried too: "測試沒問題".

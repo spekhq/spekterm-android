@@ -20,4 +20,4 @@
 
 ## 4. On the phone
 
-- [ ] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop: `adb install -r` the debug build; kewang runs a command in command mode and one from "Run it myself" on a real refused or suggested command; I collect the log's send lines (`command=true`) and screenshots (only with the app in front). Verify: kewang's word and the evidence recorded in the findings section
+- [x] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop: `adb install -r` the debug build; kewang runs a command in command mode and one from "Run it myself" on a real refused or suggested command; I collect the log's send lines (`command=true`) and screenshots (only with the app in front). Verify: kewang's word and the evidence recorded in the findings section
