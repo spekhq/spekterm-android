@@ -86,6 +86,27 @@ object ConversationItems {
      */
     data class CommandOutput(override val key: String, val text: String, val entry: Entry.User, override val anchorsAfter: List<String> = emptyList()) : Shown
 
+    /**
+     * A command the user ran in the agent CLI's shell mode, from the phone or the desktop, recorded as a user entry
+     * wrapped in `<bash-input>` (`run-shell-commands` D5): [command] is what is between the markers, untouched.
+     */
+    data class ShellCommand(override val key: String, val command: String, val entry: Entry.User, override val anchorsAfter: List<String> = emptyList()) : Shown
+
+    /**
+     * The output of a shell-mode command (D5). [stderr] not empty means it failed; [persisted]: the CLI kept only a
+     * preview, the full output being saved on the desktop.
+     */
+    data class ShellOutput(
+        override val key: String,
+        val stdout: String,
+        val stderr: String,
+        val persisted: Boolean,
+        val entry: Entry.User,
+        override val anchorsAfter: List<String> = emptyList(),
+    ) : Shown {
+        val failed: Boolean get() = stderr.isNotEmpty()
+    }
+
     /** Any other entry: a user or injected message, the agent's text, thinking outside a run. */
     data class Plain(override val key: String, val entry: Entry, override val anchorsAfter: List<String> = emptyList()) : Shown
 
@@ -136,6 +157,14 @@ object ConversationItems {
                 entry is Entry.User && commandOutput(entry) != null -> {
                     close()
                     emit(CommandOutput(key, commandOutput(entry)!!, entry))
+                }
+                entry is Entry.User && shellCommand(entry) != null -> {
+                    close()
+                    emit(ShellCommand(key, shellCommand(entry)!!, entry))
+                }
+                entry is Entry.User && shellOutput(key, entry) != null -> {
+                    close()
+                    emit(shellOutput(key, entry)!!)
                 }
                 entry is Entry.User && entry.origin is Origin.Peer -> {
                     close()
@@ -205,7 +234,7 @@ object ConversationItems {
                     val id = item.call?.id
                     if (canReadFiles && id != null && item.files.isNotEmpty() && given.add("s:$id")) out += ViewerSource.Sent(item)
                 }
-                is Plain, is CommandOutput -> Unit
+                is Plain, is CommandOutput, is ShellCommand, is ShellOutput -> Unit
             }
         }
         return out
@@ -235,6 +264,56 @@ object ConversationItems {
         return Replies.jsTrim(inner.replace(ESCAPE, ""))
     }
 
+    /** A shell-mode command's text, or null: typed by the user (not injected, no origin), wholly `<bash-input>` (D5). */
+    fun shellCommand(entry: Entry.User): String? =
+        if (entry.meta || entry.origin != null) null else Replies.ranCommand(entry.text)
+
+    private const val STDOUT_OPEN = "<bash-stdout>"
+    private const val STDOUT_CLOSE = "</bash-stdout>"
+    private const val STDERR_OPEN = "<bash-stderr>"
+    private const val STDERR_CLOSE = "</bash-stderr>"
+    private const val PERSISTED_OPEN = "<persisted-output>"
+    private const val PERSISTED_CLOSE = "</persisted-output>"
+
+    /**
+     * A shell-mode command's output, or null (D5): `<bash-stdout>…</bash-stdout><bash-stderr>…</bash-stderr>`, cut at
+     * the last `</bash-stdout>` as the CLI's own renderer does — the CLI escapes stderr, and stdout except its preview
+     * of a too-large output, which may hold a raw `<` — or `<bash-stderr>…</bash-stderr>` alone.
+     */
+    fun shellOutput(key: String, entry: Entry.User): ShellOutput? {
+        if (entry.meta || entry.origin != null) return null
+        val t = Replies.jsTrim(entry.text)
+        if (!t.endsWith(STDERR_CLOSE)) return null
+        val stdout: String
+        val stderr: String
+        if (t.startsWith(STDOUT_OPEN)) {
+            val close = t.lastIndexOf(STDOUT_CLOSE)
+            if (close < STDOUT_OPEN.length) return null
+            val rest = t.substring(close + STDOUT_CLOSE.length)
+            if (!rest.startsWith(STDERR_OPEN) || rest.length < STDERR_OPEN.length + STDERR_CLOSE.length) return null
+            stdout = t.substring(STDOUT_OPEN.length, close)
+            stderr = rest.substring(STDERR_OPEN.length, rest.length - STDERR_CLOSE.length)
+        } else if (t.startsWith(STDERR_OPEN) && t.length >= STDERR_OPEN.length + STDERR_CLOSE.length) {
+            stdout = ""
+            stderr = t.substring(STDERR_OPEN.length, t.length - STDERR_CLOSE.length)
+        } else {
+            return null
+        }
+        // Escaped, the error output never holds a marker; one that does is not the CLI's.
+        if ('<' in stderr) return null
+        val trimmed = Replies.jsTrim(stdout)
+        val persisted = trimmed.startsWith(PERSISTED_OPEN) && trimmed.endsWith(PERSISTED_CLOSE) &&
+            trimmed.length >= PERSISTED_OPEN.length + PERSISTED_CLOSE.length
+        val out = if (persisted) trimmed.substring(PERSISTED_OPEN.length, trimmed.length - PERSISTED_CLOSE.length) else unescape(stdout)
+        return ShellOutput(key, plain(out), plain(unescape(stderr)), persisted, entry)
+    }
+
+    /** What the CLI escapes in shell-mode output, back to the characters; `&amp;` last, so `&amp;lt;` stays `&lt;`. */
+    private fun unescape(text: String): String =
+        text.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&")
+
+    private fun plain(text: String): String = Replies.jsTrim(text.replace(ESCAPE, ""))
+
     /** The CLI's fixed caveat it injects before a built-in command (D8). */
     fun isCommandCaveat(entry: Entry.User): Boolean =
         entry.meta && entry.origin == null && wrapped(entry.text, "local-command-caveat") != null
@@ -260,5 +339,7 @@ object ConversationItems {
         is Plain -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
         is Message -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
         is CommandOutput -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
+        is ShellCommand -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
+        is ShellOutput -> item.copy(anchorsAfter = item.anchorsAfter + anchor)
     }
 }

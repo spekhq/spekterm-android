@@ -144,4 +144,17 @@ class ConversationTimesTest {
         assertNull(ConversationTimes.timeOf(shown))
         assertEquals(ms("2026-10-25T10:00:00"), ConversationTimes.startOf(shown))
     }
+
+    @Test
+    fun aShellCommandAndItsOutputHaveNoTimeAndCountForTheirDay() {
+        val at = ms("2026-10-30T13:02:06")
+        val entries = listOf(
+            Entry.User("i", at, "<bash-input>ls</bash-input>", meta = false),
+            Entry.User("o", at, "<bash-stdout>a</bash-stdout><bash-stderr></bash-stderr>", meta = false),
+        )
+        for (shown in ConversationItems.group(entries, listOf("i#0", "o#0"), emptySet())) {
+            assertNull(ConversationTimes.timeOf(shown))
+            assertEquals(at, ConversationTimes.startOf(shown))
+        }
+    }
 }

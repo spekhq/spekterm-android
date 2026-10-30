@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -163,5 +164,28 @@ class AgentMarkdownTest {
         val sizes = listOf("要做的事", "驗證方式", "備註").map(::size)
         assertTrue("headings go down by level: $sizes", sizes.zipWithNext().all { (a, b) -> a >= b })
         assertTrue("no heading dwarfs the text: $sizes vs $body", sizes.all { it >= body && it <= body * 1.5f })
+    }
+
+    @Test
+    fun aBangCommandSpanIsTappableAndNothingElse() {
+        val got = mutableListOf<String>()
+        compose.setContent { AgentMarkdown("Please run `! npm login` yourself; `!important` and `a != b` are code.", onCommand = { got += it }) }
+        compose.waitForIdle()
+        val node = compose.onNodeWithText("npm login", substring = true).fetchSemanticsNode()
+        val text = node.config[SemanticsProperties.Text].single()
+        val links = text.getLinkAnnotations(0, text.length)
+        assertEquals("one command link, and no other", 1, links.size)
+        assertEquals(" ! npm login ", text.text.substring(links.single().start, links.single().end))
+        val clickable = links.single().item as LinkAnnotation.Clickable
+        compose.runOnIdle { clickable.linkInteractionListener!!.onClick(clickable) }
+        assertEquals(listOf("npm login"), got)
+    }
+
+    @Test
+    fun withoutOnCommandABangSpanIsPlainCode() {
+        compose.setContent { AgentMarkdown("Please run `! npm login` yourself.") }
+        compose.waitForIdle()
+        val text = compose.onNodeWithText("npm login", substring = true).fetchSemanticsNode().config[SemanticsProperties.Text].single()
+        assertTrue(text.getLinkAnnotations(0, text.length).isEmpty())
     }
 }

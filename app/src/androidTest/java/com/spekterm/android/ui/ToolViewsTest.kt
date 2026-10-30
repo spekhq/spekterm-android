@@ -8,6 +8,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.spekterm.android.desktop.PeerText
 import com.spekterm.android.desktop.ToolView
@@ -65,6 +66,27 @@ class ToolViewsTest {
         assertTrue(d.toString(), command >= 0 && output > command)
         // What a screen reader reads (the merged tree): the label only inside the part's description.
         assertTrue("the label is not read on its own", compose.onAllNodesWithText("Command").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun runItMyselfPutsTheCommandInButNotACutOne() {
+        val got = mutableListOf<String>()
+        val whole = ToolView.of(call("Bash", """{"command":"git push"}"""), null)
+        val cut = ToolView.of(call("Bash", """{"command":"cat <<EOF"}""").copy(cut = mapOf("command" to 5000L)), null)
+        compose.setContent {
+            English {
+                Column {
+                    ToolParts(whole, "t1") { got += it }
+                    ToolParts(cut, "t2") { got += it }
+                    ToolParts(whole, "t3")
+                }
+            }
+        }
+        // Offered once: under the whole command given a place to put it, not under the cut one, not without a place.
+        val buttons = compose.onAllNodesWithText("Run it myself").fetchSemanticsNodes()
+        assertEquals(1, buttons.size)
+        compose.onAllNodesWithText("Run it myself")[0].performClick()
+        assertEquals(listOf("git push"), got)
     }
 
     @Test

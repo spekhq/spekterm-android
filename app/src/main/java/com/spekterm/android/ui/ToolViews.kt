@@ -83,6 +83,8 @@ data class ToolContext(
             SentFileRef.Source.RESULT -> Desktop.readResultImage(s, r.toolUseId, r.index, l, k, p)
         }
     },
+    /** Puts a command into the session's command field (`run-shell-commands` D6); null where it cannot be run. */
+    val runCommand: ((String) -> Unit)? = null,
     val open: (SentFileRef) -> Unit,
 )
 
@@ -121,7 +123,7 @@ private fun labelText(label: Label): String = stringResource(
 
 /** An expanded call's parts, each labeled, what the agent supplied set apart from what came back (design D3). */
 @Composable
-internal fun ToolParts(view: ToolView, callId: String) {
+internal fun ToolParts(view: ToolView, callId: String, onRunCommand: ((String) -> Unit)? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (part in view.parts) {
             when (part) {
@@ -129,6 +131,13 @@ internal fun ToolParts(view: ToolView, callId: String) {
                     ReadContent(part.text) { PartBlock(labelText(part.label), part.text, part.role, part.cut, dollar = false) }
                 } else {
                     PartBlock(labelText(part.label), part.text, part.role, part.cut, dollar = part.label == Label.COMMAND)
+                    // A command the desktop cut short would run as another command: not offered (`run-shell-commands` D6).
+                    if (onRunCommand != null && part.label == Label.COMMAND && part.cut == null) {
+                        TextButton(onClick = { onRunCommand(part.text) }) {
+                            Icon(SpekIcons.Terminal, null, Modifier.size(18.dp))
+                            Text(stringResource(R.string.command_run_myself), Modifier.padding(start = 6.dp))
+                        }
+                    }
                 }
                 is Part.Path -> PathLine(part.path)
                 is Part.Diff -> DiffBlock(part)

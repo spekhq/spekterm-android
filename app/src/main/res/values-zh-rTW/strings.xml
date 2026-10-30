@@ -721,4 +721,22 @@
     <string name="command_output">指令輸出</string>
     <string name="command_output_show_all">顯示全部</string>
     <string name="conversation_reply_switching">等待 model 切換</string>
+    <string name="conversation_reply_running">桌機執行中，跑完才會出現</string>
+    <string name="command_mode">指令模式</string>
+    <string name="command_mode_on">開啟</string>
+    <string name="command_mode_off">關閉</string>
+    <string name="command_hint">要執行的指令</string>
+    <string name="command_line_ready">會在桌機的 agent 終端機直接執行，不經權限確認，也無法輸入。agent 看得到輸出。</string>
+    <string name="command_line_working">會等 agent 這一輪結束後執行，不經權限確認，也無法輸入。agent 看得到輸出。</string>
+    <string name="command_run">執行</string>
+    <string name="command_refused">%1$s 沒有執行：%2$s</string>
+    <string name="command_back">回到這個指令</string>
+    <string name="command_waits">%1$s 還留在桌機 agent 的輸入框裡，現在送出的任何東西都會接在它後面一起執行，請先到桌機清掉。</string>
+    <string name="command_cleared">已清掉</string>
+    <string name="command_you_ran">你執行的指令</string>
+    <string name="command_output_label">輸出</string>
+    <string name="command_failed">失敗</string>
+    <string name="command_no_output">沒有輸出</string>
+    <string name="command_saved_on_desktop">完整輸出存在桌機</string>
+    <string name="command_run_myself">我自己跑</string>
 </resources>

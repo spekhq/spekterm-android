@@ -61,6 +61,9 @@ data class ToolView(
     data class Question(val text: String, val options: List<String>)
 
     companion object {
+        /** The agent CLI's shell tool, whose command the user can run themselves (`run-shell-commands` D6). */
+        const val BASH = "Bash"
+
         private const val LAUNCHED = "Async agent launched"
         private const val MONITOR_STARTED = "Monitor started"
         private val AGENT_ID = Regex("^a[0-9a-f]{16}$")

@@ -30,6 +30,12 @@ object SpekIcons {
     )
     val Add = icon("Add", "M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z")
     val Send = icon("Send", "M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z", mirrored = true)
+    val Terminal = icon(
+        "Terminal",
+        "M20,4H4C2.89,4 2,4.9 2,6v12c0,1.1 0.89,2 2,2h16c1.1,0 2,-0.9 2,-2V6C22,4.9 21.11,4 20,4zM20,18H4V8h16V18zM18,17h-6v-2h6V17z" +
+            "M7.5,17l-1.41,-1.41L8.67,13l-2.59,-2.59L7.5,9l4,4L7.5,17z",
+    )
+    val Run = icon("Run", "M8,5v14l11,-7z")
     val Attach = icon(
         "Attach",
         "M16.5,6v11.5c0,2.21 -1.79,4 -4,4s-4,-1.79 -4,-4V5c0,-1.38 1.12,-2.5 2.5,-2.5s2.5,1.12 2.5,2.5v10.5c0,0.55 " +

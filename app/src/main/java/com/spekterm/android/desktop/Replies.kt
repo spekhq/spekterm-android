@@ -37,6 +37,10 @@ data class Reply(
      * command that ran as the line typed (`agent-usage-and-skills` D5). Read at the send, never live.
      */
     val commandsShown: Boolean = false,
+    /** A shell command run from command mode: [text] without the `!` written before it (`run-shell-commands` D1, D2). */
+    val command: Boolean = false,
+    /** A command the desktop withheld, which the user said was cleared from the agent's input (D3). */
+    val cleared: Boolean = false,
 ) {
     enum class State { SENDING, SUBMITTED, MAY_NOT_HAVE_BEEN_SENT, NOT_SUBMITTED }
 
@@ -55,6 +59,9 @@ data class Reply(
 
         /** A typed `/model <name>` whose switch holds: it may wait in a box on the desktop (`session-model-effort` D6). */
         SWITCHING(false),
+
+        /** A command not recorded yet: the agent's CLI records one only once it has finished (`run-shell-commands` D2). */
+        RUNNING(false),
     }
 
     /** [holding]: this reply is the typed command of the session's switch, which holds. */
@@ -66,13 +73,19 @@ data class Reply(
             holding -> Label.SWITCHING
             sentWhile == WaitState.BUSY -> when {
                 stoppedAt == null -> Label.WAITING_FOR_AGENT
-                inGrace(now) -> Label.NOT_YET_CONFIRMED
+                inGrace(now) -> unconfirmed
                 else -> notShown(Label.NOT_SHOWN_AFTER_WORK)
             }
-            now - (submittedAt ?: now) >= Replies.NOT_SEEN_MS -> notShown(Label.NOT_IN_CONVERSATION_YET)
-            else -> Label.NOT_YET_CONFIRMED
+            now - (submittedAt ?: now) >= notSeenMs -> notShown(Label.NOT_IN_CONVERSATION_YET)
+            else -> unconfirmed
         }
     }
+
+    /** A command runs on the desktop until it is recorded; a reply is merely not confirmed yet. */
+    private val unconfirmed: Label get() = if (command) Label.RUNNING else Label.NOT_YET_CONFIRMED
+
+    /** How long it may take to appear: a command is recorded only once it has finished (`run-shell-commands` D2). */
+    private val notSeenMs: Long get() = if (command) Replies.COMMAND_NOT_SEEN_MS else Replies.NOT_SEEN_MS
 
     /**
      * A slash command that would run, sent to a desktop that shows one as typed, says why it may never appear (D5).
@@ -89,7 +102,7 @@ data class Reply(
      * that takes the reply starts, so the reply is not called missing yet. One predicate for [label] and
      * [Replies.waited], so they agree at the boundary.
      */
-    fun inGrace(now: Long): Boolean = stoppedAt != null && now - stoppedAt < Replies.NOT_SEEN_MS
+    fun inGrace(now: Long): Boolean = stoppedAt != null && now - stoppedAt < notSeenMs
 
     /** A typed-but-withheld reply is never submitted by the desktop, so nothing can confirm it. */
     val matchable: Boolean get() = state != State.NOT_SUBMITTED
@@ -175,10 +188,26 @@ sealed interface Blocked {
     data object BareCommand : Blocked
 
     data object TooLong : Blocked
+
+    /**
+     * A command the desktop typed but did not submit waits in the agent's input: anything sent would be appended to it
+     * and run with it (`run-shell-commands` D3).
+     */
+    data class CommandWaits(val command: String) : Blocked
 }
+
+/** A command the desktop refused before writing it, kept aside until the user goes back to it (`run-shell-commands` D3). */
+data class CommandRefused(val command: String, val code: String)
 
 object Replies {
     const val NOT_SEEN_MS = 30_000L
+
+    /** A command's [NOT_SEEN_MS]: it is recorded only once it has finished (`run-shell-commands` D2). */
+    const val COMMAND_NOT_SEEN_MS = 10 * 60_000L
+
+    /** What the agent CLI records a command run in its shell mode as. */
+    private const val BASH_INPUT_OPEN = "<bash-input>"
+    private const val BASH_INPUT_CLOSE = "</bash-input>"
 
     /** The desktop's WebSocket message limit; a longer frame closes the connection. */
     const val MAX_FRAME_BYTES = 1024 * 1024
@@ -239,15 +268,25 @@ object Replies {
         inboxPrompt: Boolean = false,
         /** The session's pending switch; only one that [PendingSwitch.holds] blocks. */
         switch: PendingSwitch? = null,
+        /** [text] is a shell command: no attachments, never a `/model` (`run-shell-commands` D1). */
+        command: Boolean = false,
+        /** The session's withheld command ([withheld]), which blocks every send (D3). */
+        withheld: Reply? = null,
     ): Blocked? = when {
         paused -> Blocked.Paused
         !connected -> Blocked.NotConnected
+        withheld != null -> Blocked.CommandWaits(withheld.text)
         watch != Watch.Watching -> Blocked.NotWatching
         wait == WaitState.AWAITING_CHOICE -> Blocked.AwaitingChoice(pending)
         inboxPrompt -> Blocked.InboxPrompt
         wait != WaitState.READY && wait != WaitState.BUSY -> Blocked.Unknown
         inFlight -> Blocked.InFlight
         switch?.holds == true -> Blocked.ModelSwitch(switch)
+        command -> when {
+            jsTrim(clean(text)).isEmpty() -> Blocked.Empty
+            tooLong("!$text") -> Blocked.TooLong
+            else -> null
+        }
         attachments.any { it.state is AttachmentState.Failed } -> Blocked.AttachmentFailed
         attachments.any { it.state !is AttachmentState.Ready } -> Blocked.Attaching
         // Empty text is sendable when it carries an attachment: the desktop writes its sentence alone.
@@ -256,6 +295,10 @@ object Replies {
         tooLong(text) -> Blocked.TooLong
         else -> null
     }
+
+    /** The newest command the desktop typed without submitting, not yet cleared by the user (`run-shell-commands` D3). */
+    fun withheld(c: Conversation?): Reply? =
+        c?.replies?.lastOrNull { it.command && it.state == Reply.State.NOT_SUBMITTED && !it.cleared }
 
     /**
      * Whether the encoded `conversation.send` frame reaches the desktop's limit. Escaping takes at most six bytes
@@ -267,8 +310,22 @@ object Replies {
         return frame.toByteArray(Charsets.UTF_8).size >= MAX_FRAME_BYTES
     }
 
-    /** A new reply, sent now, in state SENDING, carrying [attachments] out of the composer. */
-    fun sent(c: Conversation, id: Long, text: String, attachments: List<Attachment> = emptyList()): Conversation {
+    /**
+     * A new reply, sent now, in state SENDING, carrying [attachments] out of the composer. A [command] carries none and
+     * leaves the reply draft, the attachments and their note alone; it ends command mode (`run-shell-commands` D3).
+     */
+    fun sent(c: Conversation, id: Long, text: String, attachments: List<Attachment> = emptyList(), command: Boolean = false): Conversation {
+        if (command) {
+            val reply = Reply(
+                id = id,
+                text = text,
+                sentWhile = c.wait,
+                held = c.entries.mapNotNullTo(HashSet()) { it.uuid.takeIf(String::isNotEmpty) },
+                anchor = ConversationReducer.keys(c.entries).lastOrNull(),
+                command = true,
+            )
+            return c.copy(replies = c.replies + reply, commandMode = false, commandDraft = "", commandRefused = null, prefillRefused = false)
+        }
         val reply = Reply(
             id = id,
             text = text,
@@ -279,7 +336,7 @@ object Replies {
             commandsShown = c.usage != null,
         )
         val sentIds = attachments.map { it.localId }.toSet()
-        return c.copy(replies = c.replies + reply, draft = "", attachments = c.attachments.filter { it.localId !in sentIds }, attachNote = null, prefillRefused = false)
+        return c.copy(replies = c.replies + reply, draft = "", attachments = c.attachments.filter { it.localId !in sentIds }, attachNote = null, prefillRefused = false, commandRefused = null)
     }
 
     /**
@@ -293,6 +350,8 @@ object Replies {
             SendOutcome.Submitted -> rematch(c.copy(replies = others + reply.copy(state = Reply.State.SUBMITTED, submittedAt = now, written = written)), id)
             SendOutcome.NotSubmitted -> c.copy(replies = others + reply.copy(state = Reply.State.NOT_SUBMITTED, written = written))
             SendOutcome.Unknown -> rematch(c.copy(replies = others + reply.copy(state = Reply.State.MAY_NOT_HAVE_BEEN_SENT)), id)
+            // Kept aside, not written into the command draft under a field the user may be typing in (D3).
+            is SendOutcome.Refused if reply.command -> c.copy(replies = others, commandRefused = CommandRefused(reply.text, outcome.code))
             is SendOutcome.Refused -> {
                 val notFound = outcome.code == RemoteError.NOT_FOUND
                 val back = if (c.closed) emptyList() else returned(reply.attachments, notFound, now)
@@ -328,12 +387,32 @@ object Replies {
      */
     fun matches(reply: Reply, entry: Entry): Boolean {
         if (entry !is Entry.User || entry.meta || !reply.matchable || entry.uuid in reply.held) return false
+        if (reply.command) return ranCommand(entry.text)?.let { jsTrim(it) == jsTrim(clean(reply.text)) } == true
         val text = jsTrim(entry.text)
         reply.written?.let { return text == jsTrim(it) }
         if (reply.attachments.isEmpty()) return text == jsTrim(clean(reply.text))
         val ids = reply.attachmentIds
         return ids.isNotEmpty() && text.startsWith(jsTrim(clean(reply.text))) && ids.all { it in text }
     }
+
+    /**
+     * The command of a user entry the agent CLI wrote for its shell mode: what is between `<bash-input>` and the last
+     * `</bash-input>`, untouched — the CLI does not escape it, so it may hold the markers (`run-shell-commands` D5).
+     */
+    fun ranCommand(text: String): String? {
+        val t = jsTrim(text)
+        if (t.length < BASH_INPUT_OPEN.length + BASH_INPUT_CLOSE.length) return null
+        if (!t.startsWith(BASH_INPUT_OPEN) || !t.endsWith(BASH_INPUT_CLOSE)) return null
+        return t.substring(BASH_INPUT_OPEN.length, t.length - BASH_INPUT_CLOSE.length)
+    }
+
+    private val SUGGESTED = Regex("^!\\s+(\\S[\\s\\S]*)$")
+
+    /**
+     * The command in an inline code span of the agent's text that reads `!`, white space and a command — what the agent
+     * CLI tells agents to write when the user should run one themselves — or null (`run-shell-commands` D7).
+     */
+    fun suggested(code: String): String? = SUGGESTED.find(jsTrim(code))?.groupValues?.get(1)?.let(::jsTrim)
 
     /**
      * A reply with attachments may be in the conversation before its answer: match it against the entries held now

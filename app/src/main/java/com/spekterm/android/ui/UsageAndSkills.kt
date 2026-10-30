@@ -202,7 +202,7 @@ internal fun ModelEffortSheet(
     val now = rememberSwitchNow(c.switch)
     val inFlight = c.replies.any { it.state == Reply.State.SENDING }
     // The gates of a reply with no attachments (D5); the text only has to be a command.
-    val blocked = Replies.blocked(connected, paused, c.watch, c.wait, c.pending, inFlight, ModelEffort.command(Switch.Effort(ModelEffort.EFFORTS.first())), inboxPrompt = inboxPrompt, switch = c.switch)
+    val blocked = Replies.blocked(connected, paused, c.watch, c.wait, c.pending, inFlight, ModelEffort.command(Switch.Effort(ModelEffort.EFFORTS.first())), inboxPrompt = inboxPrompt, switch = c.switch, withheld = Replies.withheld(c))
     val sending = c.switch?.state == PendingSwitch.State.Sending
     val enabled = blocked == null && !sending
     val models = ModelEffort.modelsOffered(operations)

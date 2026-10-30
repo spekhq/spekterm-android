@@ -97,6 +97,14 @@ data class Conversation(
     val skills: Skills? = null,
     /** The session's switch of model or effort, mirrored from [Desktop]'s own map (`session-model-effort` D6). */
     val switch: PendingSwitch? = null,
+    /** The composer runs shell commands instead of sending replies (`run-shell-commands` D3). */
+    val commandMode: Boolean = false,
+    /** The command being written, kept apart from [draft]. */
+    val commandDraft: String = "",
+    /** Bumped whenever [commandDraft] is set from outside the field, so the composer takes it and focuses it. */
+    val commandReturns: Int = 0,
+    /** The last command the desktop refused, until the user goes back to it or sends anything else. */
+    val commandRefused: CommandRefused? = null,
 ) {
     /** The uuid to resume from: the last held entry's, or none when nothing is held. */
     val afterUuid: String? get() = entries.lastOrNull()?.uuid?.takeIf { it.isNotEmpty() }

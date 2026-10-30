@@ -14,11 +14,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.font.FontWeight
+import com.mikepenz.markdown.compose.LocalMarkdownColors
+import com.mikepenz.markdown.compose.LocalMarkdownTypography
 import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.NoOpImageTransformerImpl
 import com.mikepenz.markdown.model.markdownAnimations
 import com.mikepenz.markdown.model.rememberMarkdownState
+import com.mikepenz.markdown.utils.codeSpanStyle
 
 /**
  * Agent and user text as Markdown (`conversation-view`, design D5). The text is agent- or third-party
@@ -33,10 +37,16 @@ import com.mikepenz.markdown.model.rememberMarkdownState
  *   grows with its length.
  */
 @Composable
-fun AgentMarkdown(text: String, modifier: Modifier = Modifier) {
+fun AgentMarkdown(text: String, modifier: Modifier = Modifier, onCommand: ((String) -> Unit)? = null) {
     val context = LocalContext.current
     val handler = remember(context) { SafeUriHandler(context) }
-    CompositionLocalProvider(LocalUriHandler provides handler) {
+    val typography = chatTypography()
+    val colors = markdownColor()
+    // The renderer's code-span style reads these, which it otherwise provides only inside itself.
+    CompositionLocalProvider(LocalUriHandler provides handler, LocalMarkdownColors provides colors, LocalMarkdownTypography provides typography) {
+        // A `! command` code span of the agent's own text goes into the command field (`run-shell-commands` D7).
+        val codeStyle = if (onCommand != null) typography.codeSpanStyle else null
+        val commands = remember(codeStyle, onCommand) { if (onCommand != null && codeStyle != null) CommandSpans(codeStyle, onCommand) else null }
         Markdown(
             markdownState = rememberMarkdownState(text, immediate = true),
             modifier = modifier,
@@ -46,11 +56,12 @@ fun AgentMarkdown(text: String, modifier: Modifier = Modifier) {
             animations = markdownAnimations(animateTextSize = { this }),
             // A line break in agent or user text is kept: agents and people do not hard-wrap their lines, and
             // joining them with spaces breaks poems, lists without markers, and CJK text.
-            annotator = remember { safeAnnotator(softBreaks = false, inertLinks = false) },
+            annotator = remember(commands) { safeAnnotator(softBreaks = false, inertLinks = false, commands = commands) },
             // Called for every block type the renderer does not know; only HTML blocks are shown.
             components = safeComponents(),
+            colors = colors,
             // A chat message's headings stand out from its text without dwarfing the conversation: no display sizes.
-            typography = chatTypography(),
+            typography = typography,
         )
     }
 }

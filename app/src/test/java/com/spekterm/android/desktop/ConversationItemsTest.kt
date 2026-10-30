@@ -50,6 +50,8 @@ class ConversationItemsTest {
             is LoneResult -> "L(${item.result.uuid})"
             is Message -> "M(${item.key.removeSuffix("#0")})"
             is ConversationItems.CommandOutput -> "O(${item.entry.uuid})"
+            is ConversationItems.ShellCommand -> "$(${item.entry.uuid})"
+            is ConversationItems.ShellOutput -> "S(${item.entry.uuid})"
         }
         body + item.anchorsAfter.joinToString("") { "<" + it.removeSuffix("#0") }
     }
@@ -185,6 +187,8 @@ class ConversationItemsTest {
                 is LoneResult -> listOf(item.result)
                 is Message -> listOfNotNull(item.call, item.result)
                 is ConversationItems.CommandOutput -> listOf(item.entry)
+                is ConversationItems.ShellCommand -> listOf(item.entry)
+                is ConversationItems.ShellOutput -> listOf(item.entry)
             }
         }
         assertEquals(entries.toSet(), shown.toSet())
@@ -348,5 +352,83 @@ class ConversationItemsTest {
     @Test
     fun aResultSeenTwiceIsGoneThroughOnce() {
         assertEquals("C(x)", sources(group(call("x"), pic("r1", "x"), pic("r2", "x"))))
+    }
+
+    // ---- `run-shell-commands` (D5), from the records measured on Claude Code 2.1.314 ----
+
+    private fun shell(name: String, text: String, meta: Boolean = false, origin: Origin? = null) = Entry.User(name, 0, text, meta, origin)
+    private fun output(text: String) = ConversationItems.shellOutput("k", shell("o", text))!!
+
+    @Test
+    fun aShellCommandAndItsOutput() {
+        val items = group(shell("i", "<bash-input>echo busy-probe</bash-input>"), shell("o", "<bash-stdout>busy-probe</bash-stdout><bash-stderr></bash-stderr>"))
+        assertEquals("$(i) S(o)", shape(items))
+        assertEquals("echo busy-probe", (items[0] as ConversationItems.ShellCommand).command)
+        val out = items[1] as ConversationItems.ShellOutput
+        assertEquals("busy-probe", out.stdout)
+        assertEquals("", out.stderr)
+        assertEquals(false, out.failed)
+        assertEquals(false, out.persisted)
+    }
+
+    @Test
+    fun aShellCommandIsTakenAsRecorded() {
+        assertEquals("   echo spaced-probe", ConversationItems.shellCommand(shell("i", "<bash-input>   echo spaced-probe</bash-input>")))
+        assertEquals("echo \"<a>&b\" 1>&2; echo '</bash-input>'", ConversationItems.shellCommand(shell("i", "<bash-input>echo \"<a>&b\" 1>&2; echo '</bash-input>'</bash-input>")))
+        assertEquals("echo first-line\necho second-line", ConversationItems.shellCommand(shell("i", "<bash-input>echo first-line\necho second-line</bash-input>")))
+    }
+
+    @Test
+    fun escapedOutputIsUnescapedOnce() {
+        assertEquals("<a>&b\n</bash-input>", output("<bash-stdout>&lt;a&gt;&amp;b\n&lt;/bash-input&gt;</bash-stdout><bash-stderr></bash-stderr>").stdout)
+        assertEquals("&lt; \"q\" 'a'", output("<bash-stdout>&amp;lt; &quot;q&quot; &#39;a&#39;</bash-stdout><bash-stderr></bash-stderr>").stdout)
+    }
+
+    @Test
+    fun errorOutputMeansTheCommandFailed() {
+        val failed = output("<bash-stdout></bash-stdout><bash-stderr>stdin-not-tty\n(eval):1: no matches found: x</bash-stderr>")
+        assertEquals(true, failed.failed)
+        assertEquals("stdin-not-tty\n(eval):1: no matches found: x", failed.stderr)
+        val alone = output("<bash-stderr>Command failed: x</bash-stderr>")
+        assertEquals("", alone.stdout)
+        assertEquals("Command failed: x", alone.stderr)
+        assertEquals(true, alone.failed)
+    }
+
+    @Test
+    fun aTooLargeOutputIsItsPreviewAsItIs() {
+        val preview = "\nOutput too large (38KB). Full output saved to: /tmp/x.txt\n\nPreview (first 2KB):\n1\n2 a<b &amp;\n"
+        val out = output("<bash-stdout><persisted-output>$preview</persisted-output></bash-stdout><bash-stderr></bash-stderr>")
+        assertEquals(true, out.persisted)
+        assertEquals(preview.trim(), out.stdout)
+        // A preview holding the closing marker is still cut at the last one.
+        val marker = output("<bash-stdout><persisted-output>x </bash-stdout> y</persisted-output></bash-stdout><bash-stderr></bash-stderr>")
+        assertEquals("x </bash-stdout> y", marker.stdout)
+    }
+
+    @Test
+    fun noOutputAndTerminalColors() {
+        val none = output("<bash-stdout></bash-stdout><bash-stderr></bash-stderr>")
+        assertEquals("", none.stdout + none.stderr)
+        assertEquals("ok", output("<bash-stdout>\u001b[32mok\u001b[0m</bash-stdout><bash-stderr></bash-stderr>").stdout)
+    }
+
+    @Test
+    fun shellMarkersElsewhereStayAsRecorded() {
+        val items = group(
+            shell("a", "<bash-input>ls</bash-input>", meta = true),
+            shell("b", "<bash-input>ls</bash-input>", origin = Origin.Peer(Origin.Sender.SESSION, "x")),
+            shell("c", "I ran <bash-input>ls</bash-input> before"),
+            shell("d", "<bash-stdout>x</bash-stdout>"),
+            shell("e", "<bash-stdout>x</bash-stdout><bash-stderr>a</bash-stderr><bash-stderr>b</bash-stderr>"),
+            shell("f", "<bash-stdout>x</bash-stdout><bash-stderr></bash-stderr>", meta = true),
+        )
+        assertEquals("P(a) M(b) P(c) P(d) P(e) P(f)", shape(items))
+    }
+
+    @Test
+    fun aShellCommandEndsARunAndKeepsAReplyAfterIt() {
+        assertEquals("C(c1) $(i) C(c2)", shape(group(call("c1"), shell("i", "<bash-input>ls</bash-input>"), call("c2"))))
+        assertEquals("$(i) S(o)<o P(u)", shape(group(shell("i", "<bash-input>ls</bash-input>"), shell("o", "<bash-stdout></bash-stdout><bash-stderr></bash-stderr>"), user("u"), anchors = setOf("o"))))
     }
 }

@@ -53,6 +53,8 @@ object ConversationTimes {
         is ConversationItems.Plain -> shown.entry.at
         is ConversationItems.Message -> shown.at
         is ConversationItems.CommandOutput -> shown.entry.at
+        is ConversationItems.ShellCommand -> shown.entry.at
+        is ConversationItems.ShellOutput -> shown.entry.at
     }
 
     /**

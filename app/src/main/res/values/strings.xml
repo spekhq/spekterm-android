@@ -755,4 +755,22 @@
     <string name="command_output">Command output</string>
     <string name="command_output_show_all">Show all</string>
     <string name="conversation_reply_switching">Waiting for the model to switch</string>
+    <string name="conversation_reply_running">Running on the desktop — shown when it finishes</string>
+    <string name="command_mode">Command mode</string>
+    <string name="command_mode_on">On</string>
+    <string name="command_mode_off">Off</string>
+    <string name="command_hint">Command to run</string>
+    <string name="command_line_ready">Runs in the agent\'s terminal on the desktop, without asking permission, and takes no input. The agent sees the output.</string>
+    <string name="command_line_working">Runs when the agent finishes its turn, without asking permission, and takes no input. The agent sees the output.</string>
+    <string name="command_run">Run</string>
+    <string name="command_refused">%1$s did not run: %2$s</string>
+    <string name="command_back">Back to the command</string>
+    <string name="command_waits">%1$s waits in the agent\'s input on the desktop. Anything sent now would run with it — clear it there first.</string>
+    <string name="command_cleared">I cleared it</string>
+    <string name="command_you_ran">Command you ran</string>
+    <string name="command_output_label">Output</string>
+    <string name="command_failed">Failed</string>
+    <string name="command_no_output">No output</string>
+    <string name="command_saved_on_desktop">Full output saved on the desktop</string>
+    <string name="command_run_myself">Run it myself</string>
 </resources>

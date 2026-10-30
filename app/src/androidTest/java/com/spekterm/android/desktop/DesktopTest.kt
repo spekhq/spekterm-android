@@ -767,6 +767,131 @@ class DesktopTest {
         until { it.replies.isEmpty() }
     }
 
+    // ---- `run-shell-commands` (D1, D3, D6) ----
+
+    @Test
+    fun aCommandIsSentWithItsBangAndNoAttachments() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            standard()
+            val base = handle
+            handle = { req, ws ->
+                when (req.method) {
+                    "attachments.put" -> ws.send(putOk(req))
+                    "conversation.send" -> ws.send(ok(req.id, """{"outcome":"submitted","text":"!ls -la"}"""))
+                    else -> base(req, ws)
+                }
+            }
+        }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching && it.wait == WaitState.READY }
+        attach(fileOf(10))
+        until { it.attachments.singleOrNull()?.state is AttachmentState.Ready }
+        Desktop.setDraft("s1", "half a reply")
+        Desktop.setCommandMode("s1", true)
+        until { it.commandMode && it.draft == "half a reply" }
+        assertTrue(Desktop.runCommand("s1", "ls -la"))
+        val c = until { it.replies.singleOrNull()?.state == Reply.State.SUBMITTED }
+        assertTrue(c.replies.single().command)
+        assertFalse(c.commandMode)
+        assertEquals("half a reply", c.draft)
+        assertEquals(1, c.attachments.size)
+        val sent = desktop.requests.single { it.method == "conversation.send" }
+        assertEquals("!ls -la", sent.text("text"))
+        assertNull(sent.params["attachments"])
+        desktop.socket!!.send(update(user("u9", "<bash-input>ls -la</bash-input>"), reset = false))
+        until { it.replies.isEmpty() }
+    }
+
+    @Test
+    fun commandModeAndItsDraftOutliveOpeningAnotherSession() = runBlocking<Unit> {
+        val desktop = Scripted().apply { standard() }
+        connect(desktop)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        Desktop.setDraft("s1", "a reply")
+        Desktop.setCommandMode("s1", true)
+        Desktop.setCommandDraft("s1", "npm test")
+        until { it.commandMode && it.commandDraft == "npm test" }
+        Desktop.focus("o2", "s2")
+        Desktop.unfocus("o1")
+        val other = until { it.sessionId == "s2" }
+        assertFalse(other.commandMode)
+        assertEquals("", other.commandDraft)
+        // Mode on with an empty command is kept too.
+        Desktop.setCommandMode("s2", true)
+        until { it.sessionId == "s2" && it.commandMode }
+        Desktop.focus("o3", "s1")
+        Desktop.unfocus("o2")
+        val back = until { it.sessionId == "s1" }
+        assertTrue(back.commandMode)
+        assertEquals("npm test", back.commandDraft)
+        assertEquals("a reply", back.draft)
+        Desktop.focus("o4", "s2")
+        Desktop.unfocus("o3")
+        assertTrue(until { it.sessionId == "s2" }.commandMode)
+    }
+
+    @Test
+    fun putCommandReplacesTheCommandAndKeepsTheReply() = runBlocking<Unit> {
+        val desktop = Scripted().apply { standard() }
+        connect(desktop)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching }
+        Desktop.setDraft("s1", "a reply")
+        Desktop.setCommandDraft("s1", "old")
+        until { it.commandDraft == "old" }
+        Desktop.putCommand("s1", "git push origin master")
+        val c = until { it.commandDraft == "git push origin master" }
+        assertTrue(c.commandMode)
+        assertEquals(1, c.commandReturns)
+        assertEquals("a reply", c.draft)
+        assertTrue(desktop.requests.none { it.method == "conversation.send" })
+    }
+
+    @Test
+    fun aRefusedCommandWaitsAsideUntilTheUserGoesBackToIt() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            standard()
+            val base = handle
+            handle = { req, ws -> if (req.method == "conversation.send") ws.send(err(req.id, "WAIT_STATE")) else base(req, ws) }
+        }
+        connect(desktop)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching && it.wait == WaitState.READY }
+        assertTrue(Desktop.runCommand("s1", "cmd1"))
+        // Typed into the command field meanwhile.
+        Desktop.setCommandDraft("s1", "cmd3")
+        val refused = until { it.commandRefused != null && it.replies.isEmpty() }
+        assertFalse(refused.commandMode)
+        assertEquals("cmd3", refused.commandDraft)
+        Desktop.backToCommand("s1")
+        val back = until { it.commandRefused == null }
+        assertTrue(back.commandMode)
+        assertEquals("cmd1\ncmd3", back.commandDraft)
+        assertEquals(1, back.commandReturns)
+    }
+
+    @Test
+    fun aWithheldCommandBlocksEverySendUntilCleared() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            standard()
+            val base = handle
+            handle = { req, ws -> if (req.method == "conversation.send") ws.send(ok(req.id, """{"outcome":"filled-not-submitted"}""")) else base(req, ws) }
+        }
+        connect(desktop)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching && it.wait == WaitState.READY }
+        assertTrue(Desktop.runCommand("s1", "npm test"))
+        until { it.replies.singleOrNull()?.state == Reply.State.NOT_SUBMITTED }
+        assertFalse(Desktop.send("s1", "hi"))
+        assertFalse(Desktop.runCommand("s1", "ls"))
+        assertEquals(1, desktop.count("conversation.send"))
+        Desktop.clearedWithheld("s1")
+        until { it.replies.single().cleared }
+        assertTrue(Desktop.send("s1", "hi"))
+    }
+
     // ---- The session menu ----
 
     @Test

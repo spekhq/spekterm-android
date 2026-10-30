@@ -55,6 +55,8 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
@@ -81,6 +83,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -196,9 +199,11 @@ fun ConversationScreen(
     var backgroundOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
     // Whether a prompt is answered above the field, and whether a first prompt from the inbox holds replies.
     val gate = rememberReplyGate(sessionId, c, session, announcements.paused)
+    // A command from a call or the agent's text goes into this session's command field, never sent (`run-shell-commands` D6).
+    val runCommand: ((String) -> Unit)? = if (!isShell && c?.closed != true) ({ Desktop.putCommand(sessionId, it) }) else null
     val toolContext = ToolContext(
         sessions.list, Operations.FILES_READ in operations, sessionId, session?.label, thumbs,
-        imagesReadable = Operations.IMAGES_READ in operations, pictures = pictures,
+        imagesReadable = Operations.IMAGES_READ in operations, pictures = pictures, runCommand = runCommand,
     ) { viewing = it }
 
     // Watch only while visible (design D3); opening it clears its notification (design D8).
@@ -536,29 +541,69 @@ internal fun ShownRow(shown: Shown, open: MutableMap<String, Boolean>, time: Str
         is ConversationItems.LoneResult -> ResultLine(shown.result, expanded, toggle, rowPad)
         is ConversationItems.Plain -> PlainRow(shown.entry, expanded, toggle, time)
         is ConversationItems.Message -> MessageRow(shown, open, time)
-        is ConversationItems.CommandOutput -> CommandOutputRow(shown.text, expanded, toggle)
+        is ConversationItems.CommandOutput -> CommandOutputRow(stringResource(R.string.command_output), shown.text, "", expanded, toggle)
+        is ConversationItems.ShellCommand -> ShellCommandRow(shown.command)
+        is ConversationItems.ShellOutput -> CommandOutputRow(
+            stringResource(if (shown.failed) R.string.command_failed else R.string.command_output_label),
+            shown.stdout,
+            shown.stderr,
+            expanded,
+            toggle,
+            note = stringResource(if (shown.persisted) R.string.command_saved_on_desktop else R.string.command_no_output)
+                .takeIf { shown.persisted || (shown.stdout.isEmpty() && shown.stderr.isEmpty()) },
+        )
     }
 }
 
-/** A built-in command's answer, as the CLI printed it: plain monospace text, three lines until expanded (`session-model-effort` D8). */
+/**
+ * A command's answer, as printed: plain monospace text, the error output after the standard output in the error
+ * color, three lines until expanded (`session-model-effort` D8, `run-shell-commands` D5). [note] follows the text.
+ */
 @Composable
-private fun CommandOutputRow(text: String, expanded: Boolean, toggle: () -> Unit) {
+private fun CommandOutputRow(label: String, text: String, errors: String, expanded: Boolean, toggle: () -> Unit, note: String? = null) {
     val colors = MaterialTheme.colorScheme
-    val lines = remember(text) { text.lines() }
-    val long = lines.size > COMMAND_OUTPUT_LINES
+    val lines = remember(text) { if (text.isEmpty()) emptyList() else text.lines() }
+    val errorLines = remember(errors) { if (errors.isEmpty()) emptyList() else errors.lines() }
+    val long = lines.size + errorLines.size > COMMAND_OUTPUT_LINES
+    val shownLines = if (long && !expanded) lines.take(COMMAND_OUTPUT_LINES) else lines
+    val shownErrors = if (long && !expanded) errorLines.take(COMMAND_OUTPUT_LINES - shownLines.size) else errorLines
     Column(rowPad.padding(horizontal = 4.dp, vertical = 3.dp)) {
-        Text(stringResource(R.string.command_output), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
-        Box(Modifier.fillMaxWidth().padding(top = 2.dp).background(colors.surfaceContainerLow, MaterialTheme.shapes.small).padding(horizontal = 10.dp, vertical = 6.dp)) {
-            SelectionContainer {
-                Text(
-                    if (long && !expanded) lines.take(COMMAND_OUTPUT_LINES).joinToString("\n") else text,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = colors.onSurfaceVariant,
-                )
+        Text(label, style = MaterialTheme.typography.labelSmall, color = if (errors.isNotEmpty()) colors.error else colors.onSurfaceVariant)
+        if (shownLines.isNotEmpty() || shownErrors.isNotEmpty()) {
+            Box(Modifier.fillMaxWidth().padding(top = 2.dp).background(colors.surfaceContainerLow, MaterialTheme.shapes.small).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                SelectionContainer {
+                    Column {
+                        if (shownLines.isNotEmpty()) {
+                            Text(shownLines.joinToString("\n"), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)
+                        }
+                        if (shownErrors.isNotEmpty()) {
+                            Text(shownErrors.joinToString("\n"), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = colors.error)
+                        }
+                    }
+                }
             }
         }
+        note?.let { Text(it, Modifier.padding(top = 2.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant) }
         if (long && !expanded) TextButton(onClick = toggle) { Text(stringResource(R.string.command_output_show_all)) }
+    }
+}
+
+/** A command the user ran in the agent's terminal: `$` and the command, monospace, at the user's end (`run-shell-commands` D5). */
+@Composable
+private fun ShellCommandRow(command: String) {
+    val colors = MaterialTheme.colorScheme
+    val label = stringResource(R.string.command_you_ran)
+    Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 12.dp, top = 6.dp, bottom = 2.dp), contentAlignment = Alignment.CenterEnd) {
+        Column(
+            Modifier
+                .semantics(mergeDescendants = true) {}
+                .background(colors.tertiaryContainer, MaterialTheme.shapes.large)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = colors.onTertiaryContainer)
+            SelectionContainer { Text("$ $command", style = MaterialTheme.typography.bodyMedium, fontFamily = FontFamily.Monospace, color = colors.onTertiaryContainer) }
+        }
     }
 }
 
@@ -598,7 +643,7 @@ private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit, time: 
             }
         }
         is Entry.Text -> Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
-            SelectionContainer { AgentMarkdown(entry.text) }
+            SelectionContainer { AgentMarkdown(entry.text, onCommand = LocalToolContext.current.runCommand) }
             time?.let { TimeLine(it, Modifier.padding(top = 2.dp)) }
         }
         is Entry.Thinking -> Muted(stringResource(R.string.conversation_thinking), expanded, toggle) {
@@ -723,7 +768,9 @@ private fun CallLine(call: ConversationItems.Call, expanded: Boolean, toggle: ()
         }
         // The pictures it brought back, without expanding (`tool-result-content` D3).
         ResultPictures(picturesOf(call.tool, view), Modifier.padding(start = 26.dp, bottom = 4.dp))
-        if (expanded) Box(Modifier.padding(start = 26.dp, bottom = 4.dp)) { ToolParts(view, call.tool.id) }
+        // Only a `Bash` call's command can be run as it is; a `Monitor`'s is not one (`run-shell-commands` D6).
+        val run = ctx.runCommand?.takeIf { call.tool.name == ToolView.BASH }
+        if (expanded) Box(Modifier.padding(start = 26.dp, bottom = 4.dp)) { ToolParts(view, call.tool.id, run) }
     }
 }
 
@@ -853,6 +900,7 @@ internal fun replyLabelText(label: Reply.Label): Int = when (label) {
     Reply.Label.MAY_NOT_HAVE_BEEN_SENT -> R.string.conversation_reply_may_not_have_been_sent
     Reply.Label.NOT_SUBMITTED -> R.string.conversation_reply_not_submitted
     Reply.Label.SWITCHING -> R.string.conversation_reply_switching
+    Reply.Label.RUNNING -> R.string.conversation_reply_running
 }
 
 @Composable
@@ -873,8 +921,9 @@ private fun ReplyRow(reply: Reply, now: Long, holding: Boolean) {
             Text(text, style = MaterialTheme.typography.labelSmall, color = if (label.settled) colors.error else colors.onSurfaceVariant)
             // A settled reply is collapsed to one line, so it never takes the room of newer entries.
             Text(
-                reply.text,
+                if (reply.command) "$ ${reply.text}" else reply.text,
                 style = MaterialTheme.typography.bodyMedium,
+                fontFamily = if (reply.command) FontFamily.Monospace else null,
                 maxLines = if (label.settled) 1 else Int.MAX_VALUE,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -911,18 +960,37 @@ internal fun Composer(
     LaunchedEffect(sessionId, c != null) { if (c != null && field.text.isEmpty() && c.draft.isNotEmpty()) field = TextFieldValue(c.draft, TextRange(c.draft.length)) }
     LaunchedEffect(c?.draftReturns) { if (c != null && c.draftReturns > 0) field = TextFieldValue(c.draft, TextRange(c.draft.length)) }
     val focus = remember { FocusRequester() }
+    // The command being written, apart from the reply (`run-shell-commands` D3): taken when the conversation arrives,
+    // and whenever a command is put in from outside the field, which also brings up the keyboard.
+    val commandMode = c?.commandMode == true
+    var command by remember(sessionId) { mutableStateOf((c?.commandDraft ?: "").let { TextFieldValue(it, TextRange(it.length)) }) }
+    LaunchedEffect(sessionId, c != null) { if (c != null && command.text.isEmpty() && c.commandDraft.isNotEmpty()) command = TextFieldValue(c.commandDraft, TextRange(c.commandDraft.length)) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(c?.commandReturns) {
+        if (c != null && c.commandReturns > 0) {
+            command = TextFieldValue(c.commandDraft, TextRange(c.commandDraft.length))
+            focus.requestFocus()
+            // Focus alone keeps the keyboard down when the tap was elsewhere, on a call or the agent's text.
+            keyboard?.show()
+        }
+    }
     var focused by remember { mutableStateOf(false) }
     // Back closes the skills until the text changes (D10).
     var closedFor by remember(sessionId) { mutableStateOf<String?>(null) }
     // The session's skills, once the desktop said anything about them this watch, offered from a typed slash (D10).
     val skills = c?.skills?.takeIf { c.watch.active }
     val query = SlashQuery.query(field.text, field.selection.start, field.selection.end)
-    val slash = skills != null && query != null && focused && connected && !paused && !c.closed && closedFor != field.text
+    val slash = !commandMode && skills != null && query != null && focused && connected && !paused && !c.closed && closedFor != field.text
     BackHandler(enabled = slash) { closedFor = field.text }
     LaunchedEffect(slash) { if (slash) onPanel() }
     val inFlight = c?.replies?.any { it.state == Reply.State.SENDING } == true
     val attachments = c?.attachments.orEmpty()
-    val blocked = Replies.blocked(connected, paused, c?.watch ?: Watch.Idle, c?.wait ?: WaitState.UNKNOWN, c?.pending, inFlight, text, attachments, inboxPrompt, c?.switch)
+    val withheld = Replies.withheld(c)
+    val blocked = if (commandMode) {
+        Replies.blocked(connected, paused, c?.watch ?: Watch.Idle, c?.wait ?: WaitState.UNKNOWN, c?.pending, inFlight, command.text, emptyList(), inboxPrompt, c?.switch, command = true, withheld = withheld)
+    } else {
+        Replies.blocked(connected, paused, c?.watch ?: Watch.Idle, c?.wait ?: WaitState.UNKNOWN, c?.pending, inFlight, text, attachments, inboxPrompt, c?.switch, withheld = withheld)
+    }
     val now = rememberSwitchNow(c?.switch)
     // The photo picker refuses a maximum below 2, so it is always built for 10; extra picks are dropped (design D5).
     val photos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(Uploads.MAX_ATTACHMENTS)) { uris ->
@@ -947,8 +1015,20 @@ internal fun Composer(
                 Text(it.text(), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
         }
+        // Anything sent now would be appended to the command the desktop withheld (`run-shell-commands` D3).
+        withheld?.let {
+            Notice(stringResource(R.string.command_waits, "$ ${it.text}"), Tone.Warning, stringResource(R.string.command_cleared), { Desktop.clearedWithheld(sessionId) })
+        }
+        c?.commandRefused?.let {
+            Notice(
+                stringResource(R.string.command_refused, "$ ${it.command}", refusedText(it.code).text()),
+                Tone.Error,
+                stringResource(R.string.command_back),
+                { Desktop.backToCommand(sessionId) },
+            )
+        }
         // Past the agent CLI's limit, a command is taken as pasted text (D6); sending stays allowed.
-        if (Replies.pastedCommand(text, attachments.map { it.name })) {
+        if (!commandMode && Replies.pastedCommand(text, attachments.map { it.name })) {
             Text(stringResource(R.string.conversation_long_command), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
         HorizontalDivider(color = colors.outlineVariant)
@@ -962,13 +1042,22 @@ internal fun Composer(
                     focus.requestFocus()
                 }
             }
-            if (attachments.isNotEmpty()) {
+            if (commandMode) {
+                // Said every time: it runs with no prompt, and nothing can be typed into it (`run-shell-commands` D4).
+                Text(
+                    stringResource(if (c?.wait == WaitState.BUSY) R.string.command_line_working else R.string.command_line_ready),
+                    Modifier.padding(horizontal = 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant,
+                )
+            }
+            if (!commandMode && attachments.isNotEmpty()) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (attachment in attachments) AttachmentCard(attachment)
                 }
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (canAttach) {
+                if (canAttach && !commandMode) {
                     Box {
                         IconButton(enabled = connected && !paused && c?.closed != true, onClick = { picking = true }) { Icon(SpekIcons.Attach, stringResource(R.string.conversation_attach)) }
                         DropdownMenu(expanded = picking, onDismissRequest = { picking = false }) {
@@ -983,35 +1072,64 @@ internal fun Composer(
                         }
                     }
                 }
+                val modeState = stringResource(if (commandMode) R.string.command_mode_on else R.string.command_mode_off)
+                IconToggleButton(
+                    checked = commandMode,
+                    onCheckedChange = { on ->
+                        Desktop.setCommandMode(sessionId, on)
+                        focus.requestFocus()
+                    },
+                    enabled = c != null && !c.closed,
+                    modifier = Modifier.semantics { stateDescription = modeState },
+                ) { Icon(SpekIcons.Terminal, stringResource(R.string.command_mode), tint = if (commandMode) colors.tertiary else colors.onSurfaceVariant) }
                 TextField(
-                    value = field,
+                    value = if (commandMode) command else field,
                     onValueChange = {
-                        if (it.text != field.text) Desktop.setDraft(sessionId, it.text)
-                        field = it
+                        if (commandMode) {
+                            if (it.text != command.text) Desktop.setCommandDraft(sessionId, it.text)
+                            command = it
+                        } else {
+                            if (it.text != field.text) Desktop.setDraft(sessionId, it.text)
+                            field = it
+                        }
                     },
                     modifier = Modifier.weight(1f).focusRequester(focus).onFocusChanged { focused = it.isFocused },
-                    placeholder = { Text(stringResource(if (skills != null) R.string.conversation_reply_hint_skills else R.string.conversation_reply_hint)) },
+                    placeholder = {
+                        Text(stringResource(if (commandMode) R.string.command_hint else if (skills != null) R.string.conversation_reply_hint_skills else R.string.conversation_reply_hint))
+                    },
+                    prefix = if (commandMode) ({ Text("$ ", fontFamily = FontFamily.Monospace) }) else null,
+                    textStyle = if (commandMode) LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace) else LocalTextStyle.current,
                     minLines = 1,
                     maxLines = 6,
                     shape = MaterialTheme.shapes.extraLarge,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = colors.surfaceContainerHigh,
-                        unfocusedContainerColor = colors.surfaceContainerHigh,
-                        disabledContainerColor = colors.surfaceContainerHigh,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor = Color.Transparent,
-                    ),
+                    colors = (if (commandMode) colors.tertiaryContainer else colors.surfaceContainerHigh).let { container ->
+                        TextFieldDefaults.colors(
+                            focusedContainerColor = container,
+                            unfocusedContainerColor = container,
+                            disabledContainerColor = container,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent,
+                        )
+                    },
                 )
                 FilledIconButton(
                     enabled = blocked == null,
                     onClick = {
-                        val sending = text
-                        field = TextFieldValue("")
-                        scope.launch { if (!Desktop.send(sessionId, sending)) field = TextFieldValue(sending, TextRange(sending.length)) }
+                        if (commandMode) {
+                            val running = command.text
+                            command = TextFieldValue("")
+                            scope.launch { if (!Desktop.runCommand(sessionId, running)) command = TextFieldValue(running, TextRange(running.length)) }
+                        } else {
+                            val sending = text
+                            field = TextFieldValue("")
+                            scope.launch { if (!Desktop.send(sessionId, sending)) field = TextFieldValue(sending, TextRange(sending.length)) }
+                        }
                     },
                     modifier = Modifier.padding(bottom = 4.dp),
-                ) { Icon(SpekIcons.Send, stringResource(R.string.conversation_send)) }
+                ) {
+                    if (commandMode) Icon(SpekIcons.Run, stringResource(R.string.command_run)) else Icon(SpekIcons.Send, stringResource(R.string.conversation_send))
+                }
             }
         }
     }
@@ -1101,7 +1219,8 @@ internal fun blockedText(blocked: Blocked?, answerable: Boolean, now: Long): UiT
     Blocked.AttachmentFailed -> UiText.Res(R.string.conversation_blocked_attachment_failed)
     Blocked.TooLong -> UiText.Res(R.string.conversation_blocked_too_long)
     // The inbox note above the composer says why (`inbox` design D7).
-    Blocked.InboxPrompt -> null
+    // Said by the composer's own notice, with the way to clear it (`run-shell-commands` D3).
+    Blocked.InboxPrompt, is Blocked.CommandWaits -> null
     is Blocked.ModelSwitch -> UiText.Res(if (blocked.late(now)) R.string.switch_hold_late else R.string.switch_hold)
     Blocked.BareCommand -> UiText.Res(R.string.conversation_blocked_bare_command)
 }

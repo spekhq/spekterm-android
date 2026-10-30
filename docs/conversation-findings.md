@@ -1195,3 +1195,61 @@ spec of a working session, one reply with a file, and went back through the bar'
 connection log from 10:59:05 to 11:00:24: one `conversation event=watch`, the OpenSpec reads of each screen, `send
 outcome=Submitted attachments=0`, the file prepared and uploaded (168587 bytes, complete), `send outcome=Submitted
 attachments=1`, and one `unwatch` when leaving — no unwatch between the screens.
+
+## Shell commands (`run-shell-commands`)
+
+### What the agent CLI does with a reply that begins with `!`
+
+Measured on the dev machine on 2026-10-30, Claude Code 2.1.314, with node-pty writing the text, waiting 500 ms, then
+writing `\r` — the desktop's own sequence (`remote-conversation.ts`). The first rows were measured while writing the
+change, the rest by its reviewer (`rv.js`, `big.js`, `tty.js`); the scripts were kept outside the repository.
+
+| Sent | Recorded (user entries, neither `isMeta`) |
+|---|---|
+| `!echo busy-probe` while a 15 s Bash call ran | after the turn ended: `<bash-input>echo busy-probe</bash-input>`, then `<bash-stdout>busy-probe</bash-stdout><bash-stderr></bash-stderr>` |
+| `!echo long-probe x…x \| wc -c` (425 chars) | `<bash-input>` with the whole command; output `412` (an 876-char command: whole, output `863`) |
+| `!echo first-line` `\n` `echo second-line` | `<bash-input>` holding both lines; both lines of output |
+| `!   echo spaced-probe   ` | `<bash-input>   echo spaced-probe</bash-input>`: leading spaces kept, trailing dropped |
+| `!echo "<a>&b" 1>&2; echo '</bash-input>'` | the command **unescaped**, `</bash-input>` inside included; stdout `&lt;a&gt;&amp;b\n&lt;/bash-input&gt;`, stderr empty |
+| `!exit 3` | both empty; no exit status recorded |
+| `!sleep 35; echo slow-done` while the agent waited | nothing until the command ended (46 s after Enter), then both records at once, the input's `timestamp` the send time; no `UserPromptSubmit`, no `PreToolUse` hook, so the desktop reports the agent ready meanwhile |
+| `!seq 1 8000` | stdout `<persisted-output>\nOutput too large (38KB). Full output saved to: …\n\nPreview (first 2KB):\n1\n2…\n</persisted-output>`, the preview not escaped (past `bashOutputMaxChars`, 30000) |
+| a command exiting non-zero | `<bash-stdout></bash-stdout><bash-stderr>…</bash-stderr>`, what it printed to stdout included; stdin is not a TTY |
+
+After every command the agent took a turn on its own and commented on the output. A one-shot write of a long prompt
+and `\r` together was not submitted (the `\r` became a line break), which is why the desktop writes the Enter apart.
+
+### On the emulator against the dev desktop (task 3.2)
+
+2026-10-30 13:55–14:48 (+08:00), the `Pixel_9` AVD paired by link (address cut to `10.0.2.2`) with the dev desktop
+started from spekterm `579a140` on port 47616; agent CLI 2.1.314 in auto mode. Session `go-f129` started from the
+phone for the run. Driven over adb, the app in front each time. Screenshots kept outside the repository.
+
+| What | Outcome |
+|---|---|
+| Half a reply typed, command mode turned on: the field empty and set apart (`$`, monospace, its own color, "Command to run"), the line above it, Run in place of Send, no attach button | pass |
+| `pwd` run while the agent waited: "Running on the desktop — shown when it finishes", then "Command you ran / `$ pwd`" with `/home/kewang/go` as output; the field back in reply mode with the half reply | pass |
+| `sleep 40; echo slow-done`: the row said running at 35 s (not missing), then confirmed with `slow-done` | pass |
+| `echo "<a>&b"` and `echo "<a>&b" >&2`: output `<a>&b` both times | pass |
+| `ls /nonexistent`: "Failed" and the error in the error color | pass |
+| `seq 1 8000`: the CLI's preview, three lines until expanded, and "Full output saved on the desktop" | pass |
+| `true`: the CLI records "(Bash completed with no output)" as the output itself, so that text shows, not the app's "No output" (which an empty record such as `exit 3`'s gets; unit-tested) | pass, noted |
+| A `! command` code span in the agent's text (`` `! echo "<a>&b" >&2` ``) tapped: command mode with that command, nothing sent; in the first build the keyboard stayed down, fixed by showing it on the put-in (design D3) | fixed, pass |
+| "Run it myself" under the agent's `date` call: command mode with `date`, keyboard up, nothing sent | pass |
+| A `Bash` call whose command the desktop cut: no "Run it myself" | not made live (the agent spent ~25 min and US$5 failing to write a 4100-char command); covered by `ToolViewsTest.runItMyselfPutsTheCommandInButNotACutOne` |
+| While the agent worked: the line read "Runs when the agent finishes its turn…"; `echo queued` showed "Waiting for the agent to take it", ran when the turn ended and was confirmed | pass |
+| Another session opened and back with `date` half-typed in command mode: mode and command kept | pass |
+| The pending `$ echo queued` row, while waiting, was gone after opening another session and coming back; its record appeared later as usual. Replies behave the same today (the held conversation and its replies are per session on screen) | pre-existing, noted |
+| `!echo from-the-desktop` typed into the agent's terminal on the desktop (CDP `terminal.write`): shown on the phone the same way, command and output | pass |
+| The agent asking a choice (AskUserQuestion) with `ls` in command mode: Run disabled, "Answer the choice above." | pass |
+| The reply bar under the folder's OpenSpec screen: command mode with `ls` carried over; run from there, the bar back in reply mode | pass |
+| A command withheld by the desktop | not timed live; covered by `DesktopTest.aWithheldCommandBlocksEverySendUntilCleared` and `RepliesTest` |
+| 中文（台灣）, dark: the command field (「要執行的指令」), the line 「會在桌機的 agent 終端機直接執行，不經權限確認，也無法輸入。agent 看得到輸出。」, 「你執行的指令」 / 「輸出」, 「我自己跑」 under a `Bash` call | pass |
+
+### The suites (task 3.3)
+
+`./gradlew test assembleDebug`: 550 JVM tests pass. `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`
+with only the emulator listed by `adb devices`: 202 tests, all pass but `DesktopRaceTest`'s assumption (no race
+arguments, as before). The first full run found `AgentMarkdown` reading the renderer's code-span style outside the
+renderer (`No local MarkdownColors`, 7 UI tests); fixed by providing its colors and typography first. `ToolViewsTest`
+(6) and `AgentMarkdownTest` (9) rerun after the last changes: all pass.

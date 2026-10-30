@@ -10,7 +10,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import com.mikepenz.markdown.compose.LazyMarkdownSuccess
 import com.mikepenz.markdown.compose.components.MarkdownComponentModel
@@ -29,6 +34,7 @@ import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.model.rememberMarkdownState
 import com.spekterm.android.desktop.OpenSpecText
+import com.spekterm.android.desktop.Replies
 import org.intellij.markdown.IElementType
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
@@ -41,10 +47,23 @@ import org.intellij.markdown.ast.getTextInNode
  * `http`/`https` is its text, with no link style and nothing to tap. [softBreaks] joins the lines of a paragraph, as
  * the desktop renders repository files; agent text keeps every line break.
  */
-fun safeAnnotator(softBreaks: Boolean, inertLinks: Boolean): MarkdownAnnotator = markdownAnnotator(
+fun safeAnnotator(softBreaks: Boolean, inertLinks: Boolean, commands: CommandSpans? = null): MarkdownAnnotator = markdownAnnotator(
     config = markdownAnnotatorConfig(eolAsNewLine = !softBreaks),
     annotate = { content, child ->
+        val suggested = if (commands != null && child.type == MarkdownElementTypes.CODE_SPAN) codeSpanText(child, content) else null
+        val command = suggested?.let(Replies::suggested)
         when {
+            // Drawn as the renderer draws a code span, underlined and tappable (`run-shell-commands` D7).
+            commands != null && command != null -> {
+                withLink(LinkAnnotation.Clickable(COMMAND_LINK, TextLinkStyles(SpanStyle(textDecoration = TextDecoration.Underline))) { commands.onCommand(command) }) {
+                    withStyle(commands.style) {
+                        append(' ')
+                        append(suggested)
+                        append(' ')
+                    }
+                }
+                true
+            }
             child.type == MarkdownTokenTypes.HTML_TAG -> {
                 append(child.getTextInNode(content).toString())
                 true
@@ -64,6 +83,15 @@ fun safeAnnotator(softBreaks: Boolean, inertLinks: Boolean): MarkdownAnnotator =
         }
     },
 )
+
+/** Where a `! command` code span of the agent's text goes, and the code-span style it is drawn in (D7). */
+class CommandSpans(val style: SpanStyle, val onCommand: (String) -> Unit)
+
+private const val COMMAND_LINK = "command"
+
+/** A code span's text without the backticks around it. */
+private fun codeSpanText(span: ASTNode, content: String): String =
+    span.getTextInNode(content).toString().let { it.trimStart('`').trimEnd('`') }
 
 private fun webLink(link: ASTNode, content: String): Boolean {
     val destination = link.children.firstOrNull { it.type == MarkdownElementTypes.LINK_DESTINATION }?.getTextInNode(content)?.toString()?.trim()

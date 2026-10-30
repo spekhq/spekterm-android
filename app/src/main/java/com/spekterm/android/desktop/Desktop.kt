@@ -175,7 +175,10 @@ object Desktop {
     private var nextAttachmentId = 0L
     private var uploadJob: Job? = null
     /** Drafts typed in sessions other than the held one, kept in memory while the user moves between them. */
-    private val drafts = HashMap<String, String>()
+    private val drafts = HashMap<String, Draft>()
+
+    /** A session's reply draft, its command draft and whether command mode is on (`run-shell-commands` D3). */
+    private data class Draft(val reply: String, val command: String, val commandMode: Boolean)
     private var nextSwitchId = 0L
     /**
      * Each session's pending switch (`session-model-effort` D6), written here and not through the held conversation,
@@ -346,7 +349,16 @@ object Desktop {
             // Another session: drop what was held for the previous one, after unwatching it; its draft stays.
             if (c != null && c.watch.active) unwatch(c)
             if (c != null) keepDraft(c)
-            setHeld(Conversation(sessionId, listedRunning = listedRunning(sessionId), draft = drafts.remove(sessionId).orEmpty()))
+            val d = drafts.remove(sessionId)
+            setHeld(
+                Conversation(
+                    sessionId,
+                    listedRunning = listedRunning(sessionId),
+                    draft = d?.reply.orEmpty(),
+                    commandDraft = d?.command.orEmpty(),
+                    commandMode = d?.commandMode == true,
+                ),
+            )
         }
         reconcile()
     }
@@ -359,6 +371,45 @@ object Desktop {
     /** Keeps the draft of [sessionId] across leaving its screen. */
     fun setDraft(sessionId: String, text: String) {
         scope.launch { change(sessionId, requireWatch = false) { it.copy(draft = text) } }
+    }
+
+    /** Keeps the command being written in [sessionId] across leaving its screen (`run-shell-commands` D3). */
+    fun setCommandDraft(sessionId: String, text: String) {
+        scope.launch { change(sessionId, requireWatch = false) { it.copy(commandDraft = text) } }
+    }
+
+    /** Turns [sessionId]'s composer into a command field, or back into a reply field. */
+    fun setCommandMode(sessionId: String, on: Boolean) {
+        scope.launch { change(sessionId, requireWatch = false) { it.copy(commandMode = on) } }
+    }
+
+    /** Puts [command] into [sessionId]'s command field in place of what it held, never sending it (D6). */
+    fun putCommand(sessionId: String, command: String) {
+        scope.launch {
+            change(sessionId, requireWatch = false) {
+                it.copy(commandDraft = command, commandMode = true, commandRefused = null, commandReturns = it.commandReturns + 1)
+            }
+        }
+    }
+
+    /** Puts the refused command back before what the command field holds, in command mode (D3). */
+    fun backToCommand(sessionId: String) {
+        scope.launch {
+            change(sessionId, requireWatch = false) { c ->
+                val refused = c.commandRefused ?: return@change c
+                val draft = if (c.commandDraft.isEmpty()) refused.command else refused.command + "\n" + c.commandDraft
+                c.copy(commandDraft = draft, commandMode = true, commandRefused = null, commandReturns = c.commandReturns + 1)
+            }
+        }
+    }
+
+    /** The user cleared [sessionId]'s withheld command from the agent's input on the desktop (D3). */
+    fun clearedWithheld(sessionId: String) {
+        scope.launch {
+            change(sessionId, requireWatch = false) { c ->
+                c.copy(replies = c.replies.map { if (it.command && it.state == Reply.State.NOT_SUBMITTED) it.copy(cleared = true) else it })
+            }
+        }
     }
 
     /** Renames [sessionId] (design D8); `""` hands naming back. `null` on success; the label follows the list. */
@@ -473,7 +524,7 @@ object Desktop {
         val a = attached
         val c = mutableConversation.value?.takeIf { it.sessionId == sessionId } ?: return@withContext false
         val inFlight = c.replies.any { it.state == Reply.State.SENDING }
-        if (a == null || Replies.blocked(true, false, c.watch, c.wait, c.pending, inFlight, text, c.attachments, switch = switches[sessionId]) != null) return@withContext false
+        if (a == null || Replies.blocked(true, false, c.watch, c.wait, c.pending, inFlight, text, c.attachments, switch = switches[sessionId], withheld = Replies.withheld(c)) != null) return@withContext false
         val id = ++nextReplyId
         val carried = c.attachments
         val ids = carried.mapNotNull { it.ready?.attachmentId }
@@ -491,6 +542,28 @@ object Desktop {
             // Files of attachments that were spent, or that did not come back to the composer, are not needed.
             dropFilesNotHeld(carried)
             if (outcome is SendOutcome.Refused) pumpUploads()
+        }
+        true
+    }
+
+    /**
+     * Runs [command] in [sessionId]'s agent terminal: `!` and the command through `conversation.send`, with no
+     * attachments and never as a model switch (`run-shell-commands` D1). Returns false when the gate refuses.
+     */
+    suspend fun runCommand(sessionId: String, command: String): Boolean = withContext(dispatcher) {
+        val a = attached
+        val c = mutableConversation.value?.takeIf { it.sessionId == sessionId } ?: return@withContext false
+        val inFlight = c.replies.any { it.state == Reply.State.SENDING }
+        val gate = Replies.blocked(true, false, c.watch, c.wait, c.pending, inFlight, command, switch = switches[sessionId], command = true, withheld = Replies.withheld(c))
+        if (a == null || gate != null) return@withContext false
+        val id = ++nextReplyId
+        mutableConversation.value = Replies.sent(c, id, command, command = true)
+        a.scope.launch {
+            val answer = request(a, "conversation.send", Frames.conversationSend(sessionId, "!$command"), SEND_TIMEOUT_MS)
+            val result = answer?.result?.let { Frames.decodeOrNull<SendResult>(it) }
+            val outcome = SendOutcome.of(result?.outcome, answer?.error?.code)
+            log(Kind.SEND, "outcome" to outcome.logName, "error" to answer?.error?.code, "length" to command.length, "command" to true)
+            change(sessionId, requireWatch = false) { Replies.answered(it, id, outcome, now(), result?.text) }
         }
         true
     }
@@ -541,7 +614,7 @@ object Desktop {
         val line = ModelEffort.command(s)
         val inFlight = c.replies.any { it.state == Reply.State.SENDING }
         if (!valid || !ModelEffort.available(c) || pending?.state == PendingSwitch.State.Sending) return@withContext false
-        if (Replies.blocked(true, false, c.watch, c.wait, c.pending, inFlight, line, switch = pending) != null) return@withContext false
+        if (Replies.blocked(true, false, c.watch, c.wait, c.pending, inFlight, line, switch = pending, withheld = Replies.withheld(c)) != null) return@withContext false
         val p = pendingSwitch(c, s, replyId = null)
         putSwitch(sessionId, p)
         a.scope.launch {
@@ -1136,7 +1209,8 @@ object Desktop {
     }
 
     private fun keepDraft(c: Conversation) {
-        if (c.draft.isEmpty() || c.closed) drafts.remove(c.sessionId) else drafts[c.sessionId] = c.draft
+        val empty = c.draft.isEmpty() && c.commandDraft.isEmpty() && !c.commandMode
+        if (empty || c.closed) drafts.remove(c.sessionId) else drafts[c.sessionId] = Draft(c.draft, c.commandDraft, c.commandMode)
     }
 
     /** Deletes the files of [candidates] the held conversation no longer holds, in its composer or a reply. */

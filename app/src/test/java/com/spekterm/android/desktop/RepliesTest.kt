@@ -464,4 +464,140 @@ class RepliesTest {
         assertFalse(ConversationTimes.holding(c.copy(switch = p.copy(anyway = true)), reply))
         assertFalse(ConversationTimes.holding(c.copy(switch = p.copy(replyId = 99)), reply))
     }
+
+    // ---- `run-shell-commands` (D1–D3) ----
+
+    private fun command(c: Conversation, text: String, id: Long = 1, outcome: SendOutcome = SendOutcome.Submitted, at: Long = 0) =
+        Replies.answered(Replies.sent(c, id, text, command = true), id, outcome, at)
+    private fun commandGate(text: String = "ls", wait: String = WaitState.READY, inFlight: Boolean = false, inbox: Boolean = false, switch: PendingSwitch? = null, withheld: Reply? = null, attachments: List<Attachment> = emptyList()) =
+        Replies.blocked(true, false, Watch.Watching, wait, null, inFlight, text, attachments, inbox, switch, command = true, withheld = withheld)
+
+    @Test
+    fun aCommandPassesTheRepliesGateWithoutAttachmentsOrModelChecks() {
+        assertNull(commandGate())
+        assertNull(commandGate(wait = WaitState.BUSY))
+        assertEquals(Blocked.AwaitingChoice(null), commandGate(wait = WaitState.AWAITING_CHOICE))
+        assertEquals(Blocked.Unknown, commandGate(wait = WaitState.UNKNOWN))
+        assertEquals(Blocked.NotWatching, Replies.blocked(true, false, Watch.Requested, WaitState.READY, null, false, "ls", command = true))
+        assertEquals(Blocked.InFlight, commandGate(inFlight = true))
+        assertEquals(Blocked.InboxPrompt, commandGate(inbox = true))
+        val held = switchOf(Switch.Model("sonnet"))
+        assertEquals(Blocked.ModelSwitch(held), commandGate(switch = held))
+        assertEquals(Blocked.Empty, commandGate(""))
+        assertEquals(Blocked.Empty, commandGate(" \u0007\n "))
+        assertEquals(Blocked.TooLong, commandGate("x".repeat(Replies.MAX_FRAME_BYTES)))
+        // Not a bare `/model`, and the composer's attachments are not the command's.
+        assertNull(commandGate("/model"))
+        assertNull(commandGate(attachments = listOf(Attachment(1, "a", state = AttachmentState.Failed("TOO_MANY")))))
+    }
+
+    @Test
+    fun aCommandIsConfirmedByItsShellRecordOnly() {
+        val c = command(watching(), "git status")
+        assertTrue(c.replies.single().command)
+        for (record in listOf("<bash-input>git status</bash-input>", "<bash-input>   git status</bash-input>", " <bash-input>git status </bash-input>\n")) {
+            assertTrue(record, ConversationReducer.apply(c, update(user("u", record)), 1).replies.isEmpty())
+        }
+        for (other in listOf("git status", "!git status", "<bash-input>git</bash-input>", "x <bash-input>git status</bash-input>")) {
+            assertEquals(other, 1, ConversationReducer.apply(c, update(user("u", other)), 1).replies.size)
+        }
+        assertEquals(1, ConversationReducer.apply(c, update(user("u", "<bash-input>git status</bash-input>", meta = true)), 1).replies.size)
+        // The desktop's written `!git status` does not stand in for the record.
+        val written = Replies.answered(Replies.sent(watching(), 2, "pwd", command = true), 2, SendOutcome.Submitted, 0, "!pwd")
+        assertEquals(1, ConversationReducer.apply(written, update(user("u", "!pwd")), 1).replies.size)
+        assertTrue(ConversationReducer.apply(written, update(user("v", "<bash-input>pwd</bash-input>")), 1).replies.isEmpty())
+    }
+
+    @Test
+    fun aCommandHoldingTheMarkerIsMatchedWhole() {
+        val text = "echo '</bash-input>'"
+        val c = command(watching(), text)
+        assertEquals(text, Replies.ranCommand("<bash-input>$text</bash-input>"))
+        assertTrue(ConversationReducer.apply(c, update(user("u", "<bash-input>$text</bash-input>")), 1).replies.isEmpty())
+    }
+
+    @Test
+    fun aHeldShellRecordDoesNotConfirm() {
+        var c = ConversationReducer.apply(watching(), update(user("old", "<bash-input>ls</bash-input>"), reset = true), 0)
+        c = command(c, "ls")
+        c = ConversationReducer.apply(c, update(user("old", "<bash-input>ls</bash-input>"), reset = true), 1)
+        assertEquals(1, c.replies.size)
+    }
+
+    @Test
+    fun aCommandRunsForUpToTenMinutesBeforeItIsCalledMissing() {
+        val c = command(watching(), "sleep 40", at = 0)
+        val reply = c.replies.single()
+        assertEquals(Reply.Label.RUNNING, reply.label(31_000))
+        assertFalse(Reply.Label.RUNNING.settled)
+        assertEquals(Reply.Label.RUNNING, reply.label(Replies.COMMAND_NOT_SEEN_MS - 1))
+        assertEquals(Reply.Label.NOT_IN_CONVERSATION_YET, reply.label(Replies.COMMAND_NOT_SEEN_MS))
+        // A reply keeps its 30 s.
+        assertEquals(Reply.Label.NOT_IN_CONVERSATION_YET, send(watching(), "hi").replies.single().label(Replies.NOT_SEEN_MS))
+    }
+
+    @Test
+    fun aCommandSentWhileBusyWaitsThenRunsThenSettles() {
+        var c = command(watching(WaitState.BUSY), "ls", at = 0)
+        assertEquals(Reply.Label.WAITING_FOR_AGENT, c.replies.single().label(20 * 60_000))
+        c = waited(c, WaitState.READY, 10_000)
+        assertEquals(Reply.Label.RUNNING, c.replies.single().label(10_000 + 5 * 60_000))
+        // A turn starting within the ten minutes is the agent still on its way, as for a reply.
+        assertEquals(Reply.Label.WAITING_FOR_AGENT, waited(c, WaitState.BUSY, 10_000 + 5 * 60_000).replies.single().label(10_000 + 6 * 60_000))
+        assertEquals(Reply.Label.NOT_SHOWN_AFTER_WORK, c.replies.single().label(10_000 + Replies.COMMAND_NOT_SEEN_MS))
+    }
+
+    @Test
+    fun sendingACommandEndsCommandModeAndLeavesTheReplyAlone() {
+        val start = watching().copy(
+            draft = "half a reply", attachments = listOf(ready(1, "x")), attachNote = AttachNote.SEND_NOT_FOUND,
+            commandMode = true, commandDraft = "ls", commandRefused = CommandRefused("old", RemoteError.WAIT_STATE), prefillRefused = true,
+        )
+        val c = Replies.sent(start, 1, "ls", command = true)
+        assertFalse(c.commandMode)
+        assertEquals("", c.commandDraft)
+        assertNull(c.commandRefused)
+        assertFalse(c.prefillRefused)
+        assertEquals("half a reply", c.draft)
+        assertEquals(start.attachments, c.attachments)
+        assertEquals(AttachNote.SEND_NOT_FOUND, c.attachNote)
+        assertTrue(c.replies.single().attachments.isEmpty())
+        assertFalse(c.replies.single().commandsShown)
+        // A reply sent later clears a refused command's notice too.
+        assertNull(Replies.sent(start, 2, "hi").commandRefused)
+    }
+
+    @Test
+    fun aRefusedCommandIsKeptAsideNotWrittenUnderTheField() {
+        val sent = Replies.sent(watching().copy(draft = "typing"), 1, "npm test", command = true).copy(commandDraft = "cmd3")
+        val c = Replies.answered(sent, 1, SendOutcome.Refused(RemoteError.WAIT_STATE), 0)
+        assertTrue(c.replies.isEmpty())
+        assertEquals(CommandRefused("npm test", RemoteError.WAIT_STATE), c.commandRefused)
+        assertEquals("cmd3", c.commandDraft)
+        assertFalse(c.commandMode)
+        assertEquals("typing", c.draft)
+        assertEquals(0, c.draftReturns)
+    }
+
+    @Test
+    fun aWithheldCommandBlocksEverySendUntilCleared() {
+        val c = command(watching(), "npm test", outcome = SendOutcome.NotSubmitted)
+        val withheld = Replies.withheld(c)!!
+        assertEquals(Blocked.CommandWaits("npm test"), commandGate(withheld = withheld))
+        assertEquals(Blocked.CommandWaits("npm test"), Replies.blocked(true, false, Watch.Watching, WaitState.READY, null, false, "hi", withheld = withheld))
+        // Paused and not connected still come first.
+        assertEquals(Blocked.NotConnected, Replies.blocked(false, false, Watch.Watching, WaitState.READY, null, false, "hi", withheld = withheld))
+        val cleared = c.copy(replies = c.replies.map { it.copy(cleared = true) })
+        assertNull(Replies.withheld(cleared))
+        // A withheld reply blocks nothing, as before.
+        assertNull(Replies.withheld(send(watching(), "hi", outcome = SendOutcome.NotSubmitted)))
+    }
+
+    @Test
+    fun aCodeSpanSuggestsACommandOnlyAsBangSpaceCommand() {
+        assertEquals("npm login", Replies.suggested("! npm login"))
+        assertEquals("ls", Replies.suggested(" !  ls "))
+        assertEquals("gcloud auth login --x", Replies.suggested("! gcloud auth login --x"))
+        for (not in listOf("!important", "a != b", "!", "! ", "npm login", "!!")) assertNull(not, Replies.suggested(not))
+    }
 }
