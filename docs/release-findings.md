@@ -197,6 +197,9 @@ Edit deleted (HTTP 204); asked for again, it is gone (HTTP 400). Nothing was com
 
 - 0.5.0's production review had already ended (`published`), so whether an internal release is refused while production
   is in review (design D5) could not be tried; it stays open for the first release with a review in progress.
+- `node tools/play-publish.mjs internal` with the seeded notes (the same as internal testing's 0.5.0): it stopped before the
+  upload — "The release notes are the same as internal testing's 0.5.0 (5) …", "Edit deleted (HTTP 204); nothing was
+  committed.", exit 1.
 - Play answers `edits.get` on a deleted edit with 400, not 404; the fake Play in the tests answers the same.
 - `play/release-notes/*/default.txt` were seeded from the internal release's notes as printed (3.2). `PlayListingTest`
   checks them: with a 501-character zh-TW file `testDebugUnitTest` ran again and failed with
