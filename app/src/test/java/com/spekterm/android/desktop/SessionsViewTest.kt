@@ -5,6 +5,7 @@ import com.spekterm.android.net.BackgroundTask
 import com.spekterm.android.net.ConversationEnded
 import com.spekterm.android.net.Folder
 import com.spekterm.android.net.HandoffEntry
+import com.spekterm.android.net.Lineage
 import com.spekterm.android.net.Session
 import com.spekterm.android.net.SessionList
 import com.spekterm.android.ui.UiText
@@ -285,5 +286,90 @@ class SessionsViewTest {
             SessionsView.backgroundLine(counts),
         )
         assertNull(SessionsView.backgroundLine(emptyList()))
+    }
+
+    // `session-state-summary`
+
+    private fun agent(id: String, wait: String?, folder: String? = "f1", seen: Boolean? = null, running: Boolean = true, offered: Boolean = false, parent: String? = null) =
+        Session(id, folder, "claude", running = running, wait = wait, seen = seen, closeOffered = offered, lineage = parent?.let { Lineage(it) })
+
+    private fun of(vararg sessions: Session) =
+        SessionsView.groups(SessionList(window = true, folders = listOf(Folder("f1", "alpha"), Folder("f2", "beta")), sessions = sessions.toList()))
+
+    @Test
+    fun summaryCountsEachStateInOrder() {
+        val groups = of(
+            agent("dormant", "ready", running = false),
+            agent("idle", "ready", seen = true),
+            Session("shell", "f1", "shell", running = true),
+            agent("busy", "busy", folder = "f2"),
+            agent("ready", "ready", seen = false),
+            agent("choice", "awaiting-choice", folder = null),
+        )
+        assertEquals(
+            listOf(SessionsView.Bucket.NEEDS_YOU to 2, SessionsView.Bucket.WORKING to 1, SessionsView.Bucket.RUNNING to 1, SessionsView.Bucket.IDLE to 1, SessionsView.Bucket.DORMANT to 1),
+            SessionsView.summary(groups),
+        )
+    }
+
+    @Test
+    fun anOfferNeedsTheUserWhateverTheWaitAndCountsOnce() {
+        val groups = of(
+            agent("ob", "busy", offered = true),
+            agent("os", "ready", seen = true, offered = true),
+            agent("oc", "awaiting-choice", offered = true),
+            agent("unknown", "unknown"),
+        )
+        assertEquals(listOf(SessionsView.Bucket.NEEDS_YOU to 3, SessionsView.Bucket.RUNNING to 1), SessionsView.summary(groups))
+        assertTrue(SessionsView.filtered(groups, SessionsView.Bucket.WORKING).isEmpty())
+    }
+
+    @Test
+    fun onlyOneState() {
+        assertEquals(listOf(SessionsView.Bucket.WORKING to 2), SessionsView.summary(of(agent("a", "busy"), agent("b", "busy", folder = "f2"))))
+    }
+
+    @Test
+    fun needsYouEqualsWhatTheCollapsedHeadingsSay() {
+        val groups = of(
+            agent("c", "awaiting-choice"), agent("oc", "awaiting-choice", offered = true), agent("ob", "busy", offered = true),
+            agent("os", "ready", seen = true, offered = true), agent("r", "ready", folder = "f2"), agent("s", "ready", seen = true, folder = "f2"),
+            agent("b", "busy", folder = null), agent("d", "ready", running = false, folder = null),
+        )
+        val headings = groups.sumOf { it.summary.choice + it.summary.offers + it.summary.ready }
+        assertEquals(headings, SessionsView.summary(groups).first { it.first == SessionsView.Bucket.NEEDS_YOU }.second)
+        assertEquals(5, headings)
+    }
+
+    @Test
+    fun theSelectedStateKeepsItsPlaceAtZero() {
+        val summary = listOf(SessionsView.Bucket.NEEDS_YOU to 1, SessionsView.Bucket.RUNNING to 2, SessionsView.Bucket.DORMANT to 1)
+        assertEquals(
+            listOf(SessionsView.Bucket.NEEDS_YOU to 1, SessionsView.Bucket.RUNNING to 2, SessionsView.Bucket.IDLE to 0, SessionsView.Bucket.DORMANT to 1),
+            SessionsView.chips(summary, SessionsView.Bucket.IDLE),
+        )
+        assertEquals(summary, SessionsView.chips(summary, null))
+        assertEquals(summary, SessionsView.chips(summary, SessionsView.Bucket.RUNNING))
+        assertEquals(listOf(SessionsView.Bucket.NEEDS_YOU to 0), SessionsView.chips(emptyList(), SessionsView.Bucket.NEEDS_YOU))
+    }
+
+    @Test
+    fun filteredKeepsTheListsOrderFlat() {
+        // The desktop's order is A, D, B; the tree shows A, B (under A), D.
+        val groups = of(agent("A", "ready"), agent("D", "ready"), agent("B", "ready", parent = "A"), agent("x", "busy", folder = "f2"))
+        val filtered = SessionsView.filtered(groups, SessionsView.Bucket.NEEDS_YOU)
+        assertEquals(1, filtered.size)
+        assertEquals(listOf("A", "B", "D"), filtered.single().rows.map { it.session.id })
+        assertTrue(filtered.single().rows.all { it.depth == 0 && !it.nested })
+    }
+
+    @Test
+    fun aWaitingChildUnderAWorkingSourceComesAlone() {
+        val groups = of(agent("src", "busy"), agent("child", "ready", parent = "src"))
+        assertEquals(1, groups.single().rows.last().depth)
+        val row = SessionsView.filtered(groups, SessionsView.Bucket.NEEDS_YOU).single().rows.single()
+        assertEquals("child", row.session.id)
+        assertEquals(0, row.depth)
+        assertFalse(row.nested)
     }
 }

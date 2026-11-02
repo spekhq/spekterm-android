@@ -1279,3 +1279,41 @@ session, and "Run it myself" on an adb command the agent had run there; both rec
 session. The connection log: `send outcome=Submitted length=10 command=true` at 07:29:50Z and
 `send outcome=Submitted length=239 command=true` at 07:30:59Z. After that first build kewang asked for more room in the
 field (task 2.5); the second build, installed at 15:43, he tried too: "測試沒問題".
+
+## Sessions by state (`session-state-summary`)
+
+### On the emulator against the dev desktop (task 3.1)
+
+2026-11-03 02:53–03:12 (+08:00), the emulator (AVD `Pixel_9`, Android 16, ~411 dp wide) paired anew with the dev
+desktop (spekterm `98427aa`, port 47616) by a link whose address list was 10.0.2.2, driven over adb; the test
+sessions were handoffs written with `tools/drop-handoff.mjs` (a choice, "reply OK", a close offer, a long foreground
+`ping`, a child under a source). Screenshots kept outside the repository.
+
+| Scenario (spec) | Outcome |
+|---|---|
+| Counting: needs you 6 (a choice, four waiting, a close offer), working 1, running 1 (a shell), idle 1, dormant 54, in that order; each pill read as "Needs you: 6" etc. | pass |
+| Width: in English the five pills take two lines (Dormant on the second), in Chinese too (休眠中 on the second); every pill keeps its word | pass, as designed (D4's estimate said Chinese fits one line; it does not with five states) |
+| Finding what needs the user: tapping Needs you showed the six under go and Downloads (Downloads collapsed, shown open), headings counting 5 and 1, the selected pill reported `checked`; the handed-off rows flat with "From go › …", the child "From go › Test: long work" | pass |
+| A filtered heading: tapping Downloads did not hide its row; the menu offered OpenSpec and Settings, no Collapse all; the heading's OpenSpec control opened go's OpenSpec and back kept the filter | pass |
+| Only reading one: opening "Test: say OK" and going back — Needs you 6 → 5, Idle 1 → 2, the row gone from the filter | pass |
+| Answering in a row: Tea answered on the choice; back, the row gone (working); each waiting row opened and left; the offer kept with Keep, then read | pass |
+| Nothing left: "0 Needs you" selected in its place, "No session needs you." with one Show all; Show all → go open, Global and Downloads still collapsed | pass |
+| Dormant filter: 54; Wake from a row's menu → Dormant 53, Idle +1, the row gone from the filter | pass |
+| The app's language switched to 中文（台灣） by `cmd locale set-app-locales` (recreates the activity) with Dormant selected: still filtered, 「休眠中」 selected, 「顯示全部」 | pass |
+| Starting a session while filtered (go, from the sheet): back on the list, no filter, every group shown | pass |
+| The desktop stopped with Needs you selected: "Not connected — waiting to retry. Showing the list from 3:08 AM.", the summary counting that list, the filter kept | pass |
+| Light and dark, English and 中文（台灣）: the full list and the needs-you filter; the empty filter in English light | pass |
+| Closing every session on the desktop with a filter on (the list emptying clears it) | not run: it would close every session of the dev profile; covered by reading `SessionsScreen`'s `LaunchedEffect(list)` only |
+
+Found and changed on the way: "Show all" first sat on its own line under the pills; moved to the end of the pills'
+row so filtering costs no height. The pill's spoken label first sat on a separate, non-clickable node; moved into the
+pill's own merged node.
+
+The dev desktop refused the first "working" test (`sleep 590` in the foreground: Claude Code blocks long foreground
+sleeps); a foreground `ping -c 420` kept an agent working instead.
+
+### The suites (task 3.2)
+
+`./gradlew test assembleDebug`: 558 JVM tests pass, the seven new `SessionsViewTest` cases among them.
+`ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`, with only the emulator listed by `adb devices`
+(the Pixel not attached): 205 tests, all pass but `DesktopRaceTest`'s assumption (no race arguments, as before).

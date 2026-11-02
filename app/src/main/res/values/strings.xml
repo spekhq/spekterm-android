@@ -320,6 +320,14 @@
 
     <!-- The session list (`session-list`, `session-create`) -->
     <string name="sessions_collapse_all">Collapse all</string>
+    <string name="sessions_bucket_needs_you">Needs you</string>
+    <string name="sessions_bucket_count">%1$s: %2$d</string>
+    <string name="sessions_filter_show_all">Show all</string>
+    <string name="sessions_filter_empty_needs_you">No session needs you.</string>
+    <string name="sessions_filter_empty_working">No session is working.</string>
+    <string name="sessions_filter_empty_running">No session is running.</string>
+    <string name="sessions_filter_empty_idle">No session is idle.</string>
+    <string name="sessions_filter_empty_dormant">No session is dormant.</string>
     <string name="sessions_expand_all">Expand all</string>
     <string name="sessions_paused">The connection is paused.</string>
     <string name="sessions_list_from">%1$s Showing the list from %2$s.</string>

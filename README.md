@@ -32,6 +32,8 @@ access turned on.
   choice, idle) or dormant, kept live. An agent whose finished turn you already looked at — on the desktop, or by
   opening its conversation on the phone, or a screen opened from it that can reply to it — says "Idle" instead of
   "Waiting for you", and its waiting notification goes away. Folders can be collapsed; a collapsed folder still shows what waits for you.
+  At the top, the list counts the sessions by state — needs you, working, running, idle, dormant — and tapping a
+  state shows only those sessions, collapsed folders included, until you tap it again or "Show all".
   Long-pressing a session (or the menu on its screen) renames, hibernates, wakes or closes it. Closing asks first,
   and so does stopping a session the desktop says is busy. When an agent asks to close its own session, its row
   and its screen say so with "Close" and "Keep"; that Close is the answer, so it does not ask again.
@@ -40,7 +42,7 @@ access turned on.
   last reported it. Subscriptions the agent's CLI keeps on its own, such as an artifact's live updates, are not
   listed.
 - **Handoffs**: a session handed off from another sits under it, as on the desktop's rail, or says where it came
-  from when its source is in another folder or gone; a session that handed off others says how many and how many
+  from when its source is in another folder or gone, or while the list shows one state only; a session that handed off others says how many and how many
   are done. "Handoff" in a session's menu shows where it came from, the handoff's note, its latest report and the
   sessions handed off from it.
 - **Inbox**: the desktop's inbox, from the session list's top bar, which counts what waits for you. Each item shows its

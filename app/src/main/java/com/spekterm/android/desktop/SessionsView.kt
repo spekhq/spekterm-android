@@ -87,6 +87,42 @@ object SessionsView {
         )
     }
 
+    /** The states the summary above the list counts, in its order (`session-state-summary` D1). */
+    enum class Bucket { NEEDS_YOU, WORKING, RUNNING, IDLE, DORMANT }
+
+    /**
+     * A row's bucket, the first that applies: a choice, an offer to close or an unseen ready agent needs the user —
+     * exactly what the collapsed headings count ([Group.summary]) — then working, running, idle, dormant (D1).
+     */
+    fun bucket(row: Row): Bucket = when {
+        row.state == RowState.CHOICE || row.offered || row.state == RowState.READY -> Bucket.NEEDS_YOU
+        row.state == RowState.BUSY -> Bucket.WORKING
+        row.state == RowState.IDLE -> Bucket.IDLE
+        row.state == RowState.DORMANT -> Bucket.DORMANT
+        else -> Bucket.RUNNING
+    }
+
+    /** Every group's rows, collapsed or not, counted by bucket: the non-empty ones, in order (D1). */
+    fun summary(groups: List<Group>): List<Pair<Bucket, Int>> {
+        val rows = groups.flatMap { it.rows }
+        return Bucket.entries.mapNotNull { b -> rows.count { bucket(it) == b }.takeIf { it > 0 }?.let { b to it } }
+    }
+
+    /** What the summary row draws: [summary], plus the selected [filter] with 0 in its place when it has none (D1). */
+    fun chips(summary: List<Pair<Bucket, Int>>, filter: Bucket?): List<Pair<Bucket, Int>> {
+        if (filter == null || summary.any { it.first == filter }) return summary
+        return (summary + (filter to 0)).sortedBy { it.first.ordinal }
+    }
+
+    /**
+     * The groups with only their rows in [bucket], in the order the whole list shows them, all at the top level
+     * (`Relations.line` then says where a handed-off one came from); groups with none left out (D2).
+     */
+    fun filtered(groups: List<Group>, bucket: Bucket): List<Group> = groups.mapNotNull { g ->
+        g.rows.filter { bucket(it) == bucket }.takeIf { it.isNotEmpty() }
+            ?.let { rows -> g.copy(rows = rows.map { it.copy(depth = 0, nested = false) }) }
+    }
+
     /** Where a new session can be started: [folderId] null is the global item (design D5). */
     data class Choice(val folderId: String?, val name: String, val branch: String?)
 

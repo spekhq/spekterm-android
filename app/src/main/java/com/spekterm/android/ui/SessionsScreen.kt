@@ -5,7 +5,17 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -72,6 +82,7 @@ import com.spekterm.android.desktop.Relations
 import com.spekterm.android.desktop.SessionAction
 import com.spekterm.android.desktop.SessionActions
 import com.spekterm.android.desktop.SessionsView
+import com.spekterm.android.desktop.SessionsView.Bucket
 import com.spekterm.android.desktop.SessionsView.RowState
 import com.spekterm.android.service.StatusBoard
 import com.spekterm.android.store.Announcements
@@ -89,7 +100,7 @@ import kotlinx.coroutines.launch
  * The paired app's main screen: the desktop's sessions by folder, collapsible, and starting a new one
  * (`session-list`, `session-create`; design D2–D7).
  */
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SessionsScreen(
     desktopName: String,
@@ -120,6 +131,11 @@ fun SessionsScreen(
     var picking by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     val groups = list?.let { SessionsView.groups(it) }.orEmpty()
+    // The list filtered by a state of the summary (`session-state-summary` D3): kept while a session is opened from it.
+    var filter by rememberSaveable { mutableStateOf<Bucket?>(null) }
+    val shown = filter?.let { SessionsView.filtered(groups, it) } ?: groups
+    LaunchedEffect(list) { if (list != null && (list.sessions.isEmpty() || !list.window)) filter = null }
+    val scope = rememberCoroutineScope()
     val existing = remember(list) { list?.let { Relations.existing(it) }.orEmpty() }
     val operations by Desktop.operations.collectAsStateWithLifecycle()
     val inbox by Desktop.inbox.collectAsStateWithLifecycle()
@@ -162,7 +178,7 @@ fun SessionsScreen(
                 Box {
                     MoreButton({ menu = true })
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        if (groups.isNotEmpty()) {
+                        if (groups.isNotEmpty() && filter == null) {
                             val anyExpanded = groups.any { it.key !in collapsed }
                             DropdownMenuItem(
                                 text = { Text(if (anyExpanded) stringResource(R.string.sessions_collapse_all) else stringResource(R.string.sessions_expand_all)) },
@@ -215,15 +231,35 @@ fun SessionsScreen(
                 }
                 return@Column
             }
+            if (groups.isNotEmpty()) {
+                StateSummary(
+                    SessionsView.chips(SessionsView.summary(groups), filter),
+                    filter,
+                    // The empty message carries its own (D3), so there is one on screen.
+                    onShowAll = if (filter != null && shown.isNotEmpty()) { { filter = null } } else null,
+                ) { chosen ->
+                    filter = if (chosen == filter) null else chosen
+                    scope.launch { listState.scrollToItem(0) }
+                }
+            }
+            val selected = filter
+            if (selected != null && shown.isEmpty() && groups.isNotEmpty()) {
+                CenteredMessage(SpekIcons.Agent, stringResource(emptyText(selected))) {
+                    TextButton(onClick = { filter = null }) { Text(stringResource(R.string.sessions_filter_show_all)) }
+                }
+                return@Column
+            }
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 88.dp)) {
-                for (group in groups) {
-                    val folded = group.key in collapsed
+                for (group in shown) {
+                    // While filtered every heading is drawn open and does not collapse (D3); `collapsed` is left as it is.
+                    val folded = filter == null && group.key in collapsed
                     stickyHeader(key = "group:${group.key}", contentType = "heading") {
                         GroupHeading(
                             group,
                             folded,
                             onOpenSpec = group.folderId?.takeIf { openspec.heading(group) }?.let { id -> { onOpenSpecFolder(id) } },
-                        ) { setCollapsed(if (folded) collapsed - group.key else collapsed + group.key) }
+                            onToggle = if (filter != null) null else { { setCollapsed(if (folded) collapsed - group.key else collapsed + group.key) } },
+                        )
                     }
                     if (!folded) {
                         items(group.rows, key = { "session:${it.session.id}" }, contentType = { "session" }) { row ->
@@ -260,6 +296,8 @@ fun SessionsScreen(
                     Row(
                         Modifier.fillMaxWidth().clickable {
                             picking = false
+                            // So the new session is in the list on the way back (D3).
+                            filter = null
                             Desktop.create(choice.folderId, choice.name)
                         }.heightIn(min = 56.dp).padding(horizontal = 24.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -327,7 +365,7 @@ private fun CreationNotice(c: Creation, onOpen: (String) -> Unit) {
 
 /** A folder's heading: set apart from the rows, stays on top while its rows scroll, toggles collapsing (D2, D6). */
 @Composable
-private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onOpenSpec: (() -> Unit)?, onToggle: () -> Unit) {
+private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onOpenSpec: (() -> Unit)?, onToggle: (() -> Unit)?) {
     val colors = MaterialTheme.colorScheme
     val spek = spekColors
     val turn by animateFloatAsState(if (folded) -90f else 0f, label = "chevron")
@@ -336,13 +374,17 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onOpenSpec:
             Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp)
-                .clickable(onClick = onToggle)
+                .then(if (onToggle != null) Modifier.clickable(onClick = onToggle) else Modifier)
                 .heightIn(min = 48.dp)
                 .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(SpekIcons.ExpandMore, if (folded) stringResource(R.string.sessions_expand) else stringResource(R.string.sessions_collapse), Modifier.size(20.dp).rotate(turn), tint = colors.onSurfaceVariant)
-                Spacer(Modifier.width(8.dp))
+                if (onToggle != null) {
+                    Icon(SpekIcons.ExpandMore, if (folded) stringResource(R.string.sessions_expand) else stringResource(R.string.sessions_collapse), Modifier.size(20.dp).rotate(turn), tint = colors.onSurfaceVariant)
+                    Spacer(Modifier.width(8.dp))
+                } else {
+                    Spacer(Modifier.width(4.dp))
+                }
                 // Name and branch take the rest of the line, so the count always sits at the end.
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -403,6 +445,80 @@ private fun GroupHeading(group: SessionsView.Group, folded: Boolean, onOpenSpec:
         }
         HorizontalDivider(color = colors.outlineVariant)
     }
+}
+
+/**
+ * The sessions counted by state above the list (`session-state-summary` D4): one pill per state, most urgent first,
+ * each with its dot, count and word — never the dot alone (`app-appearance`) — wrapping when they do not fit.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StateSummary(chips: List<Pair<Bucket, Int>>, selected: Bucket?, onShowAll: (() -> Unit)?, onChoose: (Bucket) -> Unit) {
+    FlowRow(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        for ((bucket, count) in chips) StatePill(bucket, count, bucket == selected) { onChoose(bucket) }
+        // At the row's end rather than on a line of its own, so filtering costs no height.
+        if (onShowAll != null) TextButton(onClick = onShowAll) { Text(stringResource(R.string.sessions_filter_show_all)) }
+    }
+}
+
+@Composable
+private fun StatePill(bucket: Bucket, count: Int, selected: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val spek = spekColors
+    val word = stringResource(bucketWord(bucket))
+    val label = stringResource(R.string.sessions_bucket_count, word, count)
+    val urgent = bucket == Bucket.NEEDS_YOU && count > 0
+    val tone = when {
+        urgent -> spek.attention
+        bucket == Bucket.DORMANT -> colors.outline
+        selected -> colors.onSecondaryContainer
+        else -> colors.onSurfaceVariant
+    }
+    Surface(
+        selected = selected,
+        onClick = onClick,
+        shape = CircleShape,
+        color = if (selected) colors.secondaryContainer else Color.Transparent,
+        border = BorderStroke(1.dp, if (selected) colors.secondary else colors.outlineVariant),
+    ) {
+        // Merged into the pill's own node, which carries the click and the selection: "Needs you: 3", the word included.
+        Row(
+            Modifier.clearAndSetSemantics { contentDescription = label }.heightIn(min = 32.dp).padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            when (bucket) {
+                Bucket.NEEDS_YOU -> StatusDot(spek.attention)
+                Bucket.WORKING, Bucket.RUNNING -> StatusDot(spek.working)
+                Bucket.IDLE -> StatusDot(spek.working, hollow = true)
+                Bucket.DORMANT -> StatusDot(spek.dormant, hollow = true)
+            }
+            val weight = if (urgent) FontWeight.SemiBold else FontWeight.Normal
+            Text("$count", style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"), fontWeight = weight, color = tone)
+            Text(word, style = MaterialTheme.typography.labelMedium, fontWeight = weight, color = tone)
+        }
+    }
+}
+
+/** A state's word: the rows' own, so a pill and the rows it filters to read alike (D4); needs you is the desktop's. */
+private fun bucketWord(bucket: Bucket): Int = when (bucket) {
+    Bucket.NEEDS_YOU -> R.string.sessions_bucket_needs_you
+    Bucket.WORKING -> R.string.state_busy
+    Bucket.RUNNING -> R.string.state_running
+    Bucket.IDLE -> R.string.state_idle
+    Bucket.DORMANT -> R.string.state_dormant
+}
+
+private fun emptyText(bucket: Bucket): Int = when (bucket) {
+    Bucket.NEEDS_YOU -> R.string.sessions_filter_empty_needs_you
+    Bucket.WORKING -> R.string.sessions_filter_empty_working
+    Bucket.RUNNING -> R.string.sessions_filter_empty_running
+    Bucket.IDLE -> R.string.sessions_filter_empty_idle
+    Bucket.DORMANT -> R.string.sessions_filter_empty_dormant
 }
 
 /** A tap opens the session; a long press opens its menu when the desktop offers an action (design D8). */

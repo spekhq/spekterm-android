@@ -1,6 +1,6 @@
 ## 1. Logic
 
-- [ ] 1.1 `desktop/SessionsView.kt` per D1, D2: `Bucket` (`NEEDS_YOU`, `WORKING`, `RUNNING`, `IDLE`, `DORMANT`),
+- [x] 1.1 `desktop/SessionsView.kt` per D1, D2: `Bucket` (`NEEDS_YOU`, `WORKING`, `RUNNING`, `IDLE`, `DORMANT`),
   `bucket(row)`, `summary(groups)` (non-empty buckets in order, over every group's rows), `chips(summary, filter)` (the
   selected bucket kept with 0 in its place) and `filtered(groups, bucket)` (matching rows in `groups()`'s order with
   `depth = 0`, `nested = false`; groups with none left out). Verify: new cases in `SessionsViewTest` — the spec's
@@ -15,7 +15,7 @@
 
 ## 2. Interface
 
-- [ ] 2.1 `ui/SessionsScreen.kt` per D3, D4: the summary row (compact pills in a `FlowRow` that wraps, every pill with
+- [x] 2.1 `ui/SessionsScreen.kt` per D3, D4: the summary row (compact pills in a `FlowRow` that wraps, every pill with
   its dot, count and word; dormant in `outline`; content description from `sessions_bucket_count`; selected semantics)
   under the notices and the creation notice, outside the list, drawn from `chips(…)` only while there are groups; `filter` in `rememberSaveable`; choosing a
   pill scrolls the list to its top; while filtered the list draws `filtered(…)` with every heading expanded and not
@@ -25,7 +25,7 @@
   `sessions_bucket_needs_you`, `sessions_bucket_count`, `sessions_filter_show_all` and the five
   `sessions_filter_empty_*` in `values` and `values-zh-rTW`. Verify: `./gradlew test assembleDebug` with `StringsTest`
   and `HardcodedTextTest` green; looked at in 3.1
-- [ ] 2.2 `README.md`: the Sessions item says the list counts the sessions by state at its top and a tap on a state shows
+- [x] 2.2 `README.md`: the Sessions item says the list counts the sessions by state at its top and a tap on a state shows
   only those sessions; the Handoffs item's "sits under it" says it does so except in that filtered list. Verify: it
   reads so
 
@@ -46,7 +46,7 @@
   and 中文（台灣）, light and dark: the full list with all five states, the needs-you filter, the empty filter, and in
   English all five on screen, wrapped onto a second line. Verify: the screenshots, looked at, listed in `docs/conversation-findings.md`'s new
   section "Sessions by state (`session-state-summary`)"
-- [ ] 3.2 `./gradlew test assembleDebug` passes, and the instrumented suites pass on the emulator with
+- [x] 3.2 `./gradlew test assembleDebug` passes, and the instrumented suites pass on the emulator with
   `ANDROID_SERIAL=<emulator> ./gradlew connectedDebugAndroidTest` — never on the Pixel: first `adb disconnect` the
   Pixel and check that `adb devices` lists only the emulator; reconnect it afterwards. Verify: the commands' output,
   recorded in the findings section

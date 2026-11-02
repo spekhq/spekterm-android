@@ -316,6 +316,14 @@
 
     <!-- Session 列表 -->
     <string name="sessions_collapse_all">全部收合</string>
+    <string name="sessions_bucket_needs_you">等你</string>
+    <string name="sessions_bucket_count">%1$s：%2$d</string>
+    <string name="sessions_filter_show_all">顯示全部</string>
+    <string name="sessions_filter_empty_needs_you">沒有等你的 session。</string>
+    <string name="sessions_filter_empty_working">沒有處理中的 session。</string>
+    <string name="sessions_filter_empty_running">沒有執行中的 session。</string>
+    <string name="sessions_filter_empty_idle">沒有閒置的 session。</string>
+    <string name="sessions_filter_empty_dormant">沒有休眠中的 session。</string>
     <string name="sessions_expand_all">全部展開</string>
     <string name="sessions_paused">連線已暫停。</string>
     <string name="sessions_list_from">%1$s顯示的是 %2$s 的列表。</string>
