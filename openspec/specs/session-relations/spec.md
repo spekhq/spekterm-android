@@ -26,7 +26,8 @@ whose handoff relation the desktop sends malformed SHALL be shown as a session w
 
 ### Requirement: Nest handed-off sessions under their source in the list
 
-Within each group of the session list, a session handed off from an existing session of the same group SHALL be
+Within each group of the session list, except while the list is filtered by state (`session-list`, `Summary of the
+sessions by state`), a session handed off from an existing session of the same group SHALL be
 shown under that session, indented one level deeper than it, together with everything nested under it. Sessions
 under the same source, and the group's top-level sessions, SHALL keep the desktop's order. Indentation SHALL stop
 growing after three levels; deeper sessions SHALL be drawn at the third level. A session whose source does not
@@ -65,6 +66,12 @@ collapsing SHALL be unaffected.
 - **WHEN** a folder holds a chain of five sessions, each handed off from the previous one
 - **THEN** the second, third and fourth are indented one level more each, and the fifth is drawn at the same
   indentation as the fourth
+
+#### Scenario: A filtered list
+
+- **WHEN** a session and the session it handed off in the same folder both wait for the user, and the list is filtered
+  by needs you
+- **THEN** both are shown at the top level of their group, the handed-off one saying where it came from
 
 ### Requirement: Say where a handoff came from and how it stands
 
