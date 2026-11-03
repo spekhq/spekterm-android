@@ -1303,7 +1303,7 @@ sessions were handoffs written with `tools/drop-handoff.mjs` (a choice, "reply O
 | Starting a session while filtered (go, from the sheet): back on the list, no filter, every group shown | pass |
 | The desktop stopped with Needs you selected: "Not connected — waiting to retry. Showing the list from 3:08 AM.", the summary counting that list, the filter kept | pass |
 | Light and dark, English and 中文（台灣）: the full list and the needs-you filter; the empty filter in English light | pass |
-| Closing every session on the desktop with a filter on (the list emptying clears it) | not run: it would close every session of the dev profile; covered by reading `SessionsScreen`'s `LaunchedEffect(list)` only |
+| The list emptying (kewang's OK to close every session of the dev profile, 2026-11-03; its session files backed up first): after re-pairing, all but one of the 65 sessions closed from the emulator's menus; Dormant 1 selected, the last closed — "No sessions on the desktop.", no summary; a new session in go, back on the list: "Idle: 1", nothing selected, the new session shown | pass |
 
 Found and changed on the way: "Show all" first sat on its own line under the pills; moved to the end of the pills'
 row so filtering costs no height. The pill's spoken label first sat on a separate, non-clickable node; moved into the

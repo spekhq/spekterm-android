@@ -31,7 +31,7 @@
 
 ## 3. The screens
 
-- [ ] 3.1 On the emulator (AVD `Pixel_9`) paired with the dev desktop over `10.0.2.2`, saving and restoring pairings as
+- [x] 3.1 On the emulator (AVD `Pixel_9`) paired with the dev desktop over `10.0.2.2`, saving and restoring pairings as
   `driving-pixel-and-dev-desktop` says, with sessions in at least two folders (one collapsed) in all five states — one
   asking for a choice, one waiting not seen, one idle, one working, one shell, one hibernated, a handoff child waiting
   under a working source: the counts match the rows; tap needs you and see only those sessions, the collapsed folder's
