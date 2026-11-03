@@ -53,6 +53,6 @@
 
 ## 4. On the phone
 
-- [ ] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop: `adb install -r` the debug
+- [x] 4.1 On the Pixel, with kewang's OK before driving it, against the installed desktop: `adb install -r` the debug
   build; kewang uses the needs-you filter to answer the agents waiting on them; I take screenshots only with the app in
   front. Verify: kewang's word and the screenshots recorded in the findings section

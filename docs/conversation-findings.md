@@ -1317,3 +1317,9 @@ sleeps); a foreground `ping -c 420` kept an agent working instead.
 `./gradlew test assembleDebug`: 558 JVM tests pass, the seven new `SessionsViewTest` cases among them.
 `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`, with only the emulator listed by `adb devices`
 (the Pixel not attached): 205 tests, all pass but `DesktopRaceTest`'s assumption (no race arguments, as before).
+
+### On the Pixel (task 4.1)
+
+The debug build with this change installed on the Pixel 7 by `adb install -r` (2026-11-03, the pairing kept, the
+Google Play build untouched). kewang used it against the installed desktop: "手機實測沒問題" — pass (maintainer). No
+screenshot: when checked afterwards another app was in front of the Pixel.
