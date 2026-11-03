@@ -1,3 +1,2 @@
-- Run a shell command in the agent's terminal from your phone: choose Command mode from the + button beside the reply field.
-- "Run it myself" under a command the agent ran or suggests (! command) puts it in the field, ready to run.
-- Commands you run, from the phone or the desktop, show in the conversation with their output.
+- The session list now counts your sessions by state at the top: needs you, working, running, idle, dormant.
+- Tap a state to see only those sessions, collapsed folders included — tap "Needs you" to answer every waiting agent in a row.
