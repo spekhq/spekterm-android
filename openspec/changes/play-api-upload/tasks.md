@@ -62,7 +62,7 @@
 
 ## 4. The first release through the API
 
-- [ ] 4.1 The first new version code (when, kewang decides: design, Open Questions) released by the run sheet with the
+- [x] 4.1 The first new version code (when, kewang decides: design, Open Questions) released by the run sheet with the
   API: new notes written (the files seeded in 3.2 replaced); `check`; `internal`; kewang installs it from Play on the Pixel (`dumpsys package`: the new
   versionCode, `installerPackageName=com.android.vending`); kewang's OK; `production --version-code <n>` (unless the
   release is for internal testing only); `check` shows it in review. Verify: each command's output and kewang's word

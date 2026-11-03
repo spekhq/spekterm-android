@@ -208,3 +208,24 @@ Edit deleted (HTTP 204); asked for again, it is gone (HTTP 400). Nothing was com
 Tests (1.2, 3.3): `node --test tools/*.test.mjs` 23 of 23 pass; with the commit's `ERROR_IF_IN_REVIEW` replaced by
 `CANCEL_IN_REVIEW_AND_SUBMIT`, 4 fail (the query itself, internal, internal `--send-in-console`, production); restored,
 23 pass. `./gradlew check`: `BUILD SUCCESSFUL`.
+
+## The first release through the API (0.6.0 (6), `play-api-upload` 4.1, 2026-11-03)
+
+Run by the run sheet (`.claude/skills/play-release/SKILL.md` step 3), new notes written before the build
+(`play/release-notes/*/default.txt`, the session list's summary by state), `./gradlew check bundleRelease
+assembleProfile` green (10,665,112-byte bundle), the profile APK started on the emulator with an empty crash log.
+
+| Step | Output | Outcome |
+|---|---|---|
+| `check` before | internal and production `0.5.0 (5) — published`; the edit deleted (204, then 400) | pass |
+| `internal` | `Internal testing: 0.6.0 (6), version code 6, released to all testers.` | pass |
+| `check` | internal `0.6.0 (6) — published` | pass |
+| 【手機】 kewang updated from Play and tried the summary: "測試沒問題"; `dumpsys package com.spekterm.android`: `versionCode=6`, `installerPackageName=com.android.vending` | pass (maintainer) |
+| `production --version-code 6`, after kewang's word "送正式版" (the auto-mode classifier refused it as a production deploy until then) | `Production: 0.6.0 (6) committed and sent for review.` | pass |
+| `check` after | production `0.6.0 (6) — in review`, `0.5.0 (5) — published` | pass |
+
+- Design D5's open point — whether an internal release is refused while production is in review — not tested: no review
+  was in progress at the internal upload. Trying it now would take a new version code; left for a release that needs one.
+- No step of the run sheet differed from the design; nothing corrected.
+- The listing's session-list screenshots do not show the new summary row; kewang chose not to retake them for this
+  release.
