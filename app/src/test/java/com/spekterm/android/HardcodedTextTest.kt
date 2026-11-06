@@ -20,6 +20,8 @@ class HardcodedTextTest {
         "net/Sessions.kt" to "protocol fields",
         "net/Pinning.kt" to "TLS diagnostics for the log",
         "net/RemoteClient.kt" to "exception messages for the log",
+        "net/TunnelSocket.kt" to "exception messages for the log (`phone-relay`)",
+        "net/RelayClient.kt" to "protocol frames and fault names for the log (`phone-relay`)",
         "store/Stores.kt" to "storage formats and redacted toString",
         "pairing/PairingLink.kt" to "the link's format and redacted toString",
         "ui/QrScanner.kt" to "a debug log line",
