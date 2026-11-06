@@ -41,6 +41,7 @@ object Unreachability {
         is RemoteClient.OpenResult.PinMismatch -> Outcome.CERTIFICATE
         is RemoteClient.OpenResult.Unreachable -> outcome(result.cause)
         is RemoteClient.OpenResult.Open -> Outcome.FAILED
+        is RemoteClient.OpenResult.Relayed -> Outcome.FAILED
     }
 
     /**

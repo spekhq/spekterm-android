@@ -37,13 +37,17 @@ object RemoteClient {
     val base: OkHttpClient by lazy { OkHttpClient() }
 
     sealed interface OpenResult {
-        data class Open(val connection: RemoteConnection) : OpenResult
+        /** The desktop's pinned connection; [leg] is the team server's side when it goes through the relay. */
+        data class Open(val connection: RemoteConnection, val leg: RelayLeg? = null) : OpenResult
 
         /** A certificate was presented and it is not the pinned one. Nothing was sent. */
         data class PinMismatch(val refusedBy: String? = null) : OpenResult
 
         /** No TLS connection could be made (refused, timed out, no route). */
         data class Unreachable(val cause: Throwable?) : OpenResult
+
+        /** The team server's relay did not lead to the desktop (`phone-relay` D4); never the desktop's own answer. */
+        data class Relayed(val outcome: RelayOutcome) : OpenResult
     }
 
     fun url(address: String, port: Int): HttpUrl =

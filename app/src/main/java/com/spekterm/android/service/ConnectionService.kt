@@ -219,6 +219,7 @@ class ConnectionService : Service() {
                         identity.record(IdentityTracker.Outcome.UNREACHABLE)
                         log.write(Kind.UNREACHABLE, "address" to address, "error" to result.cause?.javaClass?.simpleName, "outcome" to outcome)
                     }
+                    is RemoteClient.OpenResult.Relayed -> Unit
                     is RemoteClient.OpenResult.Open -> Unit
                 }
                 if (alive()) StatusBoard.update { it.attemptFinished(address, outcome) }

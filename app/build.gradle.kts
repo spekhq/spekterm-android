@@ -109,6 +109,8 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.okhttp.mockwebserver)
+    // Certificates for a team server checked by a certificate authority, for RelayClientTest (`phone-relay` 2.3).
+    androidTestImplementation(libs.okhttp.tls)
     // Draws QR codes, and runs the old decoding path, for QrDecodeTest (`scan-connect-zh` D1, D2).
     androidTestImplementation(libs.zxing.core)
     androidTestImplementation(platform(libs.compose.bom))
