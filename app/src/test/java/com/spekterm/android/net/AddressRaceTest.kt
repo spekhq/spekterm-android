@@ -136,7 +136,7 @@ class AddressRaceTest {
         val opened = CompletableDeferred<Unit>()
         var cancelled = 0
         val job = async {
-            race<String>(
+            race<String, String>(
                 listOf("a", "b"),
                 open = { address ->
                     try {
@@ -177,5 +177,120 @@ class AddressRaceTest {
         runCurrent()
         assertEquals("a", result.winner?.first)
         assertEquals(listOf("conn-b"), log.dropped)
+    }
+
+    // `phone-relay` D3: the relay as the last candidate, 1 s after the last direct start.
+
+    private val relay = Route.Relay("team.example")
+
+    private fun routes(vararg addresses: String): List<Route> = addresses.map { Route.Direct(it) } + relay
+
+    @Test
+    fun aDirectAddressAnsweringWithinTheSecondMeansTheRelayNeverStarts() = runTest {
+        val started = mutableListOf<Route>()
+        val result = race(
+            routes("a", "b"),
+            open = { route ->
+                if (route == Route.Direct("b")) {
+                    delay(300)
+                    Attempt.Opened("direct")
+                } else {
+                    awaitCancellation()
+                }
+            },
+            drop = {},
+            onStart = { started += it },
+            delayBefore = ::delayBefore,
+        )
+        assertEquals(Route.Direct("b") to "direct", result.winner)
+        assertEquals(550L, currentTime)
+        assertEquals(listOf(Route.Direct("a"), Route.Direct("b")), started)
+        assertEquals(listOf<Route>(relay), result.notTried)
+    }
+
+    @Test
+    fun theRelayStartsAtOnceWhenEveryDirectAddressHasFailed() = runTest {
+        val startedAt = mutableMapOf<Route, Long>()
+        val result = race(
+            routes("a", "b"),
+            open = { route ->
+                if (route == relay) {
+                    Attempt.Opened("relayed")
+                } else {
+                    delay(50)
+                    unreachable
+                }
+            },
+            drop = {},
+            onStart = { startedAt[it] = currentTime },
+            delayBefore = ::delayBefore,
+        )
+        assertEquals(relay to "relayed", result.winner)
+        // b started at 50 (a failed first), failed at 100: the relay at once, not at 1050.
+        assertEquals(100L, startedAt[relay])
+    }
+
+    @Test
+    fun withHangingDirectAddressesTheRelayStartsOneSecondAfterTheLast() = runTest {
+        val startedAt = mutableMapOf<Route, Long>()
+        val result = race(
+            routes("a", "b", "c"),
+            open = { route -> if (route == relay) Attempt.Opened("relayed") else awaitCancellation() },
+            drop = {},
+            onStart = { startedAt[it] = currentTime },
+            delayBefore = ::delayBefore,
+        )
+        assertEquals(500L, startedAt[Route.Direct("c")])
+        assertEquals(1500L, startedAt[relay])
+        assertEquals(relay to "relayed", result.winner)
+        assertEquals(listOf(Route.Direct("a"), Route.Direct("b"), Route.Direct("c")), result.cancelled)
+    }
+
+    @Test
+    fun theRelayOpeningFirstWinsAndALaterDirectOneIsDropped() = runTest {
+        val dropped = mutableListOf<String>()
+        val late = CompletableDeferred<Unit>()
+        val result = race(
+            routes("a"),
+            open = { route ->
+                if (route == relay) {
+                    Attempt.Opened("relayed")
+                } else {
+                    try {
+                        delay(5_000)
+                        Attempt.Opened("direct")
+                    } finally {
+                        late.complete(Unit)
+                    }
+                }
+            },
+            drop = { dropped += it },
+            delayBefore = ::delayBefore,
+        )
+        assertEquals(relay to "relayed", result.winner)
+        assertEquals(1000L, currentTime)
+        assertTrue(late.isCompleted)
+        assertEquals(emptyList<String>(), dropped)
+    }
+
+    @Test
+    fun theRelayAloneStartsAtOnce() = runTest {
+        val result = race(listOf<Route>(relay), open = { Attempt.Opened("relayed") }, drop = {}, delayBefore = ::delayBefore)
+        assertEquals(relay to "relayed", result.winner)
+        assertEquals(0L, currentTime)
+    }
+
+    @Test
+    fun aRelayOnTheHostOfADirectAddressKeepsItsOwnOutcome() = runTest {
+        val sameHost = Route.Relay("a")
+        val result = race(
+            listOf(Route.Direct("a"), sameHost),
+            open = { route -> if (route == sameHost) Attempt.Failed(RemoteClient.OpenResult.Relayed(RelayOutcome.TimedOut)) else unreachable },
+            drop = {},
+            delayBefore = ::delayBefore,
+        )
+        assertNull(result.winner)
+        assertEquals(unreachable.outcome, result.finished[Route.Direct("a")])
+        assertEquals(RemoteClient.OpenResult.Relayed(RelayOutcome.TimedOut), result.finished[sameHost])
     }
 }

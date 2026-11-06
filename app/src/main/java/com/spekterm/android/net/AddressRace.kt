@@ -19,34 +19,50 @@ sealed interface Attempt<out T> {
  * How a [race] ended: the winner, if any; the attempts that finished without opening, in the order they finished
  * (by address); the addresses never started; and those started but cancelled when another won.
  */
-data class RaceResult<T>(
-    val winner: Pair<String, T>?,
-    val finished: Map<String, RemoteClient.OpenResult>,
-    val notTried: List<String>,
-    val cancelled: List<String>,
+data class RaceResult<K, T>(
+    val winner: Pair<K, T>?,
+    val finished: Map<K, RemoteClient.OpenResult>,
+    val notTried: List<K>,
+    val cancelled: List<K>,
 )
+
+/** A candidate of a connection round (`phone-relay` D3): one of the desktop's addresses, or the team server's relay. */
+sealed interface Route {
+    data class Direct(val address: String) : Route
+
+    data class Relay(val host: String) : Route
+}
+
+/** How long after the previous start a candidate starts: 250 ms for an address, 1 s for the relay (D3). */
+fun delayBefore(route: Route): Long = when (route) {
+    is Route.Direct -> STAGGER_MS
+    is Route.Relay -> RELAY_DELAY_MS
+}
+
+const val RELAY_DELAY_MS = 1_000L
 
 /**
  * A staggered race over [addresses] (`desktop-connection`, "Try the pairing's addresses"; `scan-connect-zh` D5).
- * Attempts start in order, each [stagger] ms after the one before, or at once when every attempt started so far
- * has finished without opening; earlier ones keep running. The first [Attempt.Opened] wins: the others are
+ * The first attempt starts at once; each next one [delayBefore] it (by default [stagger]) ms after the one before
+ * started, or at once when every attempt started so far has finished without opening; earlier ones keep running. The first [Attempt.Opened] wins: the others are
  * cancelled, and any other opened value — one in flight, or one that lands as the race ends — goes to [drop]
  * exactly once and is never returned. [onStart] and [onOutcome] are called from this coroutine, one at a time;
  * cancelled attempts report no outcome.
  */
-suspend fun <T> race(
-    addresses: List<String>,
-    open: suspend (String) -> Attempt<T>,
+suspend fun <K, T> race(
+    addresses: List<K>,
+    open: suspend (K) -> Attempt<T>,
     drop: (T) -> Unit,
     stagger: Long = STAGGER_MS,
-    onStart: (String) -> Unit = {},
-    onOutcome: (String, RemoteClient.OpenResult) -> Unit = { _, _ -> },
-): RaceResult<T> = coroutineScope {
-    val events = Channel<Event<T>>(Channel.UNLIMITED) { (it as? Event.Done)?.drop(drop) }
-    val finished = LinkedHashMap<String, RemoteClient.OpenResult>()
-    val started = mutableListOf<String>()
+    onStart: (K) -> Unit = {},
+    onOutcome: (K, RemoteClient.OpenResult) -> Unit = { _, _ -> },
+    delayBefore: (K) -> Long = { stagger },
+): RaceResult<K, T> = coroutineScope {
+    val events = Channel<Event<K, T>>(Channel.UNLIMITED) { (it as? Event.Done)?.drop(drop) }
+    val finished = LinkedHashMap<K, RemoteClient.OpenResult>()
+    val started = mutableListOf<K>()
     var running = 0
-    var winner: Pair<String, T>? = null
+    var winner: Pair<K, T>? = null
 
     fun start() {
         val index = started.size
@@ -60,8 +76,9 @@ suspend fun <T> race(
             if (!events.trySend(event).isSuccess) event.drop(drop)
         }
         if (started.size < addresses.size) {
+            val next = delayBefore(addresses[started.size])
             launch {
-                delay(stagger)
+                delay(next)
                 events.trySend(Event.Tick(index))
             }
         }
@@ -108,10 +125,10 @@ fun RemoteClient.OpenResult.attempt(): Attempt<RemoteConnection> = when (this) {
     else -> Attempt.Failed(this)
 }
 
-private sealed interface Event<out T> {
-    data class Tick(val index: Int) : Event<Nothing>
+private sealed interface Event<out K, out T> {
+    data class Tick(val index: Int) : Event<Nothing, Nothing>
 
-    class Done<T>(val address: String, val attempt: Attempt<T>) : Event<T> {
+    class Done<K, T>(val address: K, val attempt: Attempt<T>) : Event<K, T> {
         private val handled = AtomicBoolean(false)
 
         /** Claims the opened value for the winner; false if it was already dropped. */

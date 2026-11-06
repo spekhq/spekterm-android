@@ -1,6 +1,7 @@
 package com.spekterm.android.service
 
 import com.spekterm.android.net.RaceResult
+import com.spekterm.android.net.Route
 import com.spekterm.android.net.RemoteClient
 import java.io.InterruptedIOException
 import java.net.Inet6Address
@@ -89,8 +90,8 @@ object Unreachability {
     }
 
     /** The report of a round [race] in which nothing opened, over the addresses in the order tried. */
-    fun report(order: List<String>, race: RaceResult<*>, network: Network): Report {
-        val outcomes = order.map { it to (race.finished[it]?.let(::outcome) ?: Outcome.NOT_TRIED) }
+    fun report(order: List<String>, race: RaceResult<*, *>, network: Network): Report {
+        val outcomes = order.map { it to (race.finished.entries.firstOrNull { (key, _) -> key == it || key == Route.Direct(it) }?.value?.let(::outcome) ?: Outcome.NOT_TRIED) }
         return report(outcomes, network)
     }
 
