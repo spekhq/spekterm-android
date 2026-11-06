@@ -81,7 +81,10 @@ const bySource = attention.reduce((acc, e) => ({ ...acc, [e.fields.source]: (acc
 const battery = entries.map((e) => Number(e.fields.battery)).filter(Number.isFinite)
 const idleOn = entries.filter((e) => e.kind === 'idle_mode' && e.fields.idle === 'true').length
 const attempts = entries.filter((e) => e.kind === 'attempt').length
-const failed = entries.filter((e) => e.kind === 'unreachable' || e.kind === 'pin_mismatch').length
+// A relay attempt fails as `unreachable`/`pin_mismatch` with route=relay, or as `relay_answer` (`phone-relay` D7).
+const failed = entries.filter((e) => e.kind === 'unreachable' || e.kind === 'pin_mismatch' || e.kind === 'relay_answer').length
+const relayAttempts = entries.filter((e) => e.kind === 'attempt' && e.fields.route === 'relay').length
+const relayed = entries.filter((e) => e.kind === 'authenticated' && e.fields.route === 'relay').length
 const buckets = [...new Set(entries.map((e) => e.fields.bucket).filter(Boolean))]
 
 console.log(`range            ${entries[0].time} → ${entries.at(-1).time} (${fmt(span)})`)
@@ -90,6 +93,7 @@ console.log(`disconnections   ${disconnections.length}`)
 for (const d of disconnections) console.log(`  ${d.time}  ${d.cause}${d.idle === 'true' ? '  (in idle)' : ''}`)
 console.log(`reconnect time   ${reconnects.length ? reconnects.map(fmt).join(', ') : '—'}`)
 console.log(`attempts         ${attempts} (${failed} failed)`)
+if (relayAttempts > 0) console.log(`  through relay  ${relayAttempts} (${relayed} authenticated)`)
 console.log(`attention        ${attention.length} — ${JSON.stringify(outcomes)} by source ${JSON.stringify(bySource)}`)
 if (delays.length) {
   console.log(`delay (offset ${offsetMs} ms)  min ${fmt(sorted[0])}  median ${fmt(pct(50))}  p90 ${fmt(pct(90))}  max ${fmt(sorted.at(-1))}`)
