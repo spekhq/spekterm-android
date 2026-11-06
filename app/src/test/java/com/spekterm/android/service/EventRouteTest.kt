@@ -8,6 +8,7 @@ class EventRouteTest {
     fun eachKnownKindHasItsRoute() {
         assertEquals(EventRoute.ATTENTION, EventRoute.of("attention"))
         assertEquals(EventRoute.ADDRESSES, EventRoute.of("addresses.changed"))
+        assertEquals(EventRoute.RELAY, EventRoute.of("relay.changed"))
         for (kind in listOf("sessions.changed", "conversation.update", "conversation.wait", "conversation.ended", "conversation.status", "conversation.skills", "openspec.changed", "handoffs.changed", "inbox.changed")) {
             assertEquals(kind, EventRoute.DESKTOP, EventRoute.of(kind))
         }

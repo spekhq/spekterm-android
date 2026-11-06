@@ -87,6 +87,9 @@ class ConnectionLog(
         INBOX,
         // `tool-call-display`: reading a file the agent sent (outcome, error code, size; never a name, path or byte).
         FILES,
+        // `phone-relay`: the relay grant (source, change; never the grant id or secret), the team server's answers
+        // (error code, retryAt) and why the relay is left out (reason, until).
+        RELAY_GRANT, RELAY_ANSWER, RELAY_ASIDE,
     }
 
     companion object {

@@ -1,6 +1,8 @@
 package com.spekterm.android.net
 
 import com.spekterm.android.pairing.PairingLink
+import com.spekterm.android.store.RelayGrant
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -229,6 +231,39 @@ object Frames {
     fun addresses(element: JsonElement?): List<String>? {
         val array = (element as? JsonObject)?.get("addresses") as? JsonArray ?: return null
         return addressList(array.mapNotNull { (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content })
+    }
+
+    /**
+     * `relay` of a `hello` answer or a `relay.changed` event (`phone-relay` D5): the grant if it is usable, else
+     * `null` — absent, `null`, not an object, or any part the app cannot use alike, since the phone can do nothing
+     * with half a grant. The URL becomes `wss://host[:port]`.
+     */
+    fun relay(element: JsonElement?): RelayGrant? {
+        val relay = (element as? JsonObject)?.get("relay") as? JsonObject ?: return null
+        fun string(key: String): String? = (relay[key] as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content
+        val url = relayUrl(string("url") ?: return null) ?: return null
+        val fp = when (val value = relay["fp"]) {
+            null, JsonNull -> null
+            else -> (value as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content
+                ?.takeIf { it.length == 64 && it.all { c -> c.isDigit() || c.uppercaseChar() in 'A'..'F' } } ?: return null
+        }
+        val grant = string("grant")?.takeIf { it.isNotEmpty() } ?: return null
+        val secret = string("secret")?.takeIf { it.isNotEmpty() } ?: return null
+        return RelayGrant(url, fp, grant, secret)
+    }
+
+    /** The only scheme a team server's address may have; the host always comes from the grant, never from code. */
+    const val RELAY_SCHEME = "wss://"
+
+    /** `wss://host[:port]` with nothing else (a lone trailing `/` dropped), normalized; `null` otherwise. */
+    fun relayUrl(raw: String): String? {
+        if (!raw.startsWith(RELAY_SCHEME, ignoreCase = true)) return null
+        val authority = raw.substring(RELAY_SCHEME.length).removeSuffix("/")
+        if (authority.isEmpty() || authority.any { it in "/?#@\\ " }) return null
+        val url = "https://$authority".toHttpUrlOrNull() ?: return null
+        val host = if (':' in url.host) "[${url.host}]" else url.host
+        val hostPort = if (url.port == 443 && !authority.endsWith(":443")) host else "$host:${url.port}"
+        return RELAY_SCHEME + hostPort
     }
 
     /** Addresses normalized as the pairing link's are, unusable ones left out, each once. */

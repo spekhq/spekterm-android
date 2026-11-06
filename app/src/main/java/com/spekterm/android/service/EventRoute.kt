@@ -7,6 +7,8 @@ package com.spekterm.android.service
 enum class EventRoute {
     ATTENTION,
     ADDRESSES,
+    /** `relay.changed`: the desktop's current relay grant for this phone (`phone-relay` D5). */
+    RELAY,
     DESKTOP,
     IGNORED;
 
@@ -16,6 +18,7 @@ enum class EventRoute {
         fun of(kind: String): EventRoute = when (kind) {
             "attention" -> ATTENTION
             "addresses.changed" -> ADDRESSES
+            "relay.changed" -> RELAY
             in DESKTOP_KINDS -> DESKTOP
             else -> IGNORED
         }

@@ -38,10 +38,15 @@ data class Pairing(
      * never replacing them (`addresses-and-mid-turn-replies` D1). Empty when the desktop never sent one.
      */
     val latestAddresses: List<String> = emptyList(),
+    /** The relay grant the desktop gave this phone, if any (`phone-relay` D5). Replaced or dropped by each `hello`. */
+    val relay: RelayGrant? = null,
 ) {
     override fun toString(): String =
         "Pairing(desktopName=$desktopName, addresses=$addresses, port=$port, deviceId=$deviceId, deviceSecret=<redacted>, " +
-            "lastAddress=$lastAddress, latestAddresses=$latestAddresses)"
+            "lastAddress=$lastAddress, latestAddresses=$latestAddresses, relay=${relay?.host})"
+
+    /** With the desktop's current grant; `null` when it holds none for this phone. */
+    fun withRelay(grant: RelayGrant?): Pairing = copy(relay = grant)
 
     /**
      * Last-good first while the desktop still lists it (or has sent no list), then the desktop's latest list, then
@@ -58,6 +63,21 @@ data class Pairing(
 
     /** Authenticated at [address], the `hello` answer carrying [list]. */
     fun authenticated(address: String, list: List<String>?): Pairing = copy(lastAddress = address).withLatest(list)
+}
+
+/**
+ * A relay grant (`phone-relay` D5): the team server's address [url] (`wss://host[:port]`, no path), its certificate
+ * fingerprint [fp] when the desktop's membership is pinned, the grant's id and its [secret]. Kept, encrypted, with the
+ * pairing; the secret never leaves it except in `relay.open`.
+ */
+@Serializable
+data class RelayGrant(val url: String, val fp: String? = null, val grant: String, val secret: String) {
+    /** The team server's host, for the status screen and the log. */
+    val host: String get() = url.removePrefix("wss://").substringBefore('/').let { hostPort ->
+        if (hostPort.startsWith("[")) hostPort.substringBefore(']') + "]" else hostPort.substringBefore(':')
+    }
+
+    override fun toString(): String = "RelayGrant(url=$url, fp=$fp, grant=$grant, secret=<redacted>)"
 }
 
 /**

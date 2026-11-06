@@ -415,4 +415,38 @@ class FramesTest {
         assertEquals(PutResult("a1", 65536, false), Frames.decodeOrNull<PutResult>(Json.parseToJsonElement("""{"attachmentId":"a1","received":65536,"complete":false}""")))
         assertEquals(AnswerResult.PARTIAL, Frames.decodeOrNull<AnswerResult>(Json.parseToJsonElement("""{"outcome":"partial"}"""))!!.outcome)
     }
+
+    private val fp = "ab".repeat(32)
+
+    private fun relayOf(value: String) = Frames.relay(parse("""{"protocol":1,"relay":$value}"""))
+
+    @Test
+    fun readsAUsableRelayGrant() {
+        val grant = relayOf("""{"url":"wss://team.example:8443/","fp":"$fp","grant":"g-1","secret":"c2VjcmV0","extra":1}""")!!
+        assertEquals("wss://team.example:8443", grant.url)
+        assertEquals(fp, grant.fp)
+        assertEquals("g-1", grant.grant)
+        assertEquals("c2VjcmV0", grant.secret)
+        val noPin = relayOf("""{"url":"wss://team.example","grant":"g","secret":"s"}""")!!
+        assertNull(noPin.fp)
+        assertEquals("wss://team.example", noPin.url)
+        assertEquals("wss://[fd7a::1]:8443", relayOf("""{"url":"wss://[fd7a::1]:8443","grant":"g","secret":"s"}""")!!.url)
+        assertNull(relayOf("""{"url":"wss://team.example","fp":null,"grant":"g","secret":"s"}""")!!.fp)
+    }
+
+    @Test
+    fun anUnusableRelayGrantIsNone() {
+        assertNull(Frames.relay(parse("""{"protocol":1}""")))
+        assertNull(relayOf("null"))
+        assertNull(relayOf("\"wss://x\""))
+        for (url in listOf("ws://h", "https://h", "wss://", "wss://h/relay", "wss://h?x=1", "wss://h#f", "wss://u@h", "wss://h:99999", "wss://h//")) {
+            assertNull(url, relayOf("""{"url":"$url","grant":"g","secret":"s"}"""))
+        }
+        assertNull(relayOf("""{"url":"wss://h","fp":"abc","grant":"g","secret":"s"}"""))
+        assertNull(relayOf("""{"url":"wss://h","fp":"${"z".repeat(64)}","grant":"g","secret":"s"}"""))
+        assertNull(relayOf("""{"url":"wss://h","fp":5,"grant":"g","secret":"s"}"""))
+        assertNull(relayOf("""{"url":"wss://h","grant":"","secret":"s"}"""))
+        assertNull(relayOf("""{"url":"wss://h","grant":"g"}"""))
+        assertNull(relayOf("""{"url":"wss://h","grant":1,"secret":"s"}"""))
+    }
 }

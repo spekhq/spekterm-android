@@ -9,7 +9,8 @@ import org.w3c.dom.Element
 /**
  * The app names no host but its own pages (`play-distribution`, "Talk to no one but the user's desktop"): every URL in a
  * Kotlin string literal (comments skipped) or in a `<string>` / `<plurals>` resource is the privacy policy, in either
- * language, or the source repository and its issue page. The desktop's addresses come from the pairing, never from code.
+ * language, or the source repository and its issue page. The desktop's addresses come from the pairing, and the team
+ * server's from the desktop's relay grant (`phone-relay`), never from code.
  */
 class NetworkHostsTest {
     private val res = listOf(File("src/main/res"), File("app/src/main/res")).first { it.isDirectory }

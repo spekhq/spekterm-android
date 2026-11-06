@@ -33,6 +33,7 @@ import com.spekterm.android.net.WatchAnswer
 import com.spekterm.android.net.attempt
 import com.spekterm.android.net.race
 import com.spekterm.android.store.Pairing
+import com.spekterm.android.store.RelayGrant
 import com.spekterm.android.store.StoreUnavailableException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -291,6 +292,7 @@ class ConnectionService : Service() {
             log.write(Kind.AUTHENTICATED, "address" to address)
             val listed = Frames.addresses(hello.result)
             storeAddresses(pairing.deviceId, "hello", listed) { it.authenticated(address, listed) }
+            storeRelay(pairing.deviceId, "hello", Frames.relay(hello.result))
             if (app.announcements.load().unsupported != null) app.announcements.update { it.copy(unsupported = null) }
 
             val watch = connection.call("attention.watch", Frames.attentionWatch(app.positions.load(pairing.deviceId)))
@@ -329,6 +331,7 @@ class ConnectionService : Service() {
                         val listed = Frames.addresses(event.data) ?: continue
                         storeAddresses(pairing.deviceId, "event", listed) { it.withLatest(listed) }
                     }
+                    EventRoute.RELAY -> storeRelay(pairing.deviceId, "event", Frames.relay(event.data))
                     // Sessions and the watched conversation (`session-conversation`), in arrival order.
                     EventRoute.DESKTOP -> Desktop.onEvent(connection, event)
                     EventRoute.IGNORED -> Unit
@@ -364,6 +367,30 @@ class ConnectionService : Service() {
             return
         }
         log.write(Kind.ADDRESSES, "source" to source, "count" to listed?.size, "changed" to changed)
+    }
+
+    /**
+     * Stores the desktop's current relay grant ([grant], `null` for none) with the pairing (`phone-relay` D5). Like
+     * the address list, a store that cannot be written now is logged and the connection goes on.
+     */
+    private fun storeRelay(deviceId: String, source: String, grant: RelayGrant?) {
+        var before: RelayGrant? = null
+        val changed = try {
+            app.credentials.updateIf(deviceId) { before = it.relay; it.withRelay(grant) }
+        } catch (e: StoreUnavailableException) {
+            log.write(Kind.STORE_UNAVAILABLE, "error" to e.cause?.javaClass?.simpleName, "op" to "relay")
+            return
+        } catch (e: Exception) {
+            log.write(Kind.ERROR, "error" to e.logName(), "op" to "relay")
+            return
+        }
+        if (!changed) return
+        val change = when {
+            grant == null -> "discarded"
+            before == null -> "stored"
+            else -> "replaced"
+        }
+        log.write(Kind.RELAY_GRANT, "source" to source, "change" to change, "host" to grant?.host)
     }
 
     /** Decodes a watch answer event by event, so one malformed event does not lose the others. */

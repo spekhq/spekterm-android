@@ -59,4 +59,35 @@ class PairingTest {
         assertEquals(emptyList<String>(), p.latestAddresses)
         assertEquals(listOf("a"), p.addressOrder())
     }
+
+    private val grant = RelayGrant("wss://team.example:8443", "CD".repeat(32), "g1", "top-secret")
+
+    @Test
+    fun aStoredPairingWithoutARelayDecodesWithNone() {
+        val json = """{"desktopName":"d","addresses":["a"],"port":1,"fingerprint":"f","deviceId":"i","deviceSecret":"s"}"""
+        assertEquals(null, Frames.json.decodeFromString(Pairing.serializer(), json).relay)
+    }
+
+    @Test
+    fun theGrantSecretIsNeverPrinted() {
+        val p = link.withRelay(grant)
+        assertEquals(false, "top-secret" in p.toString())
+        assertEquals(false, "top-secret" in grant.toString())
+        assertEquals(true, "team.example" in p.toString())
+        assertEquals(p, Frames.json.decodeFromString(Pairing.serializer(), Frames.json.encodeToString(Pairing.serializer(), p)))
+    }
+
+    @Test
+    fun theSameGrantAgainChangesNothing() {
+        val p = link.withRelay(grant)
+        assertEquals(p, p.withRelay(grant.copy()))
+        assertEquals(link, p.withRelay(null))
+    }
+
+    @Test
+    fun theHostOfAGrant() {
+        assertEquals("team.example", grant.host)
+        assertEquals("team.example", grant.copy(url = "wss://team.example").host)
+        assertEquals("[fd7a::1]", grant.copy(url = "wss://[fd7a::1]:8443").host)
+    }
 }

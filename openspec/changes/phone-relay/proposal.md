@@ -54,6 +54,8 @@ None.
   last candidate; "Trust only the pinned certificate" covers the inner TLS through the relay; new requirements "Keep the
   desktop's relay grant", "Reach the desktop through the team server" (outer check, ordering, cutting, timeout, codes)
   and "Show which path is in use"; "Say why the desktop cannot be reached" gains the relay's outcome and a reason.
+- `play-distribution`: "Talk to no one but the user's desktop" also allows the team server named in the desktop's grant,
+  while the phone holds one, and the privacy policy says what that server sees.
 
 ## Impact
 
