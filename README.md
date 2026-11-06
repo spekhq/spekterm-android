@@ -2,7 +2,10 @@
 
 The companion Android app for [spekterm](https://github.com/spekhq/spekterm), the agent-first desktop
 workbench. It connects **directly** to a spekterm you have paired with — over your LAN, Tailscale, or a port
-you forward — with no relay and no push service in between.
+you forward — with no push service in between. When your desktop is on a team and you turn on its relay setting,
+the phone can also reach it through your team's own [spekterm-server](https://github.com/spekhq/spekterm-server) as a
+second path; the connection stays end-to-end encrypted to your desktop's pinned certificate, and direct stays the
+first choice ([`docs/relay-findings.md`](docs/relay-findings.md)).
 
 **Status: in development.** Nothing is published yet. Findings from the phone tests:
 [`docs/spike-findings.md`](docs/spike-findings.md) (connection) and

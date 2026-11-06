@@ -6,8 +6,10 @@ context: |
   Purpose: reach the user's own spekterm desktop directly — LAN, Tailscale, or a port the user forwards —
            to be told when an agent needs them, and later to read and answer sessions from the phone.
   Fixed decisions: native Kotlin; published on Google Play; application id com.spekterm.android (frozen once
-           published). No relay server. No FCM, no UnifiedPush: notifications arrive only over the app's own
-           held connection (a foreground service), and the desktop replays missed events on reconnect.
+           published). Direct connection first; a relay only through the user's own team spekterm-server, when
+           the desktop gives the phone a grant, still end-to-end encrypted to the desktop (change `phone-relay`).
+           No FCM, no UnifiedPush: notifications arrive only over the app's own held connection (a foreground
+           service), and the desktop replays missed events on reconnect.
   Authority: the wire protocol is spekterm's docs/remote-protocol.md (version 1). Its "Client obligations"
              section is binding on this app. Server behavior, when the document is unclear:
              spekterm's src/main/remote-*.ts; reference client: spekterm's scripts/lib/remote-client.mjs.

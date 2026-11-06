@@ -1,8 +1,9 @@
 # desktop-connection Specification
 
 ## Purpose
-Keeps one authenticated, certificate-pinned connection to the paired spekterm desktop open in the background,
-so the app learns of events without a relay or a push service, and recovers it when it drops.
+Keeps one authenticated, certificate-pinned connection to the paired spekterm desktop open in the background —
+directly, or, when the desktop has given a grant and no direct address answers, through the user's own team
+spekterm-server — so the app learns of events without a push service, and recovers it when it drops.
 
 ## Requirements
 
