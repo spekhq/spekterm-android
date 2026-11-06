@@ -12,9 +12,9 @@ What it does
 • English or Traditional Chinese, light or dark.
 
 What you need
-A computer running spekterm 0.2.14 or later (Linux or an Apple silicon Mac; https://github.com/spekhq/spekterm/releases) with Settings → Remote access turned on. Pair by scanning the code it shows. The phone must be able to reach that computer.
+A computer running spekterm 0.2.14 or later (Linux or an Apple silicon Mac; https://github.com/spekhq/spekterm/releases) with Settings → Remote access turned on. Pair by scanning the code it shows. The phone must be able to reach that computer — or, if the computer is on a spekterm team and its relay setting is on, that team's spekterm-server.
 
 Private by design
-No account, no server, no push service in between: notifications arrive over the app's own connection to your desktop. The connection is encrypted and pinned to your desktop's certificate. The app sends nothing to its developer or anyone else, and has no analytics or ads.
+No account, no push service, and no server of the developer's: notifications arrive over the app's own connection to your desktop. It goes directly, or — only if your desktop is on a team and you turn on its relay — through your team's own spekterm-server, which passes it on without being able to read it. The connection is encrypted and pinned to your desktop's certificate. The app sends nothing to its developer, and has no analytics or ads.
 
 Open source (MIT): https://github.com/spekhq/spekterm-android

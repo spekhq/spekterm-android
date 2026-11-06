@@ -12,9 +12,9 @@ spekterm（以 agent 為中心的桌面工作台）的配套 app。直接連到�
 • 英文或繁體中文，淺色或深色。
 
 你需要
-一台執行 spekterm 0.2.14 以上版本的電腦（Linux 或 Apple 晶片的 Mac；https://github.com/spekhq/spekterm/releases），並在「設定 → 遠端存取」開啟。掃描它顯示的配對碼即可配對。手機必須連得到那台電腦。
+一台執行 spekterm 0.2.14 以上版本的電腦（Linux 或 Apple 晶片的 Mac；https://github.com/spekhq/spekterm/releases），並在「設定 → 遠端存取」開啟。掃描它顯示的配對碼即可配對。手機必須連得到那台電腦；或者，若那台電腦加入了 spekterm 團隊並開啟中繼設定，連得到該團隊的 spekterm-server。
 
 隱私優先
-沒有帳號、沒有伺服器、中間沒有推播服務：通知經由本 app 自己連到桌機的連線送達。連線經過加密，並鎖定你桌機的憑證。本 app 不會把任何資料傳給開發者或其他人，也沒有分析或廣告。
+沒有帳號、沒有推播服務，也沒有開發者的伺服器：通知經由本 app 自己連到桌機的連線送達。連線直接連到桌機；只有在你的桌機加入團隊並開啟中繼時，才會經過你們團隊自己的 spekterm-server，由它轉送，但它讀不到內容。連線經過加密，並鎖定你桌機的憑證。本 app 不會把任何資料傳給開發者，也沒有分析或廣告。
 
 開放原始碼（MIT）：https://github.com/spekhq/spekterm-android

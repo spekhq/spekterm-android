@@ -69,7 +69,15 @@ Why (help page "Provide information for Google Play's Data safety section", read
 is unreadable by you or anyone other than the sender and recipient" because of end-to-end encryption is not collected; "no
 intermediary, including the developer" may be able to read it. The app's only connection goes to the user's own computer,
 over TLS pinned to that computer's own certificate (`net/Pinning.kt`) — the phone and the user's computer are the two ends,
-with no server of the developer or anyone in between. The connection log leaves the phone only when the user shares it with
+with no server of the developer in between.
+
+Since `phone-relay` (to re-enter in the Console with the release that ships it): when the user's desktop is on a spekterm
+team and its relay setting is on, the same pinned TLS may instead cross the team's own spekterm-server, which splices it to
+the desktop without terminating it — so it stays "unreadable by anyone other than the sender and recipient", and the answer
+stays **No**. What that server can see is metadata of a server the user's team runs and the user's desktop chose, not the
+developer's: the phone's IP address, when and for how long it connects, byte counts each way, and which relay grant it used
+(spekterm-server's protocol section 13.7); the grant's secret, which only lets the phone ask that server for a tunnel to its
+own desktop, is sent to it. The privacy policy (spekterm repository) says so. The connection log leaves the phone only when the user shares it with
 another app from Settings, which is the user giving a file to an app on the phone, not this app sending it. Likewise a
 file the agent sent, which the user opens with another app on the phone (0.2.0), reaches only the app the user chooses. Even an app that
 collects nothing must submit the form and a privacy policy URL; both state that nothing is collected or shared.
@@ -110,7 +118,14 @@ including why the work must start at once and cannot be paused or restarted:
 
   > The app keeps a direct, encrypted connection to the user's own computer running spekterm (same network, Tailscale or a
   > forwarded port) and notifies the user when an AI coding agent there waits for a reply, a choice or a permission. There
-  > is no server in between, so push messaging cannot deliver these; the held connection is the only way. The work must
+  > is no server in between, so push messaging cannot deliver these; the held connection is the only way.
+
+  To re-enter with the release that ships `phone-relay` (the paragraph above stays as entered until then):
+
+  > The app keeps an encrypted connection to the user's own computer running spekterm — directly (same network, Tailscale
+  > or a forwarded port), or, if the user turns it on, through their own team's spekterm-server, which only passes the
+  > encrypted bytes on — and notifies the user when an AI coding agent there waits for a reply, a choice or a permission.
+  > No push service is involved, so push messaging cannot deliver these; the held connection is the only way. The work must
   > start at once and run until the user pauses it: if deferred, the agent sits blocked unseen. An ongoing notification
   > shows it; the user can pause it there.
 
