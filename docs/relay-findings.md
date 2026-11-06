@@ -37,3 +37,10 @@ Ten cases against a fake team server, all passing:
 - `DESKTOP_UNAVAILABLE` answered after 10 s → still waiting at 10 s, then that answer;
 - the team server closing the phone's leg with 4004 while connected → the relay leg records 4004 and the desktop's
   connection does not (it sees a drop).
+
+## 3. The descriptor override survives R8 (2026-11-06, `assembleProfile`)
+
+With the `-keepclassmembers` rule in `app/proguard-rules.pro`, the shrunk profile build keeps the method: in
+`app-profile.apk` the tunnel socket is class `z74` (`mapping.txt`: `com.spekterm.android.net.TunnelSocket -> z74`),
+superclass `java.net.Socket`, and `dexdump` lists a method named `getFileDescriptor$` on it. (Without the rule R8
+removes such a method: measured by the change's review with R8 8.10.9 on a minimal class.)

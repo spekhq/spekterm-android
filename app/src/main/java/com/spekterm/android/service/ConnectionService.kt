@@ -30,8 +30,15 @@ import com.spekterm.android.net.RemoteClient
 import com.spekterm.android.net.RemoteConnection
 import com.spekterm.android.net.RemoteError
 import com.spekterm.android.net.WatchAnswer
-import com.spekterm.android.net.attempt
 import com.spekterm.android.net.race
+import com.spekterm.android.net.Attempt
+import com.spekterm.android.net.RelayClient
+import com.spekterm.android.net.RelayLeg
+import com.spekterm.android.net.RelayOutcome
+import com.spekterm.android.net.Route
+import com.spekterm.android.net.delayBefore
+import android.content.pm.ApplicationInfo
+import java.io.File
 import com.spekterm.android.store.Pairing
 import com.spekterm.android.store.RelayGrant
 import com.spekterm.android.store.StoreUnavailableException
@@ -65,6 +72,8 @@ class ConnectionService : Service() {
     private val kick = Channel<Unit>(Channel.CONFLATED)
     private val backoff = Backoff()
     private val identity = IdentityTracker()
+    /** Whether the relay is tried (`phone-relay` D4); in memory, so a restart of the app clears it. */
+    private val relayGate = RelayGate()
     @Volatile private var current: RemoteConnection? = null
     @Volatile private var connectedNetwork: Network? = null
     @Volatile private var defaultNetwork: Network? = null
@@ -188,60 +197,94 @@ class ConnectionService : Service() {
     }
 
     /**
-     * One round of attempts, raced (`scan-connect-zh` D5), and, if one connects, its session. Returns false when the
-     * service must stop.
+     * One round of attempts, raced (`scan-connect-zh` D5; the relay last, `phone-relay` D3), and, if one connects, its
+     * session. Returns false when the service must stop.
      */
     private suspend fun round(pairing: Pairing): Boolean {
         var closeInfo: CloseInfo? = null
         var error: RemoteError? = null
         if (!alive()) return false
-        val order = pairing.addressOrder()
+        val relayOnly = relayOnly()
+        val grant = pairing.relay
+        val roundNetwork = defaultNetwork
+        val leftOut = grant?.let { relayGate.leftOut(it, System.currentTimeMillis(), roundNetwork) }
+        val relayRoute = grant?.takeIf { leftOut == null }?.let { Route.Relay(it.host) }
+        val routes: List<Route> = (if (relayOnly) emptyList() else pairing.addressOrder().map { Route.Direct(it) }) + listOfNotNull(relayRoute)
         val network = Networks.current(this)
         connectedNetwork = defaultNetwork ?: getSystemService(ConnectivityManager::class.java).activeNetwork
-        StatusBoard.update { it.roundStarted() }
+        StatusBoard.update { it.roundStarted(grant?.let { g -> Unreachability.RelayRow(g.host, leftOut = leftOut) }, relayOnly) }
+        if (grant != null && leftOut != null) log.write(Kind.RELAY_ASIDE, "host" to grant.host, "why" to leftOut.logName())
         refreshOngoing()
         val race = race(
-            order,
-            open = { RemoteClient.open(it, pairing.port, pairing.fingerprint).attempt() },
-            drop = RemoteConnection::cancel,
-            onStart = { address ->
-                log.write(Kind.ATTEMPT, "address" to address)
-                if (alive()) StatusBoard.update { it.attemptStarted(address) }
+            routes,
+            open = { route ->
+                when (route) {
+                    is Route.Direct -> RemoteClient.open(route.address, pairing.port, pairing.fingerprint)
+                    is Route.Relay -> RelayClient.open(grant!!, pairing.fingerprint, pairing.port)
+                }.let { if (it is RemoteClient.OpenResult.Open) Attempt.Opened(it) else Attempt.Failed(it) }
             },
-            onOutcome = { address, result ->
-                val outcome = Unreachability.outcome(result)
-                when (result) {
-                    is RemoteClient.OpenResult.PinMismatch -> {
-                        identity.record(IdentityTracker.Outcome.MISMATCH)
-                        log.write(Kind.PIN_MISMATCH, "address" to address, "check" to result.refusedBy, "outcome" to outcome)
+            drop = { it.connection.cancel() },
+            onStart = { route ->
+                when (route) {
+                    is Route.Direct -> {
+                        log.write(Kind.ATTEMPT, "address" to route.address)
+                        if (alive()) StatusBoard.update { it.attemptStarted(route.address) }
                     }
-                    is RemoteClient.OpenResult.Unreachable -> {
-                        identity.record(IdentityTracker.Outcome.UNREACHABLE)
-                        log.write(Kind.UNREACHABLE, "address" to address, "error" to result.cause?.javaClass?.simpleName, "outcome" to outcome)
+                    is Route.Relay -> {
+                        log.write(Kind.ATTEMPT, "route" to "relay", "host" to route.host)
+                        if (alive()) StatusBoard.update { it.relayStarted() }
                     }
-                    is RemoteClient.OpenResult.Relayed -> Unit
-                    is RemoteClient.OpenResult.Open -> Unit
                 }
-                if (alive()) StatusBoard.update { it.attemptFinished(address, outcome) }
             },
+            onOutcome = { route, result ->
+                identityInput(result)?.let(identity::record)
+                when (route) {
+                    is Route.Direct -> {
+                        val outcome = Unreachability.outcome(result)
+                        when (result) {
+                            is RemoteClient.OpenResult.PinMismatch ->
+                                log.write(Kind.PIN_MISMATCH, "address" to route.address, "check" to result.refusedBy, "outcome" to outcome)
+                            else -> log.write(Kind.UNREACHABLE, "address" to route.address, "error" to (result as? RemoteClient.OpenResult.Unreachable)?.cause?.javaClass?.simpleName, "outcome" to outcome)
+                        }
+                        if (alive()) StatusBoard.update { it.attemptFinished(route.address, outcome) }
+                    }
+                    is Route.Relay -> {
+                        val outcome = Unreachability.relayResult(result)
+                        when (result) {
+                            is RemoteClient.OpenResult.PinMismatch ->
+                                log.write(Kind.PIN_MISMATCH, "route" to "relay", "host" to route.host, "check" to result.refusedBy, "outcome" to outcome)
+                            is RemoteClient.OpenResult.Relayed -> relayFailed(grant!!, result.outcome, route.host, outcome, roundNetwork)
+                            else -> log.write(Kind.UNREACHABLE, "route" to "relay", "host" to route.host, "outcome" to outcome)
+                        }
+                        if (alive()) StatusBoard.update { it.relayFinished(outcome) }
+                    }
+                }
+            },
+            delayBefore = ::delayBefore,
         )
         val winner = race.winner
         if (winner != null) identity.record(IdentityTracker.Outcome.MATCH)
         announceIdentity(identity.endRound())
         if (!alive()) {
-            winner?.second?.cancel()
+            winner?.second?.connection?.cancel()
             return false
         }
         val connected = winner != null
+        var leg: RelayLeg? = null
         if (winner == null) {
-            val report = Unreachability.report(order, race, network)
+            val report = Unreachability.report(routes, race, network, grant?.let { Unreachability.RelayRow(it.host, leftOut = leftOut) })
             log.write(Kind.ROUND, "network" to network.kind, "vpn" to network.vpn, "reason" to report.reason)
             StatusBoard.update { it.roundFailed(report) }
         } else {
-            val (address, connection) = winner
-            StatusBoard.update { it.pinnedOpen(address) }
+            val (route, opened) = winner
+            leg = opened.leg
+            val shown = when (route) {
+                is Route.Direct -> route.address
+                is Route.Relay -> route.host
+            }
+            StatusBoard.update { it.pinnedOpen(shown, if (route is Route.Relay) Status.Via.RELAY else Status.Via.DIRECT) }
             refreshOngoing()
-            val outcome = session(connection, pairing, address)
+            val outcome = session(opened.connection, pairing, route)
             closeInfo = outcome.first
             error = outcome.second ?: outcome.first.error
         }
@@ -251,14 +294,19 @@ class ConnectionService : Service() {
             waitToRetry(throttled = false)
             return true
         }
+        val legEnd = leg?.end
         log.write(
             Kind.DISCONNECTED,
             "code" to closeInfo?.code,
             "failure" to closeInfo?.failure?.javaClass?.simpleName,
             "error" to error?.code,
+            "relayCode" to legEnd?.takeUnless { it.byPhone }?.code,
         )
         StatusBoard.update { it.copy(lastClose = describe(closeInfo, error)) }
-        return when (val decision = ConnectionPolicy.decide(closeInfo?.code, error)) {
+        // The desktop's codes decide the pairing and the wait; the team server's only the grant (`phone-relay` D4).
+        val end = SessionEnd.decide(closeInfo, error, legEnd)
+        if (grant != null) end.relay?.let { applyRelay(grant, it, "closed", roundNetwork) }
+        return when (val decision = end.policy) {
             ConnectionPolicy.Decision.Unpair -> {
                 unpair(pairing)
                 false
@@ -276,8 +324,51 @@ class ConnectionService : Service() {
         }
     }
 
+    /** A relay attempt that did not reach the desktop: log the team server's answer and act on it (D4). */
+    private fun relayFailed(grant: RelayGrant, outcome: RelayOutcome, host: String, result: Unreachability.RelayResult, network: Network?) {
+        when (outcome) {
+            is RelayOutcome.Answer -> log.write(Kind.RELAY_ANSWER, "host" to host, "error" to outcome.error.code, "retryAt" to outcome.error.detailLong("retryAt"))
+            else -> log.write(
+                Kind.UNREACHABLE,
+                "route" to "relay",
+                "host" to host,
+                "error" to ((outcome as? RelayOutcome.Network)?.cause?.javaClass?.simpleName ?: (outcome as? RelayOutcome.Closed)?.code ?: (outcome as? RelayOutcome.Http)?.status),
+                "outcome" to result,
+            )
+        }
+        applyRelay(grant, RelayRules.action(outcome, System.currentTimeMillis()), "refused", network)
+    }
+
+    /** Applies the gate's [action] for [grant]; a discarded grant is removed only if it is still the stored one. */
+    private fun applyRelay(grant: RelayGrant, action: RelayAction, source: String, network: Network?) {
+        relayGate.apply(action, grant, network)
+        when (action) {
+            RelayAction.Retry -> Unit
+            RelayAction.DiscardGrant -> {
+                val changed = try {
+                    app.credentials.load()?.deviceId?.let { id -> app.credentials.updateIf(id) { if (it.relay == grant) it.withRelay(null) else it } } ?: false
+                } catch (e: Exception) {
+                    log.write(Kind.ERROR, "error" to e.logName(), "op" to "relay")
+                    false
+                }
+                if (changed) log.write(Kind.RELAY_GRANT, "source" to source, "change" to "discarded", "host" to grant.host)
+            }
+            else -> relayGate.leftOut(grant, System.currentTimeMillis(), network)?.let {
+                log.write(Kind.RELAY_ASIDE, "host" to grant.host, "why" to it.logName())
+            }
+        }
+    }
+
+    /** A debuggable build with `files/relay-only` leaves the direct addresses out (`phone-relay` D8). */
+    private fun relayOnly(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0 && File(filesDir, "relay-only").exists()
+
     /** One authenticated connection, from `hello` to its end. Returns how it ended and `hello`'s error, if any. */
-    private suspend fun session(connection: RemoteConnection, pairing: Pairing, address: String): Pair<CloseInfo, RemoteError?> {
+    private suspend fun session(connection: RemoteConnection, pairing: Pairing, route: Route): Pair<CloseInfo, RemoteError?> {
+        val address = when (route) {
+            is Route.Direct -> route.address
+            is Route.Relay -> route.host
+        }
         current = connection
         var attached = false
         try {
@@ -290,9 +381,10 @@ class ConnectionService : Service() {
                 }
                 return info to hello.error
             }
-            log.write(Kind.AUTHENTICATED, "address" to address)
+            log.write(Kind.AUTHENTICATED, "address" to address, "route" to if (route is Route.Relay) "relay" else "direct")
             val listed = Frames.addresses(hello.result)
-            storeAddresses(pairing.deviceId, "hello", listed) { it.authenticated(address, listed) }
+            // Only a direct address becomes the one tried first (`phone-relay` D3).
+            storeAddresses(pairing.deviceId, "hello", listed) { if (route is Route.Direct) it.authenticated(address, listed) else it.withLatest(listed) }
             storeRelay(pairing.deviceId, "hello", Frames.relay(hello.result))
             if (app.announcements.load().unsupported != null) app.announcements.update { it.copy(unsupported = null) }
 

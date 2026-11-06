@@ -144,6 +144,22 @@ fun StatusScreen(
                         Small(pluralStringResource(R.plurals.status_addresses_count, addresses.size, addresses.size, pairing.port))
                         TextButton(onClick = { allAddresses = true }, contentPadding = PaddingValues(0.dp)) { Text(stringResource(R.string.status_show_all)) }
                     }
+                    // The team server last, while the desktop has given a grant (`phone-relay` D6).
+                    pairing.relay?.let { grant ->
+                        val row = (report?.relay ?: status.relay)?.takeIf { it.host == grant.host }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.relay_row, grant.host), Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                            val shown = row?.takeIf { outcomes != null || it.leftOut != null || it.started }
+                            if (shown != null) {
+                                Text(
+                                    Reasons.relay(shown) { time.format(Date(it)) }.text(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    if (status.relayOnly) Small(stringResource(R.string.status_relay_only))
 
                     // States also announced by notifications, so they show without the notification permission.
                     if (announcements.identityChanged) {
@@ -325,6 +341,9 @@ private fun stateTitle(status: Status, paused: Boolean): String = stringResource
 @Composable
 private fun stateText(status: Status, paused: Boolean, time: DateFormat): String = when {
     paused -> stringResource(R.string.status_paused)
+    status.state == Status.State.CONNECTED && status.via == Status.Via.RELAY -> status.since?.let {
+        stringResource(R.string.status_connected_relay_since, status.address.orEmpty(), time.format(Date(it)))
+    } ?: stringResource(R.string.status_connected_relay, status.address.orEmpty())
     status.state == Status.State.CONNECTED -> status.since?.let {
         stringResource(R.string.status_connected_via_since, status.address.orEmpty(), time.format(Date(it)))
     } ?: stringResource(R.string.status_connected_via, status.address.orEmpty())

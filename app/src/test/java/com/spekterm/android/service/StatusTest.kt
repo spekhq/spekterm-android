@@ -48,4 +48,34 @@ class StatusTest {
         assertFalse(Status(state = Status.State.CONNECTING).canTryNow(paused = false))
         assertFalse(waiting.roundStarted().canTryNow(paused = false))
     }
+
+    // `phone-relay` D6.
+
+    @Test
+    fun aRoundThroughTheRelay() {
+        val row = Unreachability.RelayRow("team.example")
+        var status = Status().roundStarted(row)
+        assertEquals(row, status.relay)
+        status = status.attemptStarted("team.example").relayStarted()
+        // An address on the team server's host keeps its own entry.
+        assertEquals(mapOf<String, Outcome?>("team.example" to null), status.attempts)
+        assertTrue(status.relay!!.started)
+        status = status.attemptFinished("team.example", Outcome.TIMED_OUT).relayFinished(Unreachability.RelayResult.DESKTOP_OFFLINE)
+        assertEquals(Outcome.TIMED_OUT, status.attempts["team.example"])
+        assertEquals(Unreachability.RelayResult.DESKTOP_OFFLINE, status.relay!!.result)
+        status = status.pinnedOpen("team.example", Status.Via.RELAY)
+        assertEquals(Status.Via.RELAY, status.via)
+        assertEquals("team.example", status.address)
+        assertFalse(status.relay!!.started)
+        // The next round, direct, says so.
+        assertEquals(Status.Via.DIRECT, status.roundStarted(row).pinnedOpen("192.168.0.199").via)
+    }
+
+    @Test
+    fun aFailedRoundKeepsTheRelaysRowFromItsReport() {
+        val row = Unreachability.RelayRow("team.example", Unreachability.RelayResult.BUSY, started = true)
+        val failed = Unreachability.report(listOf("192.168.0.199" to Outcome.TIMED_OUT), Network(NetworkKind.WIFI, vpn = false), row)
+        assertEquals(row, Status().roundStarted(Unreachability.RelayRow("team.example")).roundFailed(failed).relay)
+        assertNull(Status().roundStarted().relay)
+    }
 }

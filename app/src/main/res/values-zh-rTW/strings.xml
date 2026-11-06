@@ -748,4 +748,27 @@
     <string name="command_run_myself">我自己跑</string>
     <string name="conversation_more">附加或執行指令</string>
     <string name="command_mode_exit">回到回覆</string>
+    <!-- `phone-relay`: the team server's relay. -->
+    <string name="reason_desktop_offline">團隊伺服器（%1$s）也連不到桌機。</string>
+    <string name="reason_desktop_offline_advice">桌機可能在睡眠、關機或離線，或是 spekterm 沒有在執行、沒有加入團隊。</string>
+    <string name="reason_not_the_desktop_relay">經團隊伺服器連到的不是已配對的桌機。</string>
+    <string name="relay_row">團隊伺服器（中繼）· %1$s</string>
+    <string name="relay_outcome_desktop_certificate">不是這台桌機</string>
+    <string name="relay_outcome_desktop_offline">桌機沒有連上它</string>
+    <string name="relay_outcome_desktop_refused">桌機拒絕</string>
+    <string name="relay_outcome_busy">團隊伺服器忙碌</string>
+    <string name="relay_outcome_rate_limited">嘗試太頻繁</string>
+    <string name="relay_outcome_relay_off">伺服器未開啟中繼</string>
+    <string name="relay_outcome_grant_invalid">授權已失效</string>
+    <string name="relay_outcome_certificate">憑證不受信任</string>
+    <string name="relay_outcome_certificate_changed">憑證已變更</string>
+    <string name="relay_left_out_off">未嘗試：團隊伺服器不提供中繼</string>
+    <string name="relay_left_out_unsupported">未嘗試：App 或團隊伺服器需要更新</string>
+    <string name="relay_left_out_fault">未嘗試：App 發生錯誤（請看連線紀錄）</string>
+    <string name="relay_left_out_until">%1$s 前不嘗試</string>
+    <string name="relay_left_out_network">這個網路上不嘗試：團隊伺服器的憑證已變更</string>
+    <string name="status_connected_relay">經團隊伺服器（%1$s）連線</string>
+    <string name="status_connected_relay_since">自 %2$s 起經團隊伺服器（%1$s）連線</string>
+    <string name="notification_connected_relay">經團隊伺服器連線</string>
+    <string name="status_relay_only">debug：只走中繼</string>
 </resources>

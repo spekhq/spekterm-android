@@ -782,4 +782,27 @@
     <string name="command_run_myself">Run it myself</string>
     <string name="conversation_more">Attach or run a command</string>
     <string name="command_mode_exit">Back to a reply</string>
+    <!-- `phone-relay`: the team server's relay. -->
+    <string name="reason_desktop_offline">The team server (%1$s) can\'t reach the desktop either.</string>
+    <string name="reason_desktop_offline_advice">It may be asleep, off or offline, or spekterm may not be running or not on the team.</string>
+    <string name="reason_not_the_desktop_relay">The desktop reached through the team server is not the paired desktop.</string>
+    <string name="relay_row">Team server (relay) · %1$s</string>
+    <string name="relay_outcome_desktop_certificate">not the desktop</string>
+    <string name="relay_outcome_desktop_offline">desktop not connected to it</string>
+    <string name="relay_outcome_desktop_refused">the desktop refused</string>
+    <string name="relay_outcome_busy">team server busy</string>
+    <string name="relay_outcome_rate_limited">asked too often</string>
+    <string name="relay_outcome_relay_off">relay off on the server</string>
+    <string name="relay_outcome_grant_invalid">access no longer valid</string>
+    <string name="relay_outcome_certificate">certificate not trusted</string>
+    <string name="relay_outcome_certificate_changed">certificate changed</string>
+    <string name="relay_left_out_off">not tried: the team server does not relay</string>
+    <string name="relay_left_out_unsupported">not tried: the app or the team server needs updating</string>
+    <string name="relay_left_out_fault">not tried: an error in the app (see the log)</string>
+    <string name="relay_left_out_until">not tried until %1$s</string>
+    <string name="relay_left_out_network">not tried on this network: the team server\'s certificate changed</string>
+    <string name="status_connected_relay">Connected through the team server (%1$s)</string>
+    <string name="status_connected_relay_since">Connected through the team server (%1$s) since %2$s</string>
+    <string name="notification_connected_relay">Connected through the team server</string>
+    <string name="status_relay_only">debug: relay only</string>
 </resources>

@@ -133,4 +133,60 @@ class UnreachabilityTest {
         val outcomes = listOf("192.168.0.199" to Outcome.TIMED_OUT, "desk.example.org" to Outcome.NAME_NOT_FOUND)
         assertEquals(Reason.UNREACHABLE, Unreachability.report(outcomes, wifi).reason)
     }
+
+    // `phone-relay` D6: the relay's result and the Desktop offline reason.
+
+    private fun relay(result: Unreachability.RelayResult) = Unreachability.RelayRow("team.example", result, started = true)
+
+    @Test
+    fun theDesktopIsOfflineOnTheTeamServerToo() {
+        val report = Unreachability.report(all(maintainer, Outcome.TIMED_OUT), mobile, relay(Unreachability.RelayResult.DESKTOP_OFFLINE))
+        assertEquals(Reason.DESKTOP_OFFLINE, report.reason)
+        assertEquals("team.example", report.address)
+    }
+
+    @Test
+    fun aRefusedDirectAddressSaysMoreThanTheRelay() {
+        val outcomes = listOf("192.168.0.199" to Outcome.REFUSED, "100.106.81.33" to Outcome.TIMED_OUT)
+        assertEquals(Reason.REFUSED, Unreachability.report(outcomes, wifi, relay(Unreachability.RelayResult.DESKTOP_OFFLINE)).reason)
+    }
+
+    @Test
+    fun anotherCertificateInsideTheRelayIsNotTheDesktop() {
+        val report = Unreachability.report(all(maintainer, Outcome.TIMED_OUT), mobile, relay(Unreachability.RelayResult.DESKTOP_CERTIFICATE))
+        assertEquals(Reason.NOT_THE_DESKTOP, report.reason)
+        assertTrue(report.throughRelay)
+    }
+
+    @Test
+    fun theTeamServersCertificateIsNotTheDesktop() {
+        for (result in listOf(Unreachability.RelayResult.CERTIFICATE, Unreachability.RelayResult.CERTIFICATE_CHANGED)) {
+            val report = Unreachability.report(all(maintainer, Outcome.TIMED_OUT), mobile, relay(result))
+            assertNotEquals(Reason.NOT_THE_DESKTOP, report.reason)
+        }
+    }
+
+    @Test
+    fun aRelayThatTimedOutLeavesTheReasonToTheAddresses() {
+        val report = Unreachability.report(all(maintainer, Outcome.TIMED_OUT), mobile, relay(Unreachability.RelayResult.TIMED_OUT))
+        assertEquals(Reason.OFF_NETWORK, report.reason)
+        assertEquals(Unreachability.RelayResult.TIMED_OUT, report.relay?.result)
+    }
+
+    @Test
+    fun theRelaysResultsFromItsOutcomes() {
+        fun result(outcome: com.spekterm.android.net.RelayOutcome) =
+            Unreachability.relayResult(com.spekterm.android.net.RemoteClient.OpenResult.Relayed(outcome))
+        fun answer(code: String) = com.spekterm.android.net.RelayOutcome.Answer(com.spekterm.android.net.RemoteError(code))
+        assertEquals(Unreachability.RelayResult.DESKTOP_OFFLINE, result(answer("DESKTOP_UNAVAILABLE")))
+        assertEquals(Unreachability.RelayResult.GRANT_INVALID, result(answer("GRANT_INVALID")))
+        assertEquals(Unreachability.RelayResult.GRANT_INVALID, result(com.spekterm.android.net.RelayOutcome.Closed(4004)))
+        assertEquals(Unreachability.RelayResult.RELAY_OFF, result(com.spekterm.android.net.RelayOutcome.Http(404)))
+        assertEquals(Unreachability.RelayResult.CERTIFICATE_CHANGED, result(com.spekterm.android.net.RelayOutcome.Certificate(pinned = true)))
+        assertEquals(Unreachability.RelayResult.TIMED_OUT, result(com.spekterm.android.net.RelayOutcome.Network(SocketTimeoutException("connect timed out"))))
+        assertEquals(
+            Unreachability.RelayResult.DESKTOP_CERTIFICATE,
+            Unreachability.relayResult(com.spekterm.android.net.RemoteClient.OpenResult.PinMismatch("trust")),
+        )
+    }
 }

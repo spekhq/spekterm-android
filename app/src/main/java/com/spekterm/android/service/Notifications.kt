@@ -85,6 +85,7 @@ object Notifications {
 
     fun ongoing(context: Context, desktop: String, status: Status): Notification {
         val text = when {
+            status.state == Status.State.CONNECTED && status.via == Status.Via.RELAY -> context.getString(R.string.notification_connected_relay)
             status.state == Status.State.CONNECTED ->
                 status.address?.let { context.getString(R.string.status_connected_via, it) } ?: context.getString(R.string.status_connected)
             status.remoteOff -> context.getString(R.string.status_remote_off_long)

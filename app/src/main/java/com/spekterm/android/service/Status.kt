@@ -21,24 +21,38 @@ data class Status(
     val report: Unreachability.Report? = null,
     /** Waiting out the 60 s after throttling: no "Try now", and no reason shown (D6, D7). */
     val throttled: Boolean = false,
+    /** Which way the connection in use goes (`phone-relay` D6); [address] is then the team server's host. */
+    val via: Via = Via.DIRECT,
+    /** The relay in the round under way or the last one, while the phone holds a grant; `null` without one. */
+    val relay: Unreachability.RelayRow? = null,
+    /** A debuggable build told to leave the direct addresses out (`phone-relay` D8). */
+    val relayOnly: Boolean = false,
 ) {
     enum class State { STOPPED, CONNECTING, CONNECTED, WAITING }
+
+    enum class Via { DIRECT, RELAY }
 
     data class RecentEvent(val kind: String, val title: String, val receivedAt: Long, val outcome: String)
 
     // The transitions of `scan-connect-zh` D6's lifecycle, pure so they are tested on the JVM.
 
-    fun roundStarted(): Status = copy(state = State.CONNECTING, address = null, since = null, attempts = emptyMap(), throttled = false)
+    fun roundStarted(relay: Unreachability.RelayRow? = null, relayOnly: Boolean = false): Status =
+        copy(state = State.CONNECTING, address = null, since = null, attempts = emptyMap(), throttled = false, relay = relay, relayOnly = relayOnly)
+
+    fun relayStarted(): Status = copy(relay = relay?.copy(started = true, result = null))
+
+    fun relayFinished(result: Unreachability.RelayResult): Status = copy(relay = relay?.copy(started = true, result = result))
 
     fun attemptStarted(address: String): Status = copy(attempts = attempts + (address to null))
 
     fun attemptFinished(address: String, outcome: Unreachability.Outcome): Status = copy(attempts = attempts + (address to outcome))
 
     /** No address connected: the round's own evidence replaces "remote access is off" (4005). */
-    fun roundFailed(report: Unreachability.Report): Status = copy(report = report, remoteOff = false, attempts = emptyMap())
+    fun roundFailed(report: Unreachability.Report): Status = copy(report = report, remoteOff = false, attempts = emptyMap(), relay = report.relay)
 
     /** A pinned handshake completed: whatever follows on that connection, the last failure no longer applies. */
-    fun pinnedOpen(address: String): Status = copy(state = State.CONNECTING, address = address, report = null, attempts = emptyMap())
+    fun pinnedOpen(address: String, via: Via = Via.DIRECT): Status =
+        copy(state = State.CONNECTING, address = address, report = null, attempts = emptyMap(), via = via, relay = relay?.copy(started = false, result = null))
 
     fun waiting(retryAt: Long, throttled: Boolean): Status = copy(state = State.WAITING, retryAt = retryAt, since = null, throttled = throttled)
 
