@@ -136,11 +136,17 @@ outcome, while the conversation's composer can be used for that session — unle
 in which case it SHALL NOT be offered. An inline code span in the agent's own text whose content, without white space
 at either end, is `!`, white space, and a command SHALL be shown as something to tap, while the composer can be used;
 a code block in the agent's own text whose content, so trimmed, is the same SHALL offer "Run it myself" below it, the
-same while; in the user's own messages and in messages from other sessions both SHALL stay as they are. Each SHALL
+same while; in the user's own messages, in messages from other sessions and in the agent's thinking
+(`conversation-view`) both SHALL stay as they are. Each SHALL
 put the command — the call's command, or the span's or block's text after the `!` without white space at either end
 — into the
 command draft in place of what it held, turn command mode on, and focus the field. It SHALL NOT send anything. The
 reply draft and its attachments SHALL stay as they were.
+
+#### Scenario: A command in thinking
+
+- **WHEN** the agent's thinking holds the code span `! npm run deploy`
+- **THEN** it is shown as code, and tapping it leaves the command field as it was
 
 #### Scenario: A blocked command
 

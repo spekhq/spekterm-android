@@ -12,13 +12,14 @@ The conversation screen SHALL show the session's entries in order, newest last: 
 text, the agent's thinking, its tool calls, each shown by its kind as `tool-call-display` says, and their results
 (whether each succeeded or failed). A tool call and the result the desktop gives for it (the same tool call id)
 SHALL be shown as one item, marked as succeeded or failed once the result is there; a result whose call is not
-shown SHALL be shown on its own. Two or more tool calls in a row — with only their results, thinking, background-task notices and the agent CLI's
+shown SHALL be shown on its own. Two or more tool calls in a row — with only their results, background-task notices and the agent CLI's
 note about a picture it read (`tool-call-display`) between them — SHALL be summarized in one collapsed item that says how many calls it holds, how many failed, and what the
 latest call was; expanding it SHALL show each call. A reply of the user's shown between tool calls
 (`conversation-reply`) SHALL end the run there, so that the reply stays where it was sent; a message from another
 session, a subagent's report, and a message or files the agent sent (`tool-call-display`) SHALL end the run too, so
-that none is ever hidden inside one. Thinking and tool results SHALL be collapsed until the user
-expands them. Messages the agent itself injected rather than the user typing them SHALL be marked as such, except the agent CLI's
+that none is ever hidden inside one. Thinking SHALL end a run as the agent's text does, and SHALL be shown open,
+laid out as the agent's text is, marked as thinking and set apart from the agent's text by a quieter colour. Tool
+results SHALL be collapsed until the user expands them. Messages the agent itself injected rather than the user typing them SHALL be marked as such, except the agent CLI's
 note about a picture, which is not shown (`tool-call-display`), and its fixed caveat before a built-in command,
 which SHALL NOT be shown (requirement "Show a built-in command's output as the command's output"); those exchanged with
 other sessions, subagents and the user SHALL be shown as messages from their sender (`tool-call-display`). New
@@ -29,7 +30,7 @@ up, new entries SHALL NOT move the view, and the screen SHALL offer to jump to t
 #### Scenario: Reading a conversation
 
 - **WHEN** the user opens a running agent session that has a conversation
-- **THEN** the screen shows its entries, newest last, with thinking and tool results collapsed
+- **THEN** the screen shows its entries, newest last, with tool results collapsed and thinking open
 
 #### Scenario: The agent answers while the screen is open
 
@@ -66,6 +67,12 @@ up, new entries SHALL NOT move the view, and the screen SHALL offer to jump to t
 
 - **WHEN** a background task's notice arrived between two of the agent's tool calls
 - **THEN** the screen shows one run of the two calls, holding the notice
+
+#### Scenario: Thinking between tool calls
+
+- **WHEN** the agent made a tool call, wrote thinking with text, and made two more tool calls
+- **THEN** the screen shows the first call, then the thinking open under a "Thinking" label, then one item saying
+  "2 tool calls"; no item holds calls from both sides of the thinking
 
 #### Scenario: A run that grows while expanded
 
@@ -106,9 +113,18 @@ Agent and user text MAY be rendered as Markdown, but rendering SHALL NOT fetch a
 images SHALL NOT be loaded, and nothing in the text SHALL cause a request without the user acting. HTML in the
 text SHALL NOT be rendered as HTML, and SHALL NOT be dropped either: tags and HTML blocks SHALL be shown as the
 text they are. A link SHALL open only when the user taps it, only for `http` and `https`
-addresses, and only in a separate browser; links of any other scheme SHALL do nothing. Thinking, tool arguments and tool
-results SHALL be shown as plain text, except the body of a message received from another session or a
+addresses, and only in a separate browser; links of any other scheme SHALL do nothing. Thinking SHALL follow
+the rules above for agent text, except that no code span or code block in it SHALL offer to put a command into the
+command field (`shell-commands`). Tool arguments and
+tool results SHALL be shown as plain text, except the body of a message received from another session or a
 subagent's report (`tool-call-display`), which follows the rules above for agent text.
+
+#### Scenario: Code in thinking
+
+- **WHEN** the agent's thinking says "接下來我要改 `remote-server.ts`，再跑 `! npm run deploy`" and holds an image in
+  Markdown
+- **THEN** both code spans are shown as code without the backticks, tapping `! npm run deploy` leaves the command
+  field as it was, and the image is not loaded
 
 #### Scenario: An image in agent text
 
@@ -285,12 +301,12 @@ has no open window, then that the session was closed, then that it is dormant.
 
 ### Requirement: Show when messages were recorded, and which day
 
-The conversation screen SHALL show, under each of the user's own messages and each piece of the agent's text, the
-time the desktop says it was recorded, in the phone's time zone and time format. Thinking, tool calls, results and
+The conversation screen SHALL show, under each of the user's own messages and each piece of the agent's text and
+thinking, the time the desktop says it was recorded, in the phone's time zone and time format. Tool calls, results and
 messages the agent injected SHALL NOT show a time of their own. Going through the items in the order they are shown,
 the screen SHALL show a heading naming the day — "Today", "Yesterday", or the date, by the phone's time zone —
 before the first item with a recorded time, and before each item with a recorded time whose day differs from that of
-the last item with a recorded time before it — tool calls and thinking included, though they show no time;
+the last item with a recorded time before it — tool calls included, though they show no time;
 while the user scrolls, the heading of the day the topmost shown item belongs to SHALL stay at the top of the
 conversation, standing out from the messages, until the next day's heading reaches it; a day is therefore headed again when recorded times go back across midnight. The headings and
 the times SHALL follow the phone's current date, time zone and clock without the user doing anything: after
@@ -304,6 +320,11 @@ SHALL show no time and SHALL start no day.
   agent answered at 09:14 after three tool calls
 - **THEN** the screen shows a "Today" heading before the first item of today, "09:12" under the user's message and
   "09:14" under the agent's answer, and no time on the tool calls
+
+#### Scenario: The time of thinking
+
+- **WHEN** the agent wrote thinking with text at 00:53, recorded with that time
+- **THEN** "00:53" is shown under the thinking
 
 #### Scenario: A conversation over two days
 
