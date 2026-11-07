@@ -88,7 +88,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -645,10 +644,12 @@ private fun PlainRow(entry: Entry, expanded: Boolean, toggle: () -> Unit, time: 
             SelectionContainer { AgentMarkdown(entry.text, onCommand = LocalToolContext.current.runCommand) }
             time?.let { TimeLine(it, Modifier.padding(top = 2.dp)) }
         }
-        is Entry.Thinking -> Muted(stringResource(R.string.conversation_thinking), expanded, toggle) {
-            SelectionContainer {
-                Text(entry.text, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic, color = colors.onSurfaceVariant)
-            }
+        // Thinking is shown open, laid out as the agent's text, marked and quieter (`thinking-as-message` D2); a
+        // `! command` in it stays plain code, as no onCommand is given.
+        is Entry.Thinking -> Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
+            Text(stringResource(R.string.conversation_thinking), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+            SelectionContainer { AgentMarkdown(entry.text, Modifier.padding(top = 2.dp), textColor = colors.onSurfaceVariant) }
+            time?.let { TimeLine(it, Modifier.padding(top = 2.dp)) }
         }
         // Calls and results are shown by ConversationItems; these never reach here.
         is Entry.Tool, is Entry.Result -> Unit
@@ -704,7 +705,7 @@ internal fun injectedLabel(origin: Origin?): String {
     }
 }
 
-/** A muted, expandable line: thinking, an injected message. */
+/** A muted, expandable line: an injected message. */
 @Composable
 private fun Muted(label: String, expanded: Boolean, toggle: () -> Unit, body: @Composable () -> Unit) {
     Column(rowPad) {
@@ -854,9 +855,6 @@ private fun RunItem(run: ConversationItems.Run, expanded: Boolean, toggle: () ->
                         is ConversationItems.Call -> CallLine(part, partOpen, partToggle, Modifier.fillMaxWidth())
                         is ConversationItems.Notice -> Muted(stringResource(R.string.peer_task_notice), partOpen, partToggle) {
                             SelectionContainer { Text(part.entry.text, style = MaterialTheme.typography.bodySmall) }
-                        }
-                        is ConversationItems.Thinking -> Muted(stringResource(R.string.conversation_thinking), partOpen, partToggle) {
-                            Text(part.entry.text, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic, color = colors.onSurfaceVariant)
                         }
                     }
                 }

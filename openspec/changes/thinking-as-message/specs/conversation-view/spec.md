@@ -1,0 +1,190 @@
+## MODIFIED Requirements
+
+### Requirement: Show the conversation of an agent session
+
+The conversation screen SHALL show the session's entries in order, newest last: the user's messages, the agent's
+text, the agent's thinking, its tool calls, each shown by its kind as `tool-call-display` says, and their results
+(whether each succeeded or failed). A tool call and the result the desktop gives for it (the same tool call id)
+SHALL be shown as one item, marked as succeeded or failed once the result is there; a result whose call is not
+shown SHALL be shown on its own. Two or more tool calls in a row — with only their results, background-task notices and the agent CLI's
+note about a picture it read (`tool-call-display`) between them — SHALL be summarized in one collapsed item that says how many calls it holds, how many failed, and what the
+latest call was; expanding it SHALL show each call. A reply of the user's shown between tool calls
+(`conversation-reply`) SHALL end the run there, so that the reply stays where it was sent; a message from another
+session, a subagent's report, and a message or files the agent sent (`tool-call-display`) SHALL end the run too, so
+that none is ever hidden inside one. Thinking SHALL end a run as the agent's text does, and SHALL be shown open,
+laid out as the agent's text is, marked as thinking and set apart from the agent's text by a quieter colour. Tool
+results SHALL be collapsed until the user expands them. Messages the agent itself injected rather than the user typing them SHALL be marked as such, except the agent CLI's
+note about a picture, which is not shown (`tool-call-display`), and its fixed caveat before a built-in command,
+which SHALL NOT be shown (requirement "Show a built-in command's output as the command's output"); those exchanged with
+other sessions, subagents and the user SHALL be shown as messages from their sender (`tool-call-display`). New
+entries SHALL appear as the desktop delivers them, without the user refreshing; a new tool call that extends a
+summarized run SHALL update the summary without collapsing it if the user expanded it. When the user has scrolled
+up, new entries SHALL NOT move the view, and the screen SHALL offer to jump to the newest.
+
+#### Scenario: Reading a conversation
+
+- **WHEN** the user opens a running agent session that has a conversation
+- **THEN** the screen shows its entries, newest last, with tool results collapsed and thinking open
+
+#### Scenario: The agent answers while the screen is open
+
+- **WHEN** the agent writes a new message while the conversation is on screen and scrolled to the newest entry
+- **THEN** the message appears without the user doing anything, and the view follows it
+
+#### Scenario: A run of tool calls
+
+- **WHEN** the agent made seven tool calls in a row, one of which failed, and then wrote its answer
+- **THEN** the screen shows one item saying "7 tool calls", that one failed, and the latest call, followed by the
+  answer; expanding the item shows the seven calls, each marked succeeded or failed
+
+#### Scenario: A single tool call
+
+- **WHEN** the agent made one tool call between two messages
+- **THEN** the call is shown as one item with its name, its one-line summary (`tool-call-display`) and whether it
+  succeeded, with its result collapsed
+
+#### Scenario: A reply sent while the agent made tool calls
+
+- **WHEN** the user sent a reply after the agent's third tool call in a row, the agent made two more calls, and the
+  reply is then marked as not in the conversation
+- **THEN** the screen shows the first three calls, then the reply, then the other two calls; no item holds calls
+  from both sides of the reply
+
+#### Scenario: A message arrives during a run
+
+- **WHEN** the agent made two tool calls, a background task's notice and then another session's message arrived, and
+  the agent made two more calls
+- **THEN** the screen shows a run of the first two calls, the notice's line, the message, then a run of the other two
+  calls
+
+#### Scenario: A notice between two calls
+
+- **WHEN** a background task's notice arrived between two of the agent's tool calls
+- **THEN** the screen shows one run of the two calls, holding the notice
+
+#### Scenario: Thinking between tool calls
+
+- **WHEN** the agent made a tool call, wrote thinking with text, and made two more tool calls
+- **THEN** the screen shows the first call, then the thinking open under a "Thinking" label, then one item saying
+  "2 tool calls"; no item holds calls from both sides of the thinking
+
+#### Scenario: A run that grows while expanded
+
+- **WHEN** the user expanded a run of tool calls and the agent makes another call
+- **THEN** the run stays expanded and shows the new call, and its count goes up by one
+
+#### Scenario: A picture read inside a run
+
+- **WHEN** the agent ran a command, read a screenshot (followed by the CLI's note about its sizes), and ran another
+  command
+- **THEN** the screen shows one item saying "3 tool calls", and no injected message
+
+#### Scenario: A command's caveat
+
+- **WHEN** the user ran "/effort low" and the conversation holds the CLI's caveat entry before it
+- **THEN** the screen shows "/effort low" and its output, and nothing for the caveat
+
+### Requirement: Agent text loads no remote content
+
+Agent and user text MAY be rendered as Markdown, but rendering SHALL NOT fetch anything over the network:
+images SHALL NOT be loaded, and nothing in the text SHALL cause a request without the user acting. HTML in the
+text SHALL NOT be rendered as HTML, and SHALL NOT be dropped either: tags and HTML blocks SHALL be shown as the
+text they are. A link SHALL open only when the user taps it, only for `http` and `https`
+addresses, and only in a separate browser; links of any other scheme SHALL do nothing. Thinking SHALL follow
+the rules above for agent text, except that no code span or code block in it SHALL offer to put a command into the
+command field (`shell-commands`). Tool arguments and
+tool results SHALL be shown as plain text, except the body of a message received from another session or a
+subagent's report (`tool-call-display`), which follows the rules above for agent text.
+
+#### Scenario: Code in thinking
+
+- **WHEN** the agent's thinking says "接下來我要改 `remote-server.ts`，再跑 `! npm run deploy`" and holds an image in
+  Markdown
+- **THEN** both code spans are shown as code without the backticks, tapping `! npm run deploy` leaves the command
+  field as it was, and the image is not loaded
+
+#### Scenario: An image in agent text
+
+- **WHEN** an agent message contains a Markdown image pointing to a web address
+- **THEN** the phone makes no request to that address
+
+#### Scenario: Angle brackets in agent text
+
+- **WHEN** an agent message mentions `Vec<T>`, or a user entry holds a slash command recorded as
+  `<command-name>/opsx:continue</command-name>`
+- **THEN** the text shows those characters as written, and nothing of it is missing
+
+#### Scenario: A link of another scheme
+
+- **WHEN** the user taps a link in agent text whose scheme is not `http` or `https`
+- **THEN** nothing is opened
+
+#### Scenario: An image in a subagent's report
+
+- **WHEN** a subagent's report, shown expanded, contains a Markdown image pointing to a web address
+- **THEN** the phone makes no request to that address
+
+### Requirement: Show when messages were recorded, and which day
+
+The conversation screen SHALL show, under each of the user's own messages and each piece of the agent's text and
+thinking, the time the desktop says it was recorded, in the phone's time zone and time format. Tool calls, results and
+messages the agent injected SHALL NOT show a time of their own. Going through the items in the order they are shown,
+the screen SHALL show a heading naming the day — "Today", "Yesterday", or the date, by the phone's time zone —
+before the first item with a recorded time, and before each item with a recorded time whose day differs from that of
+the last item with a recorded time before it — tool calls included, though they show no time;
+while the user scrolls, the heading of the day the topmost shown item belongs to SHALL stay at the top of the
+conversation, standing out from the messages, until the next day's heading reaches it; a day is therefore headed again when recorded times go back across midnight. The headings and
+the times SHALL follow the phone's current date, time zone and clock without the user doing anything: after
+midnight, after the phone slept, and after its date, time or time zone changed. An entry the desktop sends without a
+time SHALL show no time and SHALL start no day. A reply of the user's that is not yet, or not, in the conversation
+SHALL show no time and SHALL start no day.
+
+#### Scenario: A morning's exchange
+
+- **WHEN** the phone is set to 24-hour time, and the user opens a session where they wrote at 09:12 today and the
+  agent answered at 09:14 after three tool calls
+- **THEN** the screen shows a "Today" heading before the first item of today, "09:12" under the user's message and
+  "09:14" under the agent's answer, and no time on the tool calls
+
+#### Scenario: The time of thinking
+
+- **WHEN** the agent wrote thinking with text at 00:53, recorded with that time
+- **THEN** "00:53" is shown under the thinking
+
+#### Scenario: A conversation over two days
+
+- **WHEN** a session's conversation started yesterday evening and went on this morning
+- **THEN** a "Yesterday" heading comes before yesterday's first item and a "Today" heading before this morning's
+  first item
+
+#### Scenario: Scrolling through a long day
+
+- **WHEN** the user scrolls up through yesterday's long answer, whose heading has scrolled out of view
+- **THEN** "Yesterday" stays shown at the top of the conversation over the answer, and gives way to "Today" when
+  today's heading reaches the top
+
+#### Scenario: Midnight while the screen is open
+
+- **WHEN** the conversation screen is open at 23:59 showing a "Today" heading, and the phone's clock passes midnight
+- **THEN** that heading reads "Yesterday", without the user doing anything
+
+#### Scenario: Back the next morning
+
+- **WHEN** the user leaves the conversation screen showing "Today", turns the screen off, and turns it on again the
+  next morning on the same screen
+- **THEN** that heading reads "Yesterday" as soon as the screen is shown
+
+#### Scenario: Times that go back across midnight
+
+- **WHEN** the shown items' times are, in order, Monday, Tuesday, and Monday again
+- **THEN** a heading comes before each of the three
+
+#### Scenario: An entry without a time
+
+- **WHEN** the desktop sends a conversation whose entries carry no time
+- **THEN** the screen shows no times and no day headings
+
+#### Scenario: A reply not in the conversation yet
+
+- **WHEN** the user sends a reply and it has not appeared in the conversation
+- **THEN** its bubble shows its sending state and no time, and no heading comes before it

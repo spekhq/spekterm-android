@@ -43,13 +43,13 @@ class ConversationTimesTest {
     private fun placed(c: Conversation, zone: ZoneId = utc) = ConversationTimes.place(ConversationTimes.rows(c, 0), zone)
 
     @Test
-    fun onlyTheUsersOwnMessageAndTheAgentsTextShowATime() {
+    fun onlyTheUsersOwnMessageAndTheAgentsTextAndThinkingShowATime() {
         val at = ms("2026-10-20T09:12:00")
         fun shownOf(vararg entries: Entry) = ConversationTimes.rows(conversation(*entries), 0).map { (it as Line.Of).shown }
         assertEquals(at, ConversationTimes.timeOf(shownOf(user("u", at)).single()))
         assertEquals(at, ConversationTimes.timeOf(shownOf(text("t", at)).single()))
         assertNull(ConversationTimes.timeOf(shownOf(user("u", at, meta = true)).single()))
-        assertNull(ConversationTimes.timeOf(shownOf(thinking("h", at)).single()))
+        assertEquals(at, ConversationTimes.timeOf(shownOf(thinking("h", at)).single()))
         assertNull(ConversationTimes.timeOf(shownOf(call("c", at)).single()))
         assertNull(ConversationTimes.timeOf(shownOf(call("c1", at), call("c2", at)).single()))
         assertNull(ConversationTimes.timeOf(shownOf(result("r", at)).single()))
@@ -61,6 +61,16 @@ class ConversationTimesTest {
     fun oneDayIsHeadedOnceBeforeItsFirstTimedItem() {
         val c = conversation(user("u", ms("2026-10-20T09:12:00")), call("c", ms("2026-10-20T09:13:00")), text("t", ms("2026-10-20T09:14:00")))
         assertEquals("D(2026-10-20) u c t", shape(placed(c)))
+    }
+
+    @Test
+    fun thinkingAcrossMidnightIsHeadedWhereTheNewDayStarts() {
+        // `thinking-as-message` D3: thinking ends what was one run, so the new day is headed before it.
+        val c = conversation(
+            call("c1", ms("2026-10-19T23:58:00")), thinking("t", ms("2026-10-20T00:01:00")),
+            call("c2", ms("2026-10-20T00:02:00")), call("c3", ms("2026-10-20T00:03:00")),
+        )
+        assertEquals("D(2026-10-19) c1 D(2026-10-20) t c2", shape(placed(c)))
     }
 
     @Test

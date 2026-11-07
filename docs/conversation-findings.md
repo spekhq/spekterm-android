@@ -1323,3 +1323,30 @@ sleeps); a foreground `ping -c 420` kept an agent working instead.
 The debug build with this change installed on the Pixel 7 by `adb install -r` (2026-11-03, the pairing kept, the
 Google Play build untouched). kewang used it against the installed desktop: "手機實測沒問題" — pass (maintainer). No
 screenshot: when checked afterwards another app was in front of the Pixel.
+
+## Thinking as a message (`thinking-as-message`)
+
+### How often thinking has text
+
+Claude Code records most thinking blocks with an empty text and a signature only; the desktop drops those
+(spekterm `src/main/transcript-follow.ts`). Counted on 2026-11-08 over the maintainer's 872 local transcripts
+(2026-10 and 2026-11), in `type: "assistant"` records only (the CLI copies thinking into `api-request-blob` records
+too, which the desktop skips): 2,299 of 48,797 thinking blocks have text (4.7%). They are progress notes for the
+user: at most 431 characters, no line breaks, 94% in Chinese, 28% with a code span. The busiest transcript has 43,
+splitting its 437 calls into 44 items.
+
+### On the emulator (task 2.1)
+
+2026-11-08, the `Pixel_9` emulator (Android 16), `ThinkingRowTest` and a throwaway screenshot test (not committed)
+that renders, through `ConversationItems.group` and `ShownRow`, the exchange in the screenshot kewang sent from the phone: a call,
+thinking with a code span, two calls, the agent's text, two calls. Light and dark, English and 中文（台灣）, looked at:
+the thinking stands open between a single call and a run of "2 tool calls" / 「2 個工具呼叫」, under "Thinking" /
+「思考中」 in `onSurfaceVariant`, its code span set as code, with its time under it. Screenshots kept outside the
+repository.
+
+### The suites (task 2.4)
+
+`./gradlew test assembleDebug`: 601 JVM tests pass, the new `ConversationItemsTest` and `ConversationTimesTest`
+cases among them. `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`, with only the emulator listed
+by `adb devices`: 216 tests, all pass but `DesktopRaceTest`'s assumption (no race arguments, as before);
+`ThinkingRowTest` passes.

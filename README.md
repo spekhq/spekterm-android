@@ -65,8 +65,9 @@ access turned on.
   set apart. Pictures a tool brought back — an image the agent read, a screenshot — show in the conversation, a run's
   as a strip of tiles, and open full screen. A message from another session or a
   subagent's report says who sent it. A file the agent sends you opens on the phone — images, Markdown and text in
-  the app, anything else handed to another app. Agent text is Markdown that loads nothing from the network. Your messages and the
-  agent's text show when they were written, and the conversation is divided by day ("Today", "Yesterday", the date).
+  the app, anything else handed to another app. Agent text is Markdown that loads nothing from the network. The
+  agent's thinking, when it has text, is shown open where it came, as a quieter note in the same Markdown. Your
+  messages, the agent's text and its thinking show when they were written, and the conversation is divided by day ("Today", "Yesterday", the date).
   A line under the title shows what the agent last reported: its model and effort, how full its context is, the
   session's cost, and the account's rate limits when they are close to full. Tapping it (or "Model and effort" in the
   menu) changes the session's effort or model — which Claude Code also keeps as the default for new sessions on that

@@ -5,7 +5,6 @@ import com.spekterm.android.desktop.ConversationItems.LoneResult
 import com.spekterm.android.desktop.ConversationItems.Plain
 import com.spekterm.android.desktop.ConversationItems.Run
 import com.spekterm.android.desktop.ConversationItems.Shown
-import com.spekterm.android.desktop.ConversationItems.Thinking
 import com.spekterm.android.desktop.ConversationItems.Message
 import com.spekterm.android.desktop.ConversationItems.Notice
 import com.spekterm.android.net.Entry
@@ -42,7 +41,6 @@ class ConversationItemsTest {
             is Run -> "R(" + item.parts.joinToString(",") {
                 when (it) {
                     is Call -> it.tool.uuid
-                    is Thinking -> "t:" + it.entry.uuid
                     is Notice -> "n:" + it.entry.uuid
                 }
             } + ")"
@@ -87,16 +85,34 @@ class ConversationItemsTest {
     }
 
     @Test
-    fun sevenCallsWithThinkingBetweenAreOneRun() {
-        val entries = (1..7).flatMap { n ->
-            listOfNotNull(call("c$n"), result("r$n", "c$n", error = n == 4), thinking("t$n").takeIf { n < 7 })
-        }
+    fun sevenCallsInARowAreOneRun() {
+        val entries = (1..7).flatMap { n -> listOf(call("c$n"), result("r$n", "c$n", error = n == 4)) }
         val run = group(*entries.toTypedArray()).single() as Run
         assertEquals(7, run.calls.size)
-        assertEquals(6, run.parts.count { it is Thinking })
         assertEquals(1, run.failed)
         assertEquals("c7", run.latest.tool.uuid)
         assertEquals("c1#0", run.key)
+    }
+
+    // `thinking-as-message` D1: thinking ends a run, as the agent's text does.
+
+    @Test
+    fun thinkingEndsARun() {
+        assertEquals("C(c1) P(t) R(c2,c3)", shape(group(call("c1"), result("r1", "c1"), thinking("t"), call("c2"), call("c3"))))
+    }
+
+    @Test
+    fun thinkingBetweenEachCallLeavesNoRun() {
+        val entries = (1..7).flatMap { n -> listOfNotNull(call("c$n"), result("r$n", "c$n"), thinking("t$n").takeIf { n < 7 }) }
+        assertEquals(
+            "C(c1) P(t1) C(c2) P(t2) C(c3) P(t3) C(c4) P(t4) C(c5) P(t5) C(c6) P(t6) C(c7)",
+            shape(group(*entries.toTypedArray())),
+        )
+    }
+
+    @Test
+    fun aNoticeThenThinkingBetweenCalls() {
+        assertEquals("C(c1) P(n) P(t) C(c2)", shape(group(call("c1"), notice("n"), thinking("t"), call("c2"))))
     }
 
     @Test
@@ -177,12 +193,12 @@ class ConversationItemsTest {
 
     @Test
     fun everyEntryIsShownOnce() {
-        val entries = listOf(user("u"), thinking("t0"), call("c1"), thinking("t1"), call("c2"), result("r1", "c1"), result("r2", "c2"), text("x"))
+        val entries = listOf(user("u"), thinking("t0"), call("c1"), thinking("t1"), call("c2"), notice("n"), call("c3"), result("r1", "c1"), result("r2", "c2"), text("x"))
         val items = ConversationItems.group(entries, ConversationReducer.keys(entries), emptySet())
         val shown = items.flatMap { item ->
             when (item) {
                 is Call -> listOfNotNull(item.tool, item.result)
-                is Run -> item.parts.flatMap { if (it is Call) listOfNotNull(it.tool, it.result) else listOf((it as Thinking).entry) }
+                is Run -> item.parts.flatMap { if (it is Call) listOfNotNull(it.tool, it.result) else listOf((it as Notice).entry) }
                 is Plain -> listOf(item.entry)
                 is LoneResult -> listOf(item.result)
                 is Message -> listOfNotNull(item.call, item.result)

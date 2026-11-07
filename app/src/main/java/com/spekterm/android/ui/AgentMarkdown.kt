@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
@@ -37,11 +38,12 @@ import com.mikepenz.markdown.utils.codeSpanStyle
  *   grows with its length.
  */
 @Composable
-fun AgentMarkdown(text: String, modifier: Modifier = Modifier, onCommand: ((String) -> Unit)? = null) {
+fun AgentMarkdown(text: String, modifier: Modifier = Modifier, onCommand: ((String) -> Unit)? = null, textColor: Color = Color.Unspecified) {
     val context = LocalContext.current
     val handler = remember(context) { SafeUriHandler(context) }
     val typography = chatTypography()
-    val colors = markdownColor()
+    // Thinking's text is quieter than the agent's (`thinking-as-message` D2).
+    val colors = if (textColor == Color.Unspecified) markdownColor() else markdownColor(text = textColor)
     // The renderer's code-span style reads these, which it otherwise provides only inside itself.
     CompositionLocalProvider(LocalUriHandler provides handler, LocalMarkdownColors provides colors, LocalMarkdownTypography provides typography) {
         // A `! command` code span of the agent's own text goes into the command field (`run-shell-commands` D7).
@@ -51,7 +53,7 @@ fun AgentMarkdown(text: String, modifier: Modifier = Modifier, onCommand: ((Stri
             markdownState = rememberMarkdownState(text, immediate = true),
             modifier = modifier,
             // Should parsing ever fail, the text is still shown, as plain text.
-            error = { Text(text, modifier = it, style = MaterialTheme.typography.bodyMedium) },
+            error = { Text(text, modifier = it, style = MaterialTheme.typography.bodyMedium, color = textColor) },
             imageTransformer = NoOpImageTransformerImpl(),
             animations = markdownAnimations(animateTextSize = { this }),
             // A line break in agent or user text is kept: agents and people do not hard-wrap their lines, and

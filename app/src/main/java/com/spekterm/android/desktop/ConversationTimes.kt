@@ -37,11 +37,14 @@ object ConversationTimes {
         data class Date(val date: LocalDate) : DayWord
     }
 
-    /** The time shown under an item: only the user's own message and the agent's text, and only a known one (D1). */
+    /**
+     * The time shown under an item: only the user's own message, the agent's text and its thinking
+     * (`thinking-as-message` D3), and only a known one (D1).
+     */
     fun timeOf(shown: Shown): Long? {
         if (shown is ConversationItems.Message) return shown.at.takeIf { it > 0 }
         val entry = (shown as? ConversationItems.Plain)?.entry ?: return null
-        val shows = (entry is Entry.User && !entry.meta) || entry is Entry.Text
+        val shows = (entry is Entry.User && !entry.meta) || entry is Entry.Text || entry is Entry.Thinking
         return entry.at.takeIf { shows && it > 0 }
     }
 

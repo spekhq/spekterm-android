@@ -16,7 +16,7 @@ object ConversationItems {
         val anchorsAfter: List<String>
     }
 
-    /** A part of a [Run]: a call, or the thinking or a background task's notice between two calls. */
+    /** A part of a [Run]: a call, or a background task's notice between two calls. */
     sealed interface Part {
         val key: String
     }
@@ -24,8 +24,6 @@ object ConversationItems {
     data class Call(override val key: String, val tool: Entry.Tool, val result: Entry.Result?, override val anchorsAfter: List<String> = emptyList()) : Shown, Part {
         val failed: Boolean get() = result?.error == true
     }
-
-    data class Thinking(override val key: String, val entry: Entry.Thinking) : Part
 
     /** A background task's notice that arrived between two calls (`tool-call-display` D8). */
     data class Notice(override val key: String, val entry: Entry.User) : Part
@@ -107,7 +105,7 @@ object ConversationItems {
         val failed: Boolean get() = stderr.isNotEmpty()
     }
 
-    /** Any other entry: a user or injected message, the agent's text, thinking outside a run. */
+    /** Any other entry: a user or injected message, the agent's text, thinking (which ends a run, `thinking-as-message` D1). */
     data class Plain(override val key: String, val entry: Entry, override val anchorsAfter: List<String> = emptyList()) : Shown
 
     /**
@@ -119,7 +117,7 @@ object ConversationItems {
         val consumed = results.values.toSet()
         val out = mutableListOf<Shown>()
         var forming: MutableList<Part>? = null
-        // Thinking and task notices after a call: joined to the run when another call follows, else shown on their own.
+        // Task notices after a call: joined to the run when another call follows, else shown on their own.
         val held = mutableListOf<Part>()
         // Anchors of entries not shown before anything was: carried by the next item.
         val carried = mutableListOf<String>()
@@ -137,7 +135,6 @@ object ConversationItems {
             forming = null
             held.forEach {
                 when (it) {
-                    is Thinking -> emit(Plain(it.key, it.entry))
                     is Notice -> emit(Plain(it.key, it.entry))
                     is Call -> Unit
                 }
@@ -182,7 +179,6 @@ object ConversationItems {
                         parts += call
                     }
                 }
-                entry is Entry.Thinking && forming != null -> held += Thinking(key, entry)
                 entry is Entry.User && entry.origin == Origin.TaskNotice && forming != null -> held += Notice(key, entry)
                 entry is Entry.Result && i in consumed -> Unit
                 // The CLI's note to the model about a picture it scaled: not shown, and the run goes on (`tool-result-content` D5).
