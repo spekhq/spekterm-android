@@ -80,3 +80,8 @@ Notes:
   failed once at 67 ms while the emulator was busy and passed on the rerun).
 - `connectedDebugAndroidTest` on the emulator: 215 tests, 214 passed; `DesktopRaceTest` is skipped by its assumption
   (it needs a real desktop's addresses as runner arguments) and is reported as an assumption failure.
+
+## 6. On the real phone
+
+Not run in this change: the maintainer removed the Pixel 7 task (2026-11-07). The phone on a real mobile network through
+the team server for ten minutes is spekterm-server's task 7.3, run once both clients are done.
