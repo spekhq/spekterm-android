@@ -1350,3 +1350,15 @@ repository.
 cases among them. `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`, with only the emulator listed
 by `adb devices`: 216 tests, all pass but `DesktopRaceTest`'s assumption (no race arguments, as before);
 `ThinkingRowTest` passes.
+
+### On the Pixel (task 2.5)
+
+The debug build with this change installed on the Pixel 7 by `adb install -r` (2026-11-08 01:44 +08:00, the Google
+Play build untouched). The dev desktop could not produce thinking with text on demand: a 34-call read-only session
+handed off on it recorded none. The CLI writes thinking with text when it reminds the agent to tell a user following
+remotely what it is doing; a dev session has no such user. kewang then paired the debug build with the installed
+desktop at the desktop (log: `attempt source=pair`, `authenticated` over 192.168.0.199 at 02:12:42 +08:00), opened
+conversations (`conversation event=watch` 02:12:52 and 02:13:41) and reported "測試看起來沒問題" — pass
+(maintainer). No screenshot: the Pixel was locked when checked afterwards. The session kewang read was expected to
+show five notes, at 00:19, 00:25, 00:26, 00:53 and 00:59, each between two calls (counted from its transcript's
+assistant records); which session was opened is not in the log.
