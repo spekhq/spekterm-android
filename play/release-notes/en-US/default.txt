@@ -1,2 +1,2 @@
-- The session list now counts your sessions by state at the top: needs you, working, running, idle, dormant.
-- Tap a state to see only those sessions, collapsed folders included — tap "Needs you" to answer every waiting agent in a row.
+- Away from your desktop's network, the app can now reach your desktop through your team's own spekterm-server, when your desktop is on a team and you turn on its relay setting (spekterm 0.4.0 or later). The connection stays encrypted to your desktop; direct connection is still tried first.
+- The status screen and the notification say when you are connected through the team server.
