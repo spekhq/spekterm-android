@@ -1400,3 +1400,25 @@ cards show their reason and no buttons. Screenshots kept outside the repository.
 them. `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`, with only the emulator listed by
 `adb devices`: 224 tests, all pass but `DesktopRaceTest`'s assumption (no race arguments, as before); the new
 `PromptCardTest` (7) and the two `DesktopTest` answer cases pass.
+
+### End to end on the emulator against the dev desktop (task 2.5)
+
+2026-11-14 20:56–21:19 (+08:00), the emulator (AVD `Pixel_9`, Android 16) with this change's debug build, paired anew
+by a link cut to 10.0.2.2 with the dev desktop started from source (spekterm `3150d63` plus the uncommitted
+`remote-answer-despite-typed` change, port 47616). Test sessions were handoffs (`tools/drop-handoff.mjs`) in `go`;
+desktop keys were written into the session's terminal over CDP (`workspace.terminal.write`), the path a key typed
+in the desktop's terminal takes. kewang did not test by hand (2026-11-14: "我不特別測"). Screenshots kept outside
+the repository.
+
+| Scenario | Outcome |
+|---|---|
+| A single question, ↓ pressed on the desktop: the warning shown with Send and Decline; Cherry picked, Send, the dialog, Send anyway | pass: the agent recorded Cherry; log `answer kind=question decision=answer outcome=Done despiteTyped=true` (the desktop confirmed) |
+| A single question, ↓↓↓ to "Type something" on the desktop; Green sent anyway | pass, as measured by the desktop: the digit became text, nothing answered; log `outcome=Unchecked`; the warning shown, the card "Answered. Waiting for the agent." — not "already answered" |
+| A question answered from the phone without desktop keys | pass: "Answering…" right after the tap (the desktop had already marked it answered), then the agent went on; log `despiteTyped=false outcome=Done`, no dialog |
+| A Bash permission prompt (session switched to the default mode), `1` pressed on the desktop; the command ran 25 s | pass: while it ran, the card was read-only with "This may already have been answered or dismissed on the desktop. Check the desktop." (`decisive`) |
+| A Bash permission prompt, ↓ pressed on the desktop; Allow once, Send anyway | pass: the command ran (its file written, its output in the transcript); log `decision=allow outcome=Unchecked` — the desktop never checks `allow`, so the warning shows, as designed |
+| `stirred`: a Bash `sleep 30` and an AskUserQuestion asked in one message | not reproduced: the CLI ran the question first and the command after it, so no other tool started while the question was open; the card stayed answerable. `stirred`'s text and read-only card are covered by `PromptCardTest` |
+
+Seen on the way, not this change's: after Esc on the desktop declined a question, the phone kept showing the answered
+card until the next prompt, because the desktop's request stays open after a dismissal it is not told about
+(`remote-protocol.md`, "A prompt dismissed without a key").

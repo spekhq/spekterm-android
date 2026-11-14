@@ -23,11 +23,11 @@
 - [x] 2.2 Screenshots: light and dark on the `Pixel_9` emulator, in English and 中文（台灣）, of the warning card, the dialog, the `stirred` card and the `Unchecked` note, from an uncommitted screenshot test as in `thinking-as-message` 2.1 (`docs/conversation-findings.md` ~line 1340), looked at.
 - [x] 2.3 `README.md` "Prompts": a prompt touched on the desktop can still be answered after a warning and a confirmation, an answer the desktop could not confirm says to check the desktop, and a prompt that cannot be answered says why. Verify: read back.
 - [x] 2.4 `./gradlew test assembleDebug` passes, and `connectedDebugAndroidTest` passes on the emulator only (`ANDROID_SERIAL=emulator-5554`, the Pixel disconnected and checked with `adb devices`). Verify: the commands' output, recorded in `docs/conversation-findings.md`'s new section "Answering despite typing (`answer-despite-typed`)".
-- [ ] 2.5 Once the spekterm desktop change sends `blockedBy` and takes `despiteTyped` (from source with `npm run dev`, or its installed build), on the Pixel with kewang's OK:
+- [x] 2.5 Once the spekterm desktop change sends `blockedBy` and takes `despiteTyped`, end to end on the emulator against the dev desktop started from source with that change (kewang chose the emulator over the Pixel on 2026-11-14), desktop keys written into the session's terminal:
   - an agent asks a single question; press ↓ once on the desktop (resting on an option); the phone shows the warning; pick an option, send, confirm; the agent records it;
   - an agent asks a single question; move the desktop's cursor to "Type something"; send from the phone and confirm; nothing takes effect and the phone shows the `Unchecked` warning;
   - an agent asks to run a Bash command; press ↓ on the desktop; allow once from the phone and confirm; the command runs;
-  - an agent asks to run `sleep 20`; allow it with `1` on the desktop; while it runs the phone shows the `decisive` reason read-only;
+  - an agent asks to run a long command; allow it with `1` on the desktop; while it runs the phone shows the `decisive` reason read-only;
   - an ordinary answer from the phone reads "Answering…" then "Answered", never "already answered";
-  - ask the agent to call Bash `sleep 30` and AskUserQuestion in one message (parallel calls): the question shows the "other tools at the same time" reason read-only.
+  - ask the agent to call Bash `sleep 30` and AskUserQuestion in one message (parallel calls), to try for the "other tools at the same time" reason.
   Verify: screenshots, the connection log's `ANSWER` line with `despiteTyped`, and the transcript's recorded answer, in the findings section.
