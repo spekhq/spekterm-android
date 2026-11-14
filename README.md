@@ -107,7 +107,8 @@ background work: c79785f, 0.2.11; scheduled handoffs: 445dc24, 0.2.12; sending a
 0.2.13; the agent's model and usage, the session's skills and changing its effort: 6b6ebfa, 0.2.15; changing its model: b7feaaa,
 0.2.24; repeating handoffs: d88a3d1, 0.2.16; what tool calls did, who sent a message and opening sent files:
 13d8ee7, 0.2.23; pictures in tool results: 6ff5fa4, 0.2.24; reaching the desktop through the team server: 233a4d2,
-0.4.0, with spekterm-server 0.4.0 relaying); against an older desktop the app shows none of them, and a ready agent
+0.4.0, with spekterm-server 0.4.0 relaying; answering a prompt touched on the desktop, and why one cannot be answered:
+7fb6212, not yet in a release); against an older desktop the app shows none of them, and a ready agent
 stays "Waiting for you".
 
 Not yet: the terminal view (shell sessions).

@@ -1,1 +1,3 @@
-- The agent's progress notes (its thinking, when it has text) now show open in the conversation, where they came, with their time, instead of folded inside a run of tool calls.
+- A prompt someone touched on the desktop can still be answered from the phone: it warns you and asks before sending, and says so when it can't confirm the answer took effect. Needs a spekterm desktop with this support.
+- When a prompt can't be answered from the phone, it now says why.
+- After answering from the phone, the prompt reads "Answering…" and then "Answered" instead of "can no longer be answered".
