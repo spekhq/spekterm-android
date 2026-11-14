@@ -37,9 +37,20 @@ questions SHALL NOT push the composer off the screen.
 
 The app SHALL offer answers only while the desktop accepts `conversation.answer`, the phone is connected and not
 paused, the conversation is watched, the desktop says the prompt can be answered from a device, and no answer
-to it is in progress, and no model switch holds (`model-effort-switch`). Otherwise the prompt SHALL be shown
-read-only with the reason and a pointer to answer it on the desktop; while a model switch holds, the reason SHALL be
-the hold's, with its offer to continue anyway. The app SHALL offer exactly these answers:
+to it is in progress, and no model switch holds (`model-effort-switch`). As the one exception, when the desktop
+says the prompt cannot be answered only because it was typed into on the desktop since it appeared, and every other
+condition holds, the app SHALL offer the same answers with a warning that the prompt was touched on the desktop and
+the answer may not land as chosen; tapping any of them SHALL ask the user to confirm, saying the answer may land as
+chosen, have no effect, or record a different answer to the agent's questions, and only a confirmed answer SHALL be
+sent, telling the desktop to answer despite the typing. A confirmation SHALL apply only to the prompt and the answer it
+was asked for, and SHALL be dropped without sending when that prompt is replaced or stops being answerable despite
+typing. Otherwise the prompt SHALL be shown read-only with the reason and a pointer to answer it on the desktop;
+when the desktop says why it cannot be answered — another request is open, the agent is running other tools at the
+same time, an answer was already written to it, a key pressed on the desktop may already have answered or dismissed
+it, or it is too large — the reason SHALL say so, and when it does not say why, the reason SHALL say only that it can no longer be
+answered from the phone. While the phone's own answer to the prompt is in progress or done, the screen SHALL say so
+rather than any reason the desktop gives. While a model switch holds, the reason SHALL be the hold's, with its offer
+to continue anyway. The app SHALL offer exactly these answers:
 
 - a permission request whose tool the desktop allows once: "allow once" and "deny"; any other permission request:
   only "deny", saying that allowing it is done on the desktop;
@@ -49,10 +60,11 @@ the hold's, with its offer to continue anyway. The app SHALL offer exactly these
   keeping the agent planning.
 
 Every answer SHALL name the prompt it answers, so the desktop refuses it when that prompt is no longer the open
-one. A prompt's answers SHALL become usable only a moment after that prompt appears, so a tap meant for a prompt
-that was just replaced does not answer the new one. The screen SHALL say that denying, declining or keeping the
-agent planning stops the agent and that a reply can follow. The app SHALL NOT answer by typing into the agent's
-terminal, and SHALL NOT send an answer again on its own.
+one. A prompt's answers SHALL become usable only a moment after that prompt appears, and again after it changes
+between answerable and answerable only despite typing, so a tap meant for a prompt that was just replaced does not
+answer the new one. The screen SHALL say that denying, declining or keeping the agent planning stops the agent and
+that a reply can follow. The app SHALL NOT answer by typing into the agent's terminal, SHALL NOT send an answer
+again on its own, and SHALL NOT tell the desktop to answer despite typing without the user's confirmation.
 
 #### Scenario: Allowing a command once
 
@@ -83,9 +95,56 @@ terminal, and SHALL NOT send an answer again on its own.
 
 #### Scenario: Typed into on the desktop
 
-- **WHEN** someone types into the agent's terminal on the desktop while its prompt is open
-- **THEN** the desktop says the prompt can no longer be answered from a device, and the phone shows it read-only
-  with a pointer to the desktop
+- **WHEN** the desktop says the agent's single question cannot be answered from a device only because it was typed
+  into on the desktop since it appeared, and nothing else stops the phone from answering
+- **THEN** the phone shows the question with its options, its send and decline buttons, and a warning that it was
+  touched on the desktop
+
+#### Scenario: Confirming an answer despite typing
+
+- **WHEN** the phone shows that warning and the user picks an option and taps send
+- **THEN** the phone asks to confirm, sends nothing until the user confirms, and on confirming the desktop writes
+  the answer
+
+#### Scenario: Cancelling an answer despite typing
+
+- **WHEN** the phone asks to confirm an answer despite typing and the user cancels
+- **THEN** nothing is sent, and the choices made stay on screen
+
+#### Scenario: The prompt is replaced while confirming
+
+- **WHEN** the phone asks to confirm an answer despite typing and the agent's prompt is replaced by another before
+  the user confirms
+- **THEN** the confirmation closes and nothing is sent
+
+#### Scenario: A permission request typed into on the desktop
+
+- **WHEN** the desktop says a permission request cannot be answered from a device only because it was typed into on
+  the desktop, the user taps "allow once" and confirms
+- **THEN** the desktop writes the answer despite the typing
+
+#### Scenario: Possibly answered on the desktop
+
+- **WHEN** the desktop says the prompt cannot be answered because a key pressed on the desktop may have answered or
+  dismissed it
+- **THEN** the phone shows it read-only, saying so and to check the desktop, and offers no way to answer anyway
+
+#### Scenario: Other tools running at the same time
+
+- **WHEN** the desktop says the prompt cannot be answered because the agent is running other tools at the same time
+- **THEN** the phone shows it read-only, saying so and to answer on the desktop, and offers no way to answer anyway
+
+#### Scenario: The phone's own answer in progress
+
+- **WHEN** the user's answer from the phone is being written, and the desktop meanwhile says the prompt was already
+  answered from a device
+- **THEN** the screen says the prompt is being answered, and once the answer was written that it was answered
+
+#### Scenario: A desktop that does not say why
+
+- **WHEN** the desktop says the prompt cannot be answered from a device and gives no reason
+- **THEN** the phone shows it read-only, saying it can no longer be answered from the phone and to answer it on the
+  desktop
 
 #### Scenario: A desktop without answering
 
@@ -104,7 +163,9 @@ While an answer is in progress the prompt's answers SHALL NOT be usable and the 
 answered. Then the app SHALL show:
 
 - when every key was written, or the agent recorded the chosen answer: nothing beyond the prompt going away when
-  the desktop says so;
+  the desktop says so — except for an answer other than denying, declining or keeping the agent planning, sent
+  despite typing on the desktop, whose keys were all written but which the desktop could not confirm: a warning
+  that it was sent but may not have taken effect, sending the user to the desktop, kept until dismissed;
 - when only part of the answer was written, or the agent recorded a different answer than the one chosen: a
   warning that sends the user to the desktop, kept until dismissed;
 - when the desktop refused the answer because the prompt could no longer be answered from a device — it was
@@ -135,3 +196,9 @@ answered. Then the app SHALL show:
 
 - **WHEN** the connection ends after the user answered and before the desktop replied
 - **THEN** the screen says it is unknown whether the answer was written and to check the desktop
+
+#### Scenario: Sent despite typing, not confirmed
+
+- **WHEN** the user confirms "allow once" on a permission request touched on the desktop, and the desktop says every
+  key was written without confirming the result
+- **THEN** the screen warns that the answer was sent but may not have taken effect, and to check the desktop
