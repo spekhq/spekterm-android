@@ -404,12 +404,14 @@ data class ConversationWait(val sessionId: String, val state: String, val pendin
 
 /**
  * The agent's first open request, as the desktop states it (`docs/remote-protocol.md`, `conversation.watch`).
- * [answerable] is the desktop's word, false when missing; [open] is how many requests are open.
+ * [answerable] is the desktop's word, false when missing; [open] is how many requests are open. [blockedBy] is why it
+ * is not answerable, one of [BLOCKED_BY] (`answer-despite-typed` D1); `null` when answerable, missing or unknown.
  */
 sealed interface Prompt {
     val id: String
     val answerable: Boolean
     val open: Int
+    val blockedBy: String?
 
     /** [canAllow]: the tool's prompt puts a one-time "Yes" first. */
     data class Permission(
@@ -419,6 +421,7 @@ sealed interface Prompt {
         val canAllow: Boolean,
         override val answerable: Boolean,
         override val open: Int,
+        override val blockedBy: String? = null,
     ) : Prompt
 
     /** The agent's question tool. [answerable] is also false when the phone's own guard ([fits]) fails. */
@@ -427,6 +430,7 @@ sealed interface Prompt {
         val questions: List<Item>,
         val desktopAnswerable: Boolean,
         override val open: Int,
+        override val blockedBy: String? = null,
     ) : Prompt {
         data class Item(val question: String, val header: String, val multiSelect: Boolean, val options: List<Option>)
 
@@ -445,6 +449,7 @@ sealed interface Prompt {
         val choices: List<String>,
         override val answerable: Boolean,
         override val open: Int,
+        override val blockedBy: String? = null,
     ) : Prompt
 
     companion object {
@@ -454,6 +459,16 @@ sealed interface Prompt {
         const val APPROVE = "approve"
         const val APPROVE_AUTO = "approve-auto"
 
+        const val BLOCKED_OPEN = "open"
+        const val BLOCKED_SIZE = "size"
+        const val BLOCKED_ANSWERED = "answered"
+        const val BLOCKED_STIRRED = "stirred"
+        /** A key on the desktop that may have answered or dismissed the prompt (a digit, Enter, Esc, …): never overridden. */
+        const val BLOCKED_DECISIVE = "decisive"
+        /** Only keys that move or type: answerable despite typing. */
+        const val BLOCKED_TYPED = "typed"
+        val BLOCKED_BY = setOf(BLOCKED_OPEN, BLOCKED_SIZE, BLOCKED_ANSWERED, BLOCKED_STIRRED, BLOCKED_DECISIVE, BLOCKED_TYPED)
+
         private val PLAN_CHOICES = setOf(APPROVE, APPROVE_AUTO, DENY)
 
         /** A prompt, or `null` for none, an unknown kind or a malformed one (no id). */
@@ -462,8 +477,10 @@ sealed interface Prompt {
             val id = o.string("id")?.takeIf { it.isNotEmpty() } ?: return null
             val answerable = o.bool("answerable")
             val open = (o["open"] as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull?.toInt() ?: 1
+            // Only with `answerable: false`, and only a known reason (D1).
+            val blockedBy = o.string("blockedBy")?.takeIf { !answerable && it in BLOCKED_BY }
             return when (o.string("kind")) {
-                "permission" -> Permission(id, o.string("tool") ?: "", o.string("arg"), o.bool("canAllow"), answerable, open)
+                "permission" -> Permission(id, o.string("tool") ?: "", o.string("arg"), o.bool("canAllow"), answerable, open, blockedBy)
                 "question" -> Question(
                     id,
                     each(o["questions"]) { q ->
@@ -480,6 +497,7 @@ sealed interface Prompt {
                     },
                     answerable,
                     open,
+                    blockedBy,
                 )
                 "plan" -> Plan(
                     id,
@@ -487,6 +505,7 @@ sealed interface Prompt {
                     each(o["choices"]) { (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content?.takeIf { c -> c in PLAN_CHOICES } },
                     answerable,
                     open,
+                    blockedBy,
                 )
                 else -> null
             }

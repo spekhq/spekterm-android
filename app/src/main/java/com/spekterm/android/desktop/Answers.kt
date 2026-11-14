@@ -5,8 +5,11 @@ import com.spekterm.android.net.Operations
 import com.spekterm.android.net.Prompt
 import com.spekterm.android.net.RemoteError
 
-/** An answer to the prompt [promptId]: in flight while [outcome] is `null` (design D4). */
-data class AnswerState(val promptId: String, val decision: String, val outcome: AnswerOutcome? = null) {
+/**
+ * An answer to the prompt [promptId]: in flight while [outcome] is `null` (design D4). [despiteTyped]: sent although
+ * the prompt was typed into on the desktop (`answer-despite-typed` D6).
+ */
+data class AnswerState(val promptId: String, val decision: String, val outcome: AnswerOutcome? = null, val despiteTyped: Boolean = false) {
     val inFlight: Boolean get() = outcome == null
 }
 
@@ -28,6 +31,9 @@ sealed interface AnswerOutcome {
     /** It is unknown whether the answer was written. */
     data object Unknown : AnswerOutcome
 
+    /** Every key written despite typing on the desktop, and nothing confirmed it took effect (`answer-despite-typed` D6). */
+    data object Unchecked : AnswerOutcome
+
     /** The connection log's name for it, fixed in code so a shrunk build logs the same (`play-release` D3). */
     val logName: String
         get() = when (this) {
@@ -37,10 +43,14 @@ sealed interface AnswerOutcome {
             Gone -> "Gone"
             is Refused -> "Refused"
             Unknown -> "Unknown"
+            Unchecked -> "Unchecked"
         }
 
     /** Kept until dismissed; the others go when the prompt changes. */
-    val warning: Boolean get() = this == Partial || this == Mismatch || this == Unknown
+    val warning: Boolean get() = this == Partial || this == Mismatch || this == Unknown || this == Unchecked
+
+    /** Every key was written: the prompt goes once the desktop says so. */
+    val written: Boolean get() = this == Done || this == Unchecked
 
     companion object {
         private val REFUSED = setOf(
@@ -51,11 +61,16 @@ sealed interface AnswerOutcome {
             RemoteError.NOT_FOUND,
         )
 
-        /** [outcome] from an ok answer, or [errorCode] from an error answer; both null when the connection ended. */
-        fun of(outcome: String?, errorCode: String?): AnswerOutcome = when {
+        /**
+         * [outcome] from an ok answer, or [errorCode] from an error answer; both null when the connection ended.
+         * With [despiteTyped], a `sent` that is not a `deny` is [Unchecked] (`answer-despite-typed` D6): Esc dismissed
+         * every state measured, the other keys can land as text.
+         */
+        fun of(outcome: String?, errorCode: String?, despiteTyped: Boolean = false, decision: String? = null): AnswerOutcome = when {
             errorCode == RemoteError.PROMPT_GONE -> Gone
             errorCode in REFUSED -> Refused(errorCode!!)
             errorCode != null -> Unknown
+            outcome == AnswerResult.SENT && despiteTyped && decision != Prompt.DENY -> Unchecked
             outcome == AnswerResult.SENT || outcome == AnswerResult.CONFIRMED -> Done
             outcome == AnswerResult.PARTIAL -> Partial
             outcome == AnswerResult.MISMATCH -> Mismatch
@@ -68,8 +83,8 @@ sealed interface AnswerOutcome {
 sealed interface Offer {
     data class ReadOnly(val reason: Reason) : Offer
 
-    /** [decisions] in the order shown. */
-    data class Answerable(val decisions: List<String>) : Offer
+    /** [decisions] in the order shown; [despiteTyped]: offered although typed into on the desktop (`answer-despite-typed` D3). */
+    data class Answerable(val decisions: List<String>, val despiteTyped: Boolean = false) : Offer
 
     /** A model switch holds answers: the box it may have opened would take the keys (`session-model-effort` D6). */
     data class Held(val switch: PendingSwitch) : Offer
@@ -89,7 +104,8 @@ sealed interface Offer {
         /** The phone's own guard on questions. */
         data object TooLarge : Reason
 
-        data object NotAnswerable : Reason
+        /** The desktop's word; [blockedBy] is its reason, `null` when it gives none (`answer-despite-typed` D7). */
+        data class NotAnswerable(val blockedBy: String?) : Reason
 
         data object Answering : Reason
 
@@ -118,12 +134,13 @@ object Answers {
             watch != Watch.Watching -> Offer.Reason.NotWatching
             prompt.open > 1 -> Offer.Reason.Open(prompt.open)
             prompt is Prompt.Question && !prompt.fits -> Offer.Reason.TooLarge
-            !prompt.answerable -> Offer.Reason.NotAnswerable
+            // Before the desktop's word: it marks a prompt answered before an answer's first key (`answer-despite-typed` D3).
             mine?.inFlight == true -> Offer.Reason.Answering
-            mine?.outcome == AnswerOutcome.Done -> Offer.Reason.Answered
-            else -> null
+            mine?.outcome?.written == true -> Offer.Reason.Answered
+            prompt.answerable || prompt.blockedBy == Prompt.BLOCKED_TYPED -> null
+            else -> Offer.Reason.NotAnswerable(prompt.blockedBy)
         }
-        return if (reason != null) Offer.ReadOnly(reason) else Offer.Answerable(decisions(prompt))
+        return if (reason != null) Offer.ReadOnly(reason) else Offer.Answerable(decisions(prompt), despiteTyped = !prompt.answerable)
     }
 
     fun decisions(prompt: Prompt): List<String> = when (prompt) {

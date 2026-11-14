@@ -41,7 +41,7 @@ class HardcodedTextTest {
         "close", "closed", // a close code beside it, as diagnostics ("Last disconnect: close 4005")
         "0000global", // a list key, "\u0000global"
         // The connection log's outcome names (`SendOutcome.logName`, `AnswerOutcome.logName`, `play-release` D3).
-        "Submitted", "NotSubmitted", "Refused", "Unknown", "Done", "Partial", "Mismatch", "Gone",
+        "Submitted", "NotSubmitted", "Refused", "Unknown", "Done", "Partial", "Mismatch", "Gone", "Unchecked",
     )
 
     private val sentence = Regex("[A-Za-z]{2,}[ \\u00a0]+[A-Za-z]{2,}")

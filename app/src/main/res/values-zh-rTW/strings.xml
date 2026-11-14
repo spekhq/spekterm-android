@@ -434,6 +434,14 @@
     <string name="prompt_note_not_running">session 沒有在執行。沒有送出任何東西。</string>
     <string name="prompt_note_refused">桌機不接受從手機送出的這個回答。沒有送出任何東西；請到桌機上回答。</string>
     <string name="prompt_note_unknown">無法確定回答是否已寫入。請到桌機確認。</string>
+    <string name="prompt_not_answerable_answered">這個選擇已經有裝置回答過了。請到桌機確認。</string>
+    <string name="prompt_not_answerable_stirred">agent 同時在跑別的工具，這個選擇無法從手機回答。請到桌機上回答。</string>
+    <string name="prompt_not_answerable_decisive">桌機上可能已經回答或關掉這個問題了。請到桌機確認。</string>
+    <string name="prompt_typed_warning">這個問題出現後在桌機上被動過，從手機送出的回答可能對不上；送出前會再問你一次。</string>
+    <string name="prompt_typed_confirm_title">桌機上動過</string>
+    <string name="prompt_typed_confirm_text">有人在桌機上對這個問題按過鍵。回答仍會送出，結果可能是照你選的生效、沒有生效，或是問題記到不同的答案。手機無法確認時會告訴你。</string>
+    <string name="prompt_typed_send_anyway">仍要送出</string>
+    <string name="prompt_note_unchecked">已從手機送出，但因為桌機上動過，手機無法確認有沒有生效。請到桌機確認。</string>
 
     <!-- OpenSpec -->
     <string name="openspec_refresh">重新整理</string>

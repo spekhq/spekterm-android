@@ -93,4 +93,17 @@ class PromptTest {
         assertEquals("p1", wait("""{"sessionId":"s1","state":"awaiting-choice","pending":null,"prompt":{"id":"p1","kind":"permission","tool":"Bash"}}""")!!.prompt!!.id)
         assertNull(wait("""{"state":"ready"}"""))
     }
+
+    @Test
+    fun decodesWhyAPromptIsNotAnswerable() {
+        for (reason in listOf("open", "size", "answered", "stirred", "decisive", "typed")) {
+            assertEquals(reason, prompt("""{"id":"p1","kind":"permission","tool":"Bash","answerable":false,"blockedBy":"$reason"}""")!!.blockedBy)
+            assertEquals(reason, prompt("""{"id":"p2","kind":"question","answerable":false,"blockedBy":"$reason","questions":[{"question":"q","header":"h","multiSelect":false,"options":[{"label":"a"}]}]}""")!!.blockedBy)
+            assertEquals(reason, prompt("""{"id":"p3","kind":"plan","plan":null,"choices":["approve","deny"],"blockedBy":"$reason"}""")!!.blockedBy)
+        }
+        assertNull(prompt("""{"id":"p1","kind":"permission","tool":"Bash","answerable":false}""")!!.blockedBy)
+        assertNull("an unknown reason is no reason", prompt("""{"id":"p1","kind":"permission","tool":"Bash","answerable":false,"blockedBy":"later"}""")!!.blockedBy)
+        assertNull(prompt("""{"id":"p1","kind":"permission","tool":"Bash","answerable":false,"blockedBy":3}""")!!.blockedBy)
+        assertNull("only with answerable false", prompt("""{"id":"p1","kind":"permission","tool":"Bash","answerable":true,"blockedBy":"typed"}""")!!.blockedBy)
+    }
 }

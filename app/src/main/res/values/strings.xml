@@ -442,6 +442,14 @@
     <string name="prompt_note_not_running">The session is not running. Nothing was sent.</string>
     <string name="prompt_note_refused">The desktop did not take that answer from the phone. Nothing was sent; answer it on the desktop.</string>
     <string name="prompt_note_unknown">Can\'t tell whether the answer was written. Check the desktop.</string>
+    <string name="prompt_not_answerable_answered">This choice was already answered from a device. Check the desktop.</string>
+    <string name="prompt_not_answerable_stirred">The agent is running other tools at the same time, so this choice can\'t be answered from the phone. Answer it on the desktop.</string>
+    <string name="prompt_not_answerable_decisive">This may already have been answered or dismissed on the desktop. Check the desktop.</string>
+    <string name="prompt_typed_warning">This was touched on the desktop since it appeared. An answer from the phone may not land as chosen; you\'ll be asked before it\'s sent.</string>
+    <string name="prompt_typed_confirm_title">Touched on the desktop</string>
+    <string name="prompt_typed_confirm_text">Someone pressed keys on this prompt on the desktop. The answer is sent anyway, and it may land as chosen, have no effect, or record a different answer to the questions. The phone tells you when it can\'t confirm.</string>
+    <string name="prompt_typed_send_anyway">Send anyway</string>
+    <string name="prompt_note_unchecked">Sent from the phone, but since it was touched on the desktop, the phone can\'t tell whether it took effect. Check the desktop.</string>
 
     <!-- OpenSpec (`openspec-browse`) -->
     <string name="openspec_refresh">Refresh</string>

@@ -1362,3 +1362,41 @@ conversations (`conversation event=watch` 02:12:52 and 02:13:41) and reported "�
 (maintainer). No screenshot: the Pixel was locked when checked afterwards. The session kewang read was expected to
 show five notes, at 00:19, 00:25, 00:26, 00:53 and 00:59, each between two calls (counted from its transcript's
 assistant records); which session was opened is not in the log.
+
+## Answering despite typing (`answer-despite-typed`)
+
+### Why a prompt was not answerable
+
+2026-11-14: kewang touched a single three-option question on the desktop without sending, and the phone showed only
+"This choice can no longer be answered from the phone". The session's transcript (funliday-web-next `859fd732…`)
+holds no tool activity between the question and its answer, only three queued cross-session messages, and the
+question fits the phone's form; the desktop's "typed into since it appeared" check (`remote-answer.ts` `clear()`)
+is what failed. The desktop drains its event files, so the key itself could not be found afterwards.
+
+### The desktop's measurements
+
+From the parallel spekterm change (session `spekterm-5cd0`, Claude Code 2.1.325, one run each), as reported to this
+change: Esc dismissed every state measured, text in a field included; `1` on a permission ran the tool after
+arrows, typed letters, on Write and WebFetch, and became amend text once Tab had opened Bash's amend field; on a
+question, digits became text with the cursor on "Type something", answered the wrong question after → to the second
+of two, and added to a desktop tick on a several-choice question (the last two recorded as `mismatch`); on a plan,
+the digit became feedback text on "Tell Claude what to change". A later run found that a key which answered the
+prompt on the desktop (`1` on a Bash prompt, the command running 20 s) leaves the request open, and a device's Esc
+then interrupts the command; hence the desktop's `decisive` reason, never overridden.
+
+### On the emulator (task 2.2)
+
+2026-11-14, the `Pixel_9` emulator (Android 16), a throwaway screenshot test (not committed) rendering the
+`Unchecked` notice above a prompt card: the question kewang sent from the phone with `blockedBy: "typed"`, its
+confirmation dialog after picking an option and tapping send, and permission cards with `stirred` and `decisive`.
+Light and dark; English, and 中文（台灣）through `cmd locale set-app-locales` so the dialog's own window follows it.
+Looked at: the warning stands in the error colour above the buttons, both answer buttons stay, the dialog reads
+"Touched on the desktop" / 「桌機上動過」 with "Send anyway" / 「仍要送出」 and "Cancel" / 「取消」, and the read-only
+cards show their reason and no buttons. Screenshots kept outside the repository.
+
+### The suites (task 2.4)
+
+`./gradlew test assembleDebug`: 607 JVM tests pass, the new `PromptTest`, `FramesTest` and `AnswersTest` cases among
+them. `ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`, with only the emulator listed by
+`adb devices`: 224 tests, all pass but `DesktopRaceTest`'s assumption (no race arguments, as before); the new
+`PromptCardTest` (7) and the two `DesktopTest` answer cases pass.

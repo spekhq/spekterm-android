@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalButton
@@ -59,24 +60,37 @@ import kotlinx.coroutines.launch
 /** How long a prompt is shown before its answers can be tapped (design D3). */
 private const val TAP_GUARD_MS = 600L
 
+/** Sends an answer: the prompt id, decision, selections and whether despite typing (`answer-despite-typed` D4). */
+typealias AnswerSender = (promptId: String, decision: String, selections: List<List<Int>>?, despiteTyped: Boolean) -> Unit
+
+/** An answer tapped on a prompt touched on the desktop, held until confirmed, as it was at the tap (D4). */
+private data class Unconfirmed(val promptId: String, val decision: String, val selections: List<List<Int>>?)
+
 /**
  * The open prompt as the desktop states it, above the composer (`prompt-answer`; design D3). Plain text only —
  * the agent's own text, which may hold paths. Capped at about half the screen, scrolling, so the composer stays.
  */
 @Composable
-fun PromptCard(sessionId: String, prompt: Prompt, offer: Offer) {
+fun PromptCard(sessionId: String, prompt: Prompt, offer: Offer, onAnswer: AnswerSender? = null) {
     val answerable = offer as? Offer.Answerable
+    val despiteTyped = answerable?.despiteTyped == true
     // The answers arm only a moment after this prompt (and its answerability) was first shown.
-    var armed by remember(prompt.id, prompt.answerable) { mutableStateOf(false) }
-    LaunchedEffect(prompt.id, prompt.answerable) {
+    var armed by remember(prompt.id, prompt.answerable, despiteTyped) { mutableStateOf(false) }
+    LaunchedEffect(prompt.id, prompt.answerable, despiteTyped) {
         delay(TAP_GUARD_MS)
         armed = true
     }
     val chosen = remember(prompt.id) { mutableStateMapOf<Int, Set<Int>>() }
     val scope = rememberCoroutineScope()
+    val send: AnswerSender = onAnswer ?: { id, decision, selections, despite ->
+        scope.launch { Desktop.answer(sessionId, id, decision, selections, despite) }
+    }
+    // A confirmation belongs to this prompt in this state: dropped, unsent, when either changes (D4).
+    var unconfirmed by remember(prompt.id) { mutableStateOf<Unconfirmed?>(null) }
+    LaunchedEffect(prompt.id, despiteTyped) { if (!despiteTyped) unconfirmed = null }
     // Disabled from the tap until the answer comes back: the offer is then read-only while it is in flight.
     fun answer(decision: String, selections: List<List<Int>>? = null) {
-        scope.launch { Desktop.answer(sessionId, prompt.id, decision, selections) }
+        if (despiteTyped) unconfirmed = Unconfirmed(prompt.id, decision, selections) else send(prompt.id, decision, selections, false)
     }
     val usable = answerable != null && armed
     val maxHeight = (LocalConfiguration.current.screenHeightDp / 2).dp
@@ -137,6 +151,7 @@ fun PromptCard(sessionId: String, prompt: Prompt, offer: Offer) {
                 if (late) OutlinedButton(onClick = { Desktop.continueAnyway(sessionId) }) { Text(stringResource(R.string.switch_continue_anyway)) }
             }
             is Offer.Answerable -> {
+                if (despiteTyped) Text(stringResource(R.string.prompt_typed_warning), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 if (prompt is Prompt.Permission && !prompt.canAllow) {
                     Text(stringResource(R.string.prompt_allow_on_desktop), style = MaterialTheme.typography.bodySmall)
                 }
@@ -157,6 +172,20 @@ fun PromptCard(sessionId: String, prompt: Prompt, offer: Offer) {
                 Text(stringResource(R.string.prompt_deny_stops, stringResource(denyLabel(prompt))), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+    unconfirmed?.takeIf { despiteTyped && it.promptId == prompt.id }?.let { u ->
+        AlertDialog(
+            onDismissRequest = { unconfirmed = null },
+            title = { Text(stringResource(R.string.prompt_typed_confirm_title)) },
+            text = { Text(stringResource(R.string.prompt_typed_confirm_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    unconfirmed = null
+                    send(u.promptId, u.decision, u.selections, true)
+                }) { Text(stringResource(R.string.prompt_typed_send_anyway)) }
+            },
+            dismissButton = { TextButton(onClick = { unconfirmed = null }) { Text(stringResource(R.string.common_cancel)) } },
+        )
     }
 }
 
@@ -225,7 +254,15 @@ private fun readOnlyText(reason: Offer.Reason, prompt: Prompt): UiText? = when (
     Offer.Reason.NoOperation -> UiText.Res(R.string.prompt_answer_on_desktop)
     is Offer.Reason.Open -> UiText.Plural(R.plurals.prompt_open_requests, reason.count)
     Offer.Reason.TooLarge -> UiText.Res(R.string.prompt_too_large)
-    Offer.Reason.NotAnswerable -> UiText.Res(R.string.prompt_not_answerable)
+    is Offer.Reason.NotAnswerable -> UiText.Res(
+        when (reason.blockedBy) {
+            Prompt.BLOCKED_ANSWERED -> R.string.prompt_not_answerable_answered
+            Prompt.BLOCKED_STIRRED -> R.string.prompt_not_answerable_stirred
+            Prompt.BLOCKED_DECISIVE -> R.string.prompt_not_answerable_decisive
+            Prompt.BLOCKED_SIZE -> R.string.prompt_too_large
+            else -> R.string.prompt_not_answerable
+        },
+    )
     Offer.Reason.Answering -> UiText.Res(R.string.prompt_answering)
     Offer.Reason.Answered -> UiText.Res(if (prompt is Prompt.Question || prompt is Prompt.Plan) R.string.prompt_answered_waiting else R.string.prompt_answered)
 }
@@ -238,6 +275,7 @@ fun answerNote(c: Conversation): UiText? = when (val outcome = c.answer?.outcome
     AnswerOutcome.Gone -> UiText.Res(R.string.prompt_note_gone)
     is AnswerOutcome.Refused -> UiText.Res(if (outcome.code == RemoteError.NOT_FOUND) R.string.prompt_note_not_running else R.string.prompt_note_refused)
     AnswerOutcome.Unknown -> UiText.Res(R.string.prompt_note_unknown)
+    AnswerOutcome.Unchecked -> UiText.Res(R.string.prompt_note_unchecked)
 }
 
 /** The tone of [answerNote] (D5): something that may need finishing is a warning; nothing sent is an error. */

@@ -178,11 +178,13 @@ object Frames {
     }
 
     /** `selections` only with the `answer` decision: one list of option indexes per question. */
-    fun conversationAnswer(sessionId: String, promptId: String, decision: String, selections: List<List<Int>>? = null): JsonObject = buildJsonObject {
+    /** [despiteTyped] only when true, so a plain answer's frame is unchanged (`answer-despite-typed` D6). */
+    fun conversationAnswer(sessionId: String, promptId: String, decision: String, selections: List<List<Int>>? = null, despiteTyped: Boolean = false): JsonObject = buildJsonObject {
         put("sessionId", sessionId)
         put("promptId", promptId)
         put("decision", decision)
         if (selections != null) put("selections", JsonArray(selections.map { q -> JsonArray(q.map(::JsonPrimitive)) }))
+        if (despiteTyped) put("despiteTyped", true)
     }
 
     /** One chunk; `attachmentId` from the second chunk on. [data] is base64. */

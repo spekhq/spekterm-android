@@ -568,8 +568,23 @@ class DesktopTest {
         assertEquals("p1", (sent["promptId"] as JsonPrimitive).content)
         assertEquals("answer", (sent["decision"] as JsonPrimitive).content)
         assertEquals("[[0,1]]", sent["selections"].toString())
+        assertFalse("a plain answer sends no despiteTyped", "despiteTyped" in sent.keys)
         reply!!()
         until { it.answer?.outcome == AnswerOutcome.Partial }
+    }
+
+    /** `answer-despite-typed` D6: the flag reaches the frame, and a `sent` despite typing is unchecked. */
+    @Test
+    fun anAnswerDespiteTypingSendsTheFlagAndASentIsUnchecked() = runBlocking<Unit> {
+        val desktop = Scripted().apply { answering("conversation.answer") { req, ws -> ws.send(ok(req.id, """{"outcome":"sent"}""")) } }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching && it.prompt?.id == "p1" }
+        assertTrue(Desktop.answer("s1", "p1", "answer", listOf(listOf(0, 1)), despiteTyped = true))
+        until { it.answer?.outcome == AnswerOutcome.Unchecked }
+        val sent = desktop.requests.single { it.method == "conversation.answer" }.params
+        assertEquals("true", (sent["despiteTyped"] as JsonPrimitive).content)
+        assertTrue(Desktop.conversation.value!!.answer!!.despiteTyped)
     }
 
     @Test

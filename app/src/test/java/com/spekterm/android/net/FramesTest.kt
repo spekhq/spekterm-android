@@ -375,6 +375,10 @@ class FramesTest {
         assertEquals(setOf("sessionId", "promptId", "decision"), deny.keys)
         val answer = p(Frames.conversationAnswer("s1", "p1", "answer", listOf(listOf(0), listOf(1, 3))))
         assertEquals(listOf(listOf(0L), listOf(1L, 3L)), answer["selections"]!!.jsonArray.map { q -> q.jsonArray.map { it.jsonPrimitive.long } })
+        assertFalse("a plain answer's frame is unchanged", "despiteTyped" in answer.keys)
+        val despite = p(Frames.conversationAnswer("s1", "p1", "allow", despiteTyped = true))
+        assertEquals(setOf("sessionId", "promptId", "decision", "despiteTyped"), despite.keys)
+        assertEquals("true", despite["despiteTyped"]!!.jsonPrimitive.content)
 
         val first = p(Frames.attachmentsPut("s1", "a.jpg", 10, 0, "AAAA", null))
         assertEquals(setOf("sessionId", "name", "size", "offset", "data"), first.keys)

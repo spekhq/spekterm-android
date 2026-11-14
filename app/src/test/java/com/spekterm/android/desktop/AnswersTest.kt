@@ -5,6 +5,7 @@ import com.spekterm.android.net.Prompt
 import com.spekterm.android.net.RemoteError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** `Answers` (design D3) and `AnswerOutcome` (design D4). */
@@ -41,7 +42,7 @@ class AnswersTest {
         assertEquals(Offer.ReadOnly(Offer.Reason.Paused), offer(paused = true))
         assertEquals(Offer.ReadOnly(Offer.Reason.NotWatching), offer(watch = Watch.Requested))
         assertEquals(Offer.ReadOnly(Offer.Reason.Open(2)), offer(permission(answerable = false, open = 2)))
-        assertEquals(Offer.ReadOnly(Offer.Reason.NotAnswerable), offer(permission(answerable = false, open = 1)))
+        assertEquals(Offer.ReadOnly(Offer.Reason.NotAnswerable(null)), offer(permission(answerable = false, open = 1)))
         val big = Prompt.Question("p", List(5) { item(false) }, desktopAnswerable = true, open = 1)
         assertEquals(Offer.ReadOnly(Offer.Reason.TooLarge), offer(big))
         assertEquals(Offer.ReadOnly(Offer.Reason.Answering), offer(answer = AnswerState("p1", "allow")))
@@ -79,6 +80,73 @@ class AnswersTest {
         assertEquals(AnswerOutcome.Unknown, AnswerOutcome.of(null, RemoteError.TIMEOUT))
         assertEquals(AnswerOutcome.Unknown, AnswerOutcome.of(null, null))
         assertEquals(AnswerOutcome.Unknown, AnswerOutcome.of("later", null))
+    }
+
+    /** `answer-despite-typed` D6: a `sent` despite typing is unchecked, except a `deny`. */
+    @Test
+    fun aSentAnswerDespiteTypingIsUnchecked() {
+        for (decision in listOf("allow", "answer", "approve", "approve-auto")) {
+            assertEquals(decision, AnswerOutcome.Unchecked, AnswerOutcome.of("sent", null, despiteTyped = true, decision = decision))
+            assertEquals(decision, AnswerOutcome.Done, AnswerOutcome.of("sent", null, despiteTyped = false, decision = decision))
+            assertEquals(decision, AnswerOutcome.Done, AnswerOutcome.of("confirmed", null, despiteTyped = true, decision = decision))
+            assertEquals(decision, AnswerOutcome.Mismatch, AnswerOutcome.of("mismatch", null, despiteTyped = true, decision = decision))
+        }
+        assertEquals(AnswerOutcome.Done, AnswerOutcome.of("sent", null, despiteTyped = true, decision = "deny"))
+        assertEquals(AnswerOutcome.Gone, AnswerOutcome.of(null, RemoteError.PROMPT_GONE, despiteTyped = true, decision = "allow"))
+        assertEquals("Unchecked", AnswerOutcome.Unchecked.logName)
+        assertTrue(AnswerOutcome.Unchecked.warning)
+    }
+
+    private fun typed(p: Prompt): Prompt = when (p) {
+        is Prompt.Permission -> p.copy(answerable = false, blockedBy = "typed")
+        is Prompt.Question -> p.copy(desktopAnswerable = false, blockedBy = "typed")
+        is Prompt.Plan -> p.copy(answerable = false, blockedBy = "typed")
+    }
+
+    /** `answer-despite-typed` D3. */
+    @Test
+    fun typedOnTheDesktopIsAnswerableDespiteTyping() {
+        assertEquals(Offer.Answerable(listOf("allow", "deny"), despiteTyped = true), offer(typed(permission())))
+        assertEquals(Offer.Answerable(listOf("deny"), despiteTyped = true), offer(typed(permission(canAllow = false))))
+        assertEquals(Offer.Answerable(listOf("answer", "deny"), despiteTyped = true), offer(typed(question)))
+        assertEquals(Offer.Answerable(listOf("approve", "approve-auto", "deny"), despiteTyped = true), offer(typed(plan(listOf("approve", "approve-auto", "deny")))))
+        assertEquals(Offer.Answerable(listOf("approve", "deny"), despiteTyped = true), offer(typed(plan(listOf("approve", "deny")))))
+        assertEquals(Offer.Answerable(listOf("allow", "deny"), despiteTyped = false), offer(permission()))
+    }
+
+    @Test
+    fun typedStillGoesThroughThePhonesGates() {
+        val t = typed(permission())
+        assertEquals(Offer.ReadOnly(Offer.Reason.NoOperation), offer(t, operations = emptySet()))
+        assertEquals(Offer.ReadOnly(Offer.Reason.NotConnected), offer(t, connected = false))
+        assertEquals(Offer.ReadOnly(Offer.Reason.Paused), offer(t, paused = true))
+        assertEquals(Offer.ReadOnly(Offer.Reason.NotWatching), offer(t, watch = Watch.Requested))
+        val sending = PendingSwitch(1, Switch.Model("sonnet"), "Opus 5.5", 0, emptySet())
+        assertEquals(Offer.Held(sending), Answers.offer(t, ops, true, false, Watch.Watching, null, sending))
+        val big = Prompt.Question("p", List(5) { item(false) }, desktopAnswerable = false, open = 1, blockedBy = "typed")
+        assertEquals(Offer.ReadOnly(Offer.Reason.TooLarge), offer(big))
+    }
+
+    /** The desktop marks a prompt answered before an answer's first key: the phone's own answer is not a reason (D3). */
+    @Test
+    fun ourOwnAnswerWinsOverTheDesktopsReason() {
+        for (reason in listOf("answered", "typed")) {
+            val p = permission(answerable = false).copy(blockedBy = reason)
+            assertEquals(reason, Offer.ReadOnly(Offer.Reason.Answering), offer(p, answer = AnswerState("p1", "allow")))
+            assertEquals(reason, Offer.ReadOnly(Offer.Reason.Answered), offer(p, answer = AnswerState("p1", "allow", AnswerOutcome.Done)))
+            assertEquals(reason, Offer.ReadOnly(Offer.Reason.Answered), offer(p, answer = AnswerState("p1", "allow", AnswerOutcome.Unchecked, despiteTyped = true)))
+        }
+        val answered = permission(answerable = false).copy(blockedBy = "answered")
+        assertEquals(Offer.ReadOnly(Offer.Reason.NotAnswerable("answered")), offer(answered))
+        assertEquals(Offer.ReadOnly(Offer.Reason.NotAnswerable("answered")), offer(answered, answer = AnswerState("p9", "allow", AnswerOutcome.Done)))
+    }
+
+    @Test
+    fun otherReasonsAreCarried() {
+        assertEquals(Offer.ReadOnly(Offer.Reason.NotAnswerable("stirred")), offer(permission(answerable = false).copy(blockedBy = "stirred")))
+        assertEquals(Offer.ReadOnly(Offer.Reason.NotAnswerable("size")), offer(permission(answerable = false).copy(blockedBy = "size")))
+        assertEquals("a key that may have answered it is never overridden", Offer.ReadOnly(Offer.Reason.NotAnswerable("decisive")), offer(permission(answerable = false).copy(blockedBy = "decisive")))
+        assertEquals(Offer.ReadOnly(Offer.Reason.NotAnswerable(null)), offer(permission(answerable = false)))
     }
 
     /** The log names each outcome by a fixed name, the same in a shrunk build (`play-release` D3). */

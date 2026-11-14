@@ -88,7 +88,10 @@ access turned on.
 - **Prompts**: a permission request, the agent's questions or a plan to approve is shown as plain text and,
   when the desktop says it can be, answered from the phone — allow once or deny, the questions' options or
   declining, approve or keep planning. "Tell Claude what to change" and a question's free-text answer are not
-  offered: decline, then reply.
+  offered: decline, then reply. A prompt someone moved around in or typed into on the desktop can still be answered
+  after a warning and a confirmation; when the desktop cannot confirm such an answer took effect, the phone says to
+  check the desktop. A prompt that cannot be answered says why — another request open, other tools running at the
+  same time, already answered, possibly answered or dismissed on the desktop, or too large.
 - **OpenSpec**, read-only, opened from a folder's heading, the list's menu or a session's screen: each folder's
   active and archived changes, a change's proposal, design, delta specs, tasks and data files, and the main specs
   with the changes that touched them. While a folder is on screen, it follows the desktop's files — an agent

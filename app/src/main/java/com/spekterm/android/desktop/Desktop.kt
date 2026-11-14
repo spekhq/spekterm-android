@@ -572,23 +572,23 @@ object Desktop {
      * Answers the held prompt [promptId] of the watched [sessionId] (design D4). Never retried. Returns false when
      * the gate refuses: another prompt is held, an answer to it is in flight, or the desktop does not answer.
      */
-    suspend fun answer(sessionId: String, promptId: String, decision: String, selections: List<List<Int>>? = null): Boolean = withContext(dispatcher) {
+    suspend fun answer(sessionId: String, promptId: String, decision: String, selections: List<List<Int>>? = null, despiteTyped: Boolean = false): Boolean = withContext(dispatcher) {
         val a = attached ?: return@withContext false
         val c = mutableConversation.value?.takeIf { it.sessionId == sessionId } ?: return@withContext false
         val prompt = c.prompt?.takeIf { it.id == promptId } ?: return@withContext false
         if (c.watch != Watch.Watching || Operations.ANSWER !in mutableOperations.value) return@withContext false
         if (c.answer?.let { it.promptId == promptId && it.inFlight } == true) return@withContext false
         if (switches[sessionId]?.holds == true) return@withContext false
-        mutableConversation.value = c.copy(answer = AnswerState(promptId, decision))
+        mutableConversation.value = c.copy(answer = AnswerState(promptId, decision, despiteTyped = despiteTyped))
         val kind = when (prompt) {
             is com.spekterm.android.net.Prompt.Permission -> "permission"
             is com.spekterm.android.net.Prompt.Question -> "question"
             is com.spekterm.android.net.Prompt.Plan -> "plan"
         }
         a.scope.launch {
-            val answer = request(a, "conversation.answer", Frames.conversationAnswer(sessionId, promptId, decision, selections), ANSWER_TIMEOUT_MS)
-            val outcome = AnswerOutcome.of(answer?.result?.let { Frames.decodeOrNull<AnswerResult>(it) }?.outcome, answer?.error?.code)
-            log(Kind.ANSWER, "kind" to kind, "decision" to decision, "outcome" to outcome.logName, "error" to answer?.error?.code, "open" to prompt.open)
+            val answer = request(a, "conversation.answer", Frames.conversationAnswer(sessionId, promptId, decision, selections, despiteTyped), ANSWER_TIMEOUT_MS)
+            val outcome = AnswerOutcome.of(answer?.result?.let { Frames.decodeOrNull<AnswerResult>(it) }?.outcome, answer?.error?.code, despiteTyped, decision)
+            log(Kind.ANSWER, "kind" to kind, "decision" to decision, "outcome" to outcome.logName, "error" to answer?.error?.code, "open" to prompt.open, "despiteTyped" to despiteTyped)
             // Written back also when the screen was left meanwhile (design D4); a newer answer is not overwritten.
             change(sessionId, requireWatch = false) { held ->
                 val mine = held.answer?.takeIf { it.promptId == promptId && it.inFlight } ?: return@change held
