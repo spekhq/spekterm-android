@@ -1,3 +1,2 @@
-- A prompt someone touched on the desktop can still be answered from the phone: it warns you and asks before sending, and says so when it can't confirm the answer took effect. Needs a spekterm desktop with this support.
-- When a prompt can't be answered from the phone, it now says why.
-- After answering from the phone, the prompt reads "Answering…" and then "Answered" instead of "can no longer be answered".
+- Quick replies: a row of sentences above the reply field sends one to the agent with a tap, leaving what you typed and attached in the field. It starts with "Can this session be closed now?", "Is there any risk, or anything I need to decide?" and "Is there anything left to do in this session?".
+- Edit, reorder, add or remove them in Settings → Quick replies. The list is kept on the phone; the desktop keeps its own.
