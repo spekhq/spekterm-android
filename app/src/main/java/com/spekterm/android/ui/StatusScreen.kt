@@ -200,6 +200,10 @@ fun StatusScreen(
                 val theme by context.app.theme.collectAsStateWithLifecycle()
                 AppearanceSection(theme) { context.app.chooseTheme(it) }
 
+                Section(stringResource(R.string.status_section_quick_replies))
+                val quickReplies by context.app.quickReplies.collectAsStateWithLifecycle()
+                QuickRepliesSection(quickReplies, { context.app.setQuickReplies(it) }, { context.app.resetQuickReplies() })
+
                 Section(stringResource(R.string.status_section_notifications))
                 SettingRow(
                     stringResource(R.string.status_attention_notifications),

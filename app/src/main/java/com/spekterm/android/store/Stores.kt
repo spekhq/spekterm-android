@@ -292,3 +292,33 @@ class ThemeStore(context: Context) {
     @Synchronized fun save(choice: ThemeChoice) = file.write(StoredTheme(choice.name))
     @Synchronized fun delete() = file.delete()
 }
+
+/**
+ * The phone's quick replies (`quick-replies` D2): an app setting, kept across unpairing. The rules are
+ * [com.spekterm.android.desktop.QuickReplies]'; this only keeps the file.
+ */
+class QuickReplyStore(context: Context) {
+    private val file = AtomicFile(File(context.noBackupFilesDir, "quick-replies.json"))
+
+    /** `null` when not set: nothing, something unreadable, or a list breaking a rule is stored. */
+    @Synchronized fun load(): List<String>? = try {
+        if (file.baseFile.exists()) com.spekterm.android.desktop.QuickReplies.parse(file.readFully().decodeToString()) else null
+    } catch (_: Exception) {
+        null
+    }
+
+    /** Writes exactly [list] (`[]` too), trimmed. */
+    @Synchronized fun save(list: List<String>) {
+        val out = file.startWrite()
+        try {
+            out.write(com.spekterm.android.desktop.QuickReplies.encode(list).encodeToByteArray())
+            file.finishWrite(out)
+        } catch (e: Exception) {
+            file.failWrite(out)
+            throw e
+        }
+    }
+
+    /** Back to the defaults. */
+    @Synchronized fun reset() = file.delete()
+}

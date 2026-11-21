@@ -105,6 +105,8 @@ data class Conversation(
     val commandReturns: Int = 0,
     /** The last command the desktop refused, until the user goes back to it or sends anything else. */
     val commandRefused: CommandRefused? = null,
+    /** Why the desktop refused the last quick reply (its error code), until the next send (`quick-replies` D1). */
+    val quickRefused: String? = null,
 ) {
     /** The uuid to resume from: the last held entry's, or none when nothing is held. */
     val afterUuid: String? get() = entries.lastOrNull()?.uuid?.takeIf { it.isNotEmpty() }

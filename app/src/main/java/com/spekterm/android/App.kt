@@ -13,6 +13,7 @@ import com.spekterm.android.store.AnnouncementStore
 import com.spekterm.android.store.CollapsedStore
 import com.spekterm.android.store.CredentialStore
 import com.spekterm.android.store.PositionStore
+import com.spekterm.android.store.QuickReplyStore
 import com.spekterm.android.store.ThemeChoice
 import com.spekterm.android.store.ThemeStore
 import com.spekterm.android.ui.SentFileCache
@@ -34,6 +35,12 @@ class App : Application() {
     /** Light or dark as chosen in settings (`ui-polish` D13). */
     val theme: StateFlow<ThemeChoice> = themeChoice
 
+    private lateinit var quickReplyStore: QuickReplyStore
+    private val quickReplyList = MutableStateFlow<List<String>?>(null)
+
+    /** The quick replies as set; `null` = not set, which the UI shows as the defaults in its language (`quick-replies` D2). */
+    val quickReplies: StateFlow<List<String>?> = quickReplyList
+
     /** Bumped whenever the pairing or the announcements change, so screens reload what the service changed. */
     val changes = MutableStateFlow(0L)
 
@@ -47,6 +54,8 @@ class App : Application() {
         themeChoice.value = themeStore.load()
         // Every start, so the system's copy follows ours even if they parted (D13).
         applyNightMode(themeChoice.value)
+        quickReplyStore = QuickReplyStore(this)
+        quickReplyList.value = quickReplyStore.load()
         log = ConnectionLog.forApp(this)
         Desktop.log = { kind, fields -> log.write(kind, *fields) }
         Notifications.createChannels(this)
@@ -64,6 +73,18 @@ class App : Application() {
         themeStore.save(choice)
         themeChoice.value = choice
         applyNightMode(choice)
+    }
+
+    /** Keeps [list] as the quick replies, exactly as given (`[]` too). */
+    fun setQuickReplies(list: List<String>) {
+        quickReplyStore.save(list)
+        quickReplyList.value = quickReplyStore.load() ?: list
+    }
+
+    /** Back to the defaults in the app's language. */
+    fun resetQuickReplies() {
+        quickReplyStore.reset()
+        quickReplyList.value = null
     }
 
     /**

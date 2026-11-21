@@ -779,4 +779,31 @@
     <string name="status_connected_relay_since">自 %2$s 起經團隊伺服器（%1$s）連線</string>
     <string name="notification_connected_relay">經團隊伺服器連線</string>
     <string name="status_relay_only">debug：只走中繼</string>
+
+    <!-- Quick replies (`quick-replies`) -->
+    <string name="quick_reply_default_close">這個 session 可以關了嗎？</string>
+    <string name="quick_reply_default_risk">會有什麼風險或我要特別決策的嗎？</string>
+    <string name="quick_reply_default_remaining">這個 session 還有什麼要做的嗎？</string>
+    <string name="quick_reply_refused">快速回覆沒送出：%1$s</string>
+    <string name="status_section_quick_replies">快速回覆</string>
+    <string name="quick_replies_intro">在回覆框上方點一下就送出。清單存在這支手機上，桌機有自己的清單。</string>
+    <string name="quick_replies_none">沒有快速回覆：回覆框上方不會顯示任何句子。</string>
+    <string name="quick_reply_edit">編輯「%1$s」</string>
+    <string name="quick_reply_move_up">把「%1$s」往上移</string>
+    <string name="quick_reply_move_down">把「%1$s」往下移</string>
+    <string name="quick_reply_remove">移除「%1$s」</string>
+    <string name="quick_reply_add">新增</string>
+    <string name="quick_reply_full">快速回覆最多 12 則。</string>
+    <string name="quick_reply_add_title">新增快速回覆</string>
+    <string name="quick_reply_edit_title">編輯快速回覆</string>
+    <string name="quick_reply_save">儲存</string>
+    <string name="quick_reply_problem_empty">請輸入一句話。</string>
+    <string name="quick_reply_problem_line_break">請寫成一行，不要有 tab 或其他控制字元。</string>
+    <string name="quick_reply_problem_too_long">最多 200 個字元。</string>
+    <string name="quick_reply_problem_bare_command">/model 或 /effort 要帶參數：單獨送出會在桌機開一個手機關不掉的選單。</string>
+    <string name="quick_reply_problem_duplicate">清單裡已經有這句了。</string>
+    <string name="quick_reply_restore">還原預設</string>
+    <string name="quick_reply_restore_title">要還原預設的快速回覆嗎？</string>
+    <string name="quick_reply_restore_body">你的清單會換成三句預設句子。</string>
+    <string name="quick_reply_restore_confirm">還原</string>
 </resources>

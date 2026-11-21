@@ -547,6 +547,31 @@ object Desktop {
     }
 
     /**
+     * Sends the quick reply [sentence] to the watched [sessionId] (`quick-replies` D1): no attachment, and the
+     * composer's draft, attachments and notes stay as they are. [inboxPrompt] is the hold the composer read, so the
+     * chips' enablement and the send agree. A kept `/model x` or `/effort high` is tracked as a typed one. Returns
+     * false when the gate refuses.
+     */
+    suspend fun sendQuick(sessionId: String, sentence: String, inboxPrompt: Boolean = false): Boolean = withContext(dispatcher) {
+        val a = attached
+        val c = mutableConversation.value?.takeIf { it.sessionId == sessionId } ?: return@withContext false
+        if (a == null || Replies.quickBlocked(c, true, false, inboxPrompt, switches[sessionId], sentence) != null) return@withContext false
+        val id = ++nextReplyId
+        val typed = ModelEffort.typed(sentence, 0)?.let { pendingSwitch(c, it, replyId = id) }
+        mutableConversation.value = Replies.sent(c, id, sentence, quick = true)
+        typed?.let { putSwitch(sessionId, it) }
+        a.scope.launch {
+            val answer = request(a, "conversation.send", Frames.conversationSend(sessionId, sentence), SEND_TIMEOUT_MS)
+            val result = answer?.result?.let { Frames.decodeOrNull<SendResult>(it) }
+            val outcome = SendOutcome.of(result?.outcome, answer?.error?.code)
+            log(Kind.SEND, "outcome" to outcome.logName, "error" to answer?.error?.code, "length" to sentence.length, "quick" to true)
+            change(sessionId, requireWatch = false) { Replies.answered(it, id, outcome, now(), result?.text) }
+            typed?.let { switchAnswered(sessionId, it.id, outcome) }
+        }
+        true
+    }
+
+    /**
      * Runs [command] in [sessionId]'s agent terminal: `!` and the command through `conversation.send`, with no
      * attachments and never as a model switch (`run-shell-commands` D1). Returns false when the gate refuses.
      */

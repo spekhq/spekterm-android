@@ -78,6 +78,11 @@ access turned on.
   text files attached, shown as unconfirmed until it appears in the conversation. Typing `/` at the start of
   the reply shows the session's skills, filtered as you type; choosing one fills it in as a slash command. A command that never appears says
   why it may not have, and one too long to run as a command says so before it is sent.
+- **Quick replies**: a row of sentences above the reply field sends one to the agent with a tap, without
+  touching what you typed or attached there. The list is kept on the phone (the desktop keeps its own) and edited
+  in Settings → Quick replies — up to 12 one-line sentences; until you change it, it is "Can this session be
+  closed now?", "Is there any risk, or anything I need to decide?" and "Is there anything left to do in this
+  session?", in the app's language.
 - **Shell commands**: Command mode, in the menu of the button beside the reply field, turns it into a command field that runs a command in the
   agent's terminal on the desktop, as `!` does there — without a permission prompt and without input, so a login
   that asks for a password or opens a browser cannot be finished from the phone. "Run it myself" under an agent's

@@ -813,4 +813,31 @@
     <string name="status_connected_relay_since">Connected through the team server (%1$s) since %2$s</string>
     <string name="notification_connected_relay">Connected through the team server</string>
     <string name="status_relay_only">debug: relay only</string>
+
+    <!-- Quick replies (`quick-replies`) -->
+    <string name="quick_reply_default_close">Can this session be closed now?</string>
+    <string name="quick_reply_default_risk">Is there any risk, or anything I need to decide?</string>
+    <string name="quick_reply_default_remaining">Is there anything left to do in this session?</string>
+    <string name="quick_reply_refused">Quick reply not sent: %1$s</string>
+    <string name="status_section_quick_replies">Quick replies</string>
+    <string name="quick_replies_intro">Sent with one tap above the reply field. Kept on this phone; the desktop keeps its own list.</string>
+    <string name="quick_replies_none">No quick replies: nothing shows above the reply field.</string>
+    <string name="quick_reply_edit">Edit “%1$s”</string>
+    <string name="quick_reply_move_up">Move “%1$s” up</string>
+    <string name="quick_reply_move_down">Move “%1$s” down</string>
+    <string name="quick_reply_remove">Remove “%1$s”</string>
+    <string name="quick_reply_add">Add</string>
+    <string name="quick_reply_full">At most 12 quick replies.</string>
+    <string name="quick_reply_add_title">New quick reply</string>
+    <string name="quick_reply_edit_title">Edit quick reply</string>
+    <string name="quick_reply_save">Save</string>
+    <string name="quick_reply_problem_empty">Write a sentence.</string>
+    <string name="quick_reply_problem_line_break">Keep it on one line, without tabs or other control characters.</string>
+    <string name="quick_reply_problem_too_long">At most 200 characters.</string>
+    <string name="quick_reply_problem_bare_command">/model or /effort needs an argument: alone, it opens a picker on the desktop the phone can\'t close.</string>
+    <string name="quick_reply_problem_duplicate">Already in the list.</string>
+    <string name="quick_reply_restore">Restore defaults</string>
+    <string name="quick_reply_restore_title">Restore the default quick replies?</string>
+    <string name="quick_reply_restore_body">Your list is replaced by the three default sentences.</string>
+    <string name="quick_reply_restore_confirm">Restore</string>
 </resources>

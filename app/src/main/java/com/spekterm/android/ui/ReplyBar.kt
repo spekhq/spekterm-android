@@ -57,9 +57,10 @@ fun WithReplyBar(target: ReplyTarget?, owner: String, announcements: Announcemen
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // As on the conversation: the skills above the field take at most a quarter of the room (`tool-call-display` D10).
         val panelMax = minOf(240.dp, maxHeight / 4)
+        val roomForQuick = maxHeight >= QUICK_ROOM
         Column(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxWidth().weight(1f), content = content)
-            ReplyBar(target.sessionId, owner, announcements, panelMax, target.onOpenConversation, target.onOpenInboxItem)
+            ReplyBar(target.sessionId, owner, announcements, panelMax, roomForQuick, target.onOpenConversation, target.onOpenInboxItem)
         }
     }
 }
@@ -70,6 +71,7 @@ private fun ReplyBar(
     owner: String,
     announcements: Announcements,
     panelMax: Dp,
+    roomForQuick: Boolean,
     onOpenConversation: () -> Unit,
     onOpenInboxItem: (String) -> Unit,
 ) {
@@ -116,7 +118,7 @@ private fun ReplyBar(
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Header(session, c, bar, onOpenConversation)
         if (bar.kind == ReplyBarView.Kind.REPLY) {
-            ReplyArea(sessionId, c, session, announcements.paused, panelMax, onOpenInboxItem)
+            ReplyArea(sessionId, c, session, announcements.paused, panelMax, onOpenInboxItem, roomForQuick = roomForQuick)
         }
     }
 }

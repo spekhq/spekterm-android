@@ -259,6 +259,7 @@ fun ConversationScreen(
             val backgroundMax = maxHeight / 4
             // The skills above the field take at most as much, so the field stays in view (`tool-call-display` D10).
             val panelMax = minOf(240.dp, maxHeight / 4)
+            val roomForQuick = maxHeight >= QUICK_ROOM
             Column(Modifier.fillMaxSize()) {
                 when (screen) {
                     Screen.Paused -> Notice(stringResource(R.string.conversation_paused), Tone.Warning, stringResource(R.string.common_resume), onResume)
@@ -289,7 +290,7 @@ fun ConversationScreen(
                                 onDismiss = { sheetOpen = false },
                             )
                         }
-                        ReplyArea(sessionId, c, session, announcements.paused, panelMax, onOpenInbox, onPanel = { panelShows++ }) {
+                        ReplyArea(sessionId, c, session, announcements.paused, panelMax, onOpenInbox, roomForQuick = roomForQuick, onPanel = { panelShows++ }) {
                             // The agent's offer to close the session, from the last list held (close-offer D5).
                             if (session != null && SessionActions.offered(session)) {
                                 CloseOffer(
@@ -353,6 +354,8 @@ internal fun ReplyArea(
     paused: Boolean,
     panelMax: Dp,
     onOpenInboxItem: (String) -> Unit,
+    /** The screen's height leaves room for the quick replies (`quick-replies` D3). */
+    roomForQuick: Boolean = true,
     onPanel: () -> Unit = {},
     offers: @Composable () -> Unit = {},
 ) {
@@ -372,6 +375,8 @@ internal fun ReplyArea(
         inboxPrompt = gate.inboxHold,
         panelMax = panelMax,
         onPanel = onPanel,
+        quickReplies = rememberQuickReplies(),
+        roomForQuick = roomForQuick,
     )
 }
 
@@ -945,6 +950,11 @@ internal fun Composer(
     inboxPrompt: Boolean = false,
     panelMax: Dp = 240.dp,
     onPanel: () -> Unit = {},
+    /** The sentences of the chips above the field; none shows for an empty list (`quick-replies` D3). */
+    quickReplies: List<String> = emptyList(),
+    roomForQuick: Boolean = true,
+    /** A chip tapped; `null` sends it with [Desktop.sendQuick]. */
+    onQuick: ((String) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -1004,6 +1014,10 @@ internal fun Composer(
         if (c?.prefillRefused == true && blocked != Blocked.InboxPrompt) {
             Text(stringResource(R.string.conversation_prefill_refused), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.error)
         }
+        // A quick reply the desktop refused: said here, never put into the field; also beside the inbox note (`quick-replies` D1).
+        c?.quickRefused?.let {
+            Text(stringResource(R.string.quick_reply_refused, refusedText(it).text()), Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = colors.error)
+        }
         if (blocked is Blocked.ModelSwitch && blocked.late(now)) {
             // Said loudly: the desktop may hold a box a reply would confirm (`session-model-effort` D6).
             Notice(blockedText(blocked, answerable, now)!!.text(), Tone.Warning, stringResource(R.string.switch_continue_anyway), { Desktop.continueAnyway(sessionId) })
@@ -1052,6 +1066,14 @@ internal fun Composer(
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (attachment in attachments) AttachmentCard(attachment)
                 }
+            }
+            // Hidden in command mode and under the skills, as attachments are, and when the field needs the room (D3).
+            if (quickReplies.isNotEmpty() && !commandMode && !slash && roomForQuick) {
+                QuickReplyRow(
+                    quickReplies,
+                    enabled = { Replies.quickBlocked(c, connected, paused, inboxPrompt, c?.switch, it) == null },
+                    onQuick = onQuick ?: { sentence -> scope.launch { Desktop.sendQuick(sessionId, sentence, inboxPrompt) }; Unit },
+                )
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 // One button for what goes with the field: attaching, and command mode (`run-shell-commands` D4). In command

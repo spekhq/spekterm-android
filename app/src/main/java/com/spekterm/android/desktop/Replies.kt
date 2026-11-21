@@ -41,6 +41,8 @@ data class Reply(
     val command: Boolean = false,
     /** A command the desktop withheld, which the user said was cleared from the agent's input (D3). */
     val cleared: Boolean = false,
+    /** A quick reply: sent from a chip, apart from the composer's draft and attachments (`quick-replies` D1). */
+    val quick: Boolean = false,
 ) {
     enum class State { SENDING, SUBMITTED, MAY_NOT_HAVE_BEEN_SENT, NOT_SUBMITTED }
 
@@ -296,6 +298,26 @@ object Replies {
         else -> null
     }
 
+    /**
+     * The quick-reply gate (`quick-replies` D1): [Replies.blocked] with [c]'s state, [sentence] as the text and never an
+     * attachment, so a draft's attachments neither block nor go with it. The composer enables the chips by it and
+     * [Desktop.sendQuick] sends by it. `null` when [sentence] can be sent now.
+     */
+    fun quickBlocked(c: Conversation?, connected: Boolean, paused: Boolean, inboxPrompt: Boolean, switch: PendingSwitch?, sentence: String): Blocked? =
+        blocked(
+            connected = connected,
+            paused = paused,
+            watch = c?.watch ?: Watch.Idle,
+            wait = c?.wait ?: WaitState.UNKNOWN,
+            pending = c?.pending,
+            inFlight = c?.replies?.any { it.state == Reply.State.SENDING } == true,
+            text = sentence,
+            attachments = emptyList(),
+            inboxPrompt = inboxPrompt,
+            switch = switch,
+            withheld = withheld(c),
+        )
+
     /** The newest command the desktop typed without submitting, not yet cleared by the user (`run-shell-commands` D3). */
     fun withheld(c: Conversation?): Reply? =
         c?.replies?.lastOrNull { it.command && it.state == Reply.State.NOT_SUBMITTED && !it.cleared }
@@ -312,9 +334,11 @@ object Replies {
 
     /**
      * A new reply, sent now, in state SENDING, carrying [attachments] out of the composer. A [command] carries none and
-     * leaves the reply draft, the attachments and their note alone; it ends command mode (`run-shell-commands` D3).
+     * leaves the reply draft, the attachments and their note alone; it ends command mode (`run-shell-commands` D3). A
+     * [quick] reply carries none and leaves the draft, the attachments, their note and a refused command alone
+     * (`quick-replies` D1).
      */
-    fun sent(c: Conversation, id: Long, text: String, attachments: List<Attachment> = emptyList(), command: Boolean = false): Conversation {
+    fun sent(c: Conversation, id: Long, text: String, attachments: List<Attachment> = emptyList(), command: Boolean = false, quick: Boolean = false): Conversation {
         if (command) {
             val reply = Reply(
                 id = id,
@@ -324,7 +348,19 @@ object Replies {
                 anchor = ConversationReducer.keys(c.entries).lastOrNull(),
                 command = true,
             )
-            return c.copy(replies = c.replies + reply, commandMode = false, commandDraft = "", commandRefused = null, prefillRefused = false)
+            return c.copy(replies = c.replies + reply, commandMode = false, commandDraft = "", commandRefused = null, prefillRefused = false, quickRefused = null)
+        }
+        if (quick) {
+            val reply = Reply(
+                id = id,
+                text = text,
+                sentWhile = c.wait,
+                held = c.entries.mapNotNullTo(HashSet()) { it.uuid.takeIf(String::isNotEmpty) },
+                anchor = ConversationReducer.keys(c.entries).lastOrNull(),
+                commandsShown = c.usage != null,
+                quick = true,
+            )
+            return c.copy(replies = c.replies + reply, prefillRefused = false, quickRefused = null)
         }
         val reply = Reply(
             id = id,
@@ -336,7 +372,7 @@ object Replies {
             commandsShown = c.usage != null,
         )
         val sentIds = attachments.map { it.localId }.toSet()
-        return c.copy(replies = c.replies + reply, draft = "", attachments = c.attachments.filter { it.localId !in sentIds }, attachNote = null, prefillRefused = false, commandRefused = null)
+        return c.copy(replies = c.replies + reply, draft = "", attachments = c.attachments.filter { it.localId !in sentIds }, attachNote = null, prefillRefused = false, commandRefused = null, quickRefused = null)
     }
 
     /**
@@ -352,6 +388,8 @@ object Replies {
             SendOutcome.Unknown -> rematch(c.copy(replies = others + reply.copy(state = Reply.State.MAY_NOT_HAVE_BEEN_SENT)), id)
             // Kept aside, not written into the command draft under a field the user may be typing in (D3).
             is SendOutcome.Refused if reply.command -> c.copy(replies = others, commandRefused = CommandRefused(reply.text, outcome.code))
+            // Never written into the draft the user may be typing in, `PREFILL_PENDING` included (`quick-replies` D1).
+            is SendOutcome.Refused if reply.quick -> c.copy(replies = others, quickRefused = outcome.code)
             is SendOutcome.Refused -> {
                 val notFound = outcome.code == RemoteError.NOT_FOUND
                 val back = if (c.closed) emptyList() else returned(reply.attachments, notFound, now)

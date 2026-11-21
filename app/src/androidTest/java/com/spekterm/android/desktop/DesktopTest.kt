@@ -818,6 +818,77 @@ class DesktopTest {
         until { it.replies.isEmpty() }
     }
 
+    // ---- `quick-replies` (D1) ----
+
+    @Test
+    fun aQuickReplyIsSentAloneAndLeavesTheDraftAndTheAttachment() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            standard()
+            val base = handle
+            handle = { req, ws ->
+                when (req.method) {
+                    "attachments.put" -> ws.send(putOk(req))
+                    "conversation.send" -> ws.send(ok(req.id, """{"outcome":"submitted","text":"Can this session be closed now?"}"""))
+                    else -> base(req, ws)
+                }
+            }
+        }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching && it.wait == WaitState.READY }
+        attach(fileOf(10))
+        until { it.attachments.singleOrNull()?.state is AttachmentState.Ready }
+        Desktop.setDraft("s1", "half a reply")
+        until { it.draft == "half a reply" }
+        assertTrue(Desktop.sendQuick("s1", "Can this session be closed now?"))
+        val c = until { it.replies.singleOrNull()?.state == Reply.State.SUBMITTED }
+        assertTrue(c.replies.single().quick)
+        assertTrue(c.replies.single().attachments.isEmpty())
+        assertEquals("half a reply", c.draft)
+        assertEquals(1, c.attachments.size)
+        assertTrue(c.attachments.single().state is AttachmentState.Ready)
+        val sent = desktop.requests.single { it.method == "conversation.send" }
+        assertEquals(setOf("sessionId", "text"), sent.params.keys)
+        assertEquals("Can this session be closed now?", (sent.params["text"] as JsonPrimitive).content)
+        desktop.socket!!.send(update(user("u9", "Can this session be closed now?"), reset = false))
+        until { it.replies.isEmpty() }
+        assertEquals("half a reply", Desktop.conversation.value!!.draft)
+        // The inbox hold the composer read refuses it before anything is sent.
+        assertFalse(Desktop.sendQuick("s1", "again", inboxPrompt = true))
+        assertEquals(1, desktop.count("conversation.send"))
+    }
+
+    @Test
+    fun aRefusedQuickReplyLeavesTheFieldAndIsSaid() = runBlocking<Unit> {
+        val desktop = Scripted().apply {
+            standard()
+            val base = handle
+            handle = { req, ws ->
+                when (req.method) {
+                    "attachments.put" -> ws.send(putOk(req))
+                    "conversation.send" -> ws.send(err(req.id, "PREFILL_PENDING"))
+                    else -> base(req, ws)
+                }
+            }
+        }
+        connect(desktop, all)
+        Desktop.focus("o1", "s1")
+        until { it.watch == Watch.Watching && it.wait == WaitState.READY }
+        attach(fileOf(10))
+        until { it.attachments.singleOrNull()?.state is AttachmentState.Ready }
+        Desktop.setDraft("s1", "half a reply")
+        until { it.draft == "half a reply" }
+        assertTrue(Desktop.sendQuick("s1", "Can this session be closed now?"))
+        val c = until { it.quickRefused != null }
+        assertEquals("PREFILL_PENDING", c.quickRefused)
+        assertTrue(c.replies.isEmpty())
+        assertEquals("half a reply", c.draft)
+        assertEquals(0, c.draftReturns)
+        assertFalse(c.prefillRefused)
+        assertEquals(1, c.attachments.size)
+        assertTrue(c.attachments.single().state is AttachmentState.Ready)
+    }
+
     @Test
     fun commandModeAndItsDraftOutliveOpeningAnotherSession() = runBlocking<Unit> {
         val desktop = Scripted().apply { standard() }
@@ -1420,6 +1491,26 @@ class DesktopTest {
         until { it.replies.singleOrNull()?.state == Reply.State.SUBMITTED }
         desktop.socket!!.send(status("Opus 5.5", "low"))
         until { it.replies.isEmpty() && it.switch == null }
+    }
+
+    @Test
+    fun aQuickEffortIsConfirmedByTheReportedEffort() = runBlocking<Unit> {
+        val desktop = Scripted().apply { switching(onWatch = listOf(status("Opus 5.5", "low"), wait("busy"))) }
+        connect(desktop, switchOps)
+        Desktop.focus("o1", "s1")
+        watched(WaitState.BUSY)
+        Desktop.setDraft("s1", "draft")
+        until { it.draft == "draft" }
+        assertTrue(Desktop.sendQuick("s1", "/effort high"))
+        val p = Desktop.conversation.value!!.switch!!
+        assertEquals(Switch.Effort("high"), p.switch)
+        assertEquals(Desktop.conversation.value!!.replies.single().id, p.replyId)
+        // Not confirmed by the submission alone: the reported effort is still low.
+        until { it.replies.singleOrNull()?.state == Reply.State.SUBMITTED }
+        assertTrue(Desktop.conversation.value!!.replies.isNotEmpty())
+        desktop.socket!!.send(status("Opus 5.5", "high"))
+        val c = until { it.replies.isEmpty() && it.switch == null }
+        assertEquals("draft", c.draft)
     }
 
     @Test
