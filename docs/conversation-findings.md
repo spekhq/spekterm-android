@@ -1468,3 +1468,23 @@ The AVD (412 dp wide, density 2.625): the space below the top bar is about 470 d
 design's first threshold, 360 dp, hid the row in landscape even with no keyboard; lowered to 240 dp: in landscape the
 row shows without the keyboard and is gone with it (no chip node in the dump). Seen on the way, not this change's:
 in landscape with the keyboard open the reply field itself is under the keyboard.
+
+### On the Pixel (task 4.3)
+
+2026-11-21 16:17–16:23 (+08:00), the Pixel 7 (Android 16, Boshiamy keyboard, system language 中文, the app's theme
+Dark): this change's debug build by `adb install -r` (Google Play build untouched), its pairing with the installed
+desktop saved (`no_backup/pairing.bin`, kept outside the repository) and replaced, at kewang's word, by a pairing with
+the dev desktop over 192.168.0.199 (log `attempt source=pair`, `authenticated` 08:20:17Z). The test session of 4.2,
+the list never edited on this phone. Driven over adb with the app in front each time; kewang not using the phone.
+Screenshots kept outside the repository.
+
+| What | Outcome |
+|---|---|
+| Portrait, keyboard closed and open: the chips and the field above the keyboard | pass |
+| Landscape without the keyboard: the row shows (with the 240 dp threshold) | pass |
+| Landscape with the keyboard: no row; the field stays above the keyboard, its hint's lower edge clipped | pass — the clipping is the field's, not this change's (on the emulator's keyboard the whole field was covered) |
+| Dark 中文 (system language, list not set): 「這個 session 可以關了嗎？」「會有什麼風險或我要特別決策的嗎？」… | pass |
+| The app's language set to English (`cmd locale set-app-locales … en-US`): the English defaults, dark; Settings → Appearance → Light: light English; the language back to the system's: the Chinese defaults again, light | pass |
+| The chips' nodes in the accessibility tree: the whole sentence each, 「會有什麼風險或我要特別決策的嗎？」 included where the chip shows it cut | pass. Not listened to with TalkBack: kewang does not use it and agreed (2026-11-21) to take the node text as the check |
+
+Afterwards: the theme set back to Dark, the app's language to the system's, auto-rotate on again.
