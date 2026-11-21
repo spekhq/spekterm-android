@@ -1422,3 +1422,49 @@ the repository.
 Seen on the way, not this change's: after Esc on the desktop declined a question, the phone kept showing the answered
 card until the next prompt, because the desktop's request stays open after a dismissal it is not told about
 (`remote-protocol.md`, "A prompt dismissed without a key").
+
+## Quick replies (`quick-replies`)
+
+### The suites (task 4.1)
+
+2026-11-21. `./gradlew test assembleDebug`: green, the new `QuickRepliesTest` (each malformed stored form not set, a
+valid list round-tripping trimmed, `[]` kept, `/model opus` accepted, a surrogate pair counted as two units) and
+`QuickReplySendTest` (the gate and the record) among them. Control groups, each run once and reverted: a limit of
+201 units turned three `QuickRepliesTest` cases red; returning a refused quick reply to the draft turned the refused
+case red; letting `quickBlocked` read the composer's attachments turned the uploading case red.
+`ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest` (AVD `Pixel_9`, Android 16, started with
+`-memory 6144`: at the AVD's 2 GB the low-memory killer ended the test process twice during `PromptCardTest`): all
+pass but `DesktopRaceTest`'s assumption (no race arguments, as before) — `QuickReplyStoreTest` (4), the three new
+`DesktopTest` cases, `QuickRepliesUiTest` (12). One run had `AgentMarkdownTest.loadsNothingAndShowsHtmlAsText` fail
+with `CalledFromWrongThreadException` from a coroutine worker; the class alone passed (11 of 11), and nothing in it
+is touched by this change.
+
+### End to end on the emulator against the dev desktop (task 4.2)
+
+2026-11-21 16:05–16:16 (+08:00), the `Pixel_9` AVD with this change's debug build, paired by a link cut to 10.0.2.2
+with the dev desktop started from source (spekterm `6f0f60b` with the desktop's own `quick-replies` change in
+progress, uncommitted, port 47616, CDP 9411). Test session: a handoff (`tools/drop-handoff.mjs`) to `go` telling the
+agent to answer in one sentence and run no tool. Driven over adb. Screenshots kept outside the repository.
+
+| What | Outcome |
+|---|---|
+| The conversation of an agent session, list never edited: three chips above the field, sideways scrolling, each one line with an ellipsis | pass |
+| "half a reply" typed and a photo attached (Ready), then "Can this session be closed now?" tapped: shown at once as not yet confirmed, the chip row disabled while it was in flight, then confirmed by the agent's message; the field still held "half a reply" and the photo | pass |
+| Left the conversation and opened it again: "half a reply" and the photo still there | pass |
+| The reply bar of the folder's OpenSpec screen opened from the conversation: the same chips, the draft and the photo; "Is there any risk…" tapped there: log `send outcome=Submitted length=48 quick=true`, confirmed in the conversation | pass |
+| Settings → Quick replies → Add, "Use AskUserQuestion to ask me to pick A or B": saved after the three defaults (`no_backup/quick-replies.json` holds all four) | pass |
+| The app force-stopped and started again: four chips | pass. The draft and the photo did not survive the restart, as before this change (drafts are held in memory) |
+| That chip tapped: the agent asked a choice; the chips disabled, the prompt card shown with "Answer the choice above."; a tap on a disabled chip sent nothing (quick sends in the log 3 before and after); answered A from the card, the chips enabled again | pass |
+| Unpaired in Settings, paired again by a new link: the file and the four chips unchanged | pass |
+| Restore defaults asked "Restore the default quick replies?" with Cancel / Restore; restored, the file was gone; the app's language set to 中文（台灣）(`cmd locale set-app-locales`): 「這個 session 可以關了嗎？」「會有什麼風險或我要特別決策的嗎？」「這個 session 還有什麼要做的嗎？」, the section 「快速回覆」, 新增 and 還原預設 | pass |
+| The chip's node in the accessibility tree (`uiautomator dump`): the whole sentence as its text, also where the chip shows it cut | pass |
+| The wait state unknown | not produced live; covered by `QuickRepliesUiTest.disabledWhileTheStateIsUnknownAndSaysWhy` |
+| A quick reply the desktop refuses | not produced live: the refusal needs the desktop's state to change between the phone's gate and its answer; covered by `DesktopTest.aRefusedQuickReplyLeavesTheFieldAndIsSaid` (`PREFILL_PENDING`, the field and the photo kept, `quickRefused` set) and `QuickRepliesUiTest.aRefusedQuickReplyIsSaidAlsoBesideTheInboxNote` |
+
+### The height threshold (task 4.3, first part, on the emulator)
+
+The AVD (412 dp wide, density 2.625): the space below the top bar is about 470 dp in portrait with the keyboard open,
+276 dp in landscape without it, and in landscape with it the keyboard leaves no room for the field at all. The
+design's first threshold, 360 dp, hid the row in landscape even with no keyboard; lowered to 240 dp: in landscape the
+row shows without the keyboard and is gone with it (no chip node in the dump). Seen on the way, not this change's:
+in landscape with the keyboard open the reply field itself is under the keyboard.

@@ -35,9 +35,11 @@ import com.spekterm.android.desktop.QuickReplies
 
 /**
  * The height the conversation and its reply area need for the quick replies to show; below it (landscape with the
- * keyboard open, typically) the row is hidden so the reply field stays in view (`quick-replies` D3).
+ * keyboard open, typically) the row is hidden so the reply field stays in view (`quick-replies` D3). Measured on a
+ * 412 dp wide phone: about 470 dp in portrait with the keyboard, 276 dp in landscape without it, far less with it;
+ * the design's first guess of 360 dp hid the row in landscape even without a keyboard.
  */
-internal val QUICK_ROOM = 360.dp
+internal val QUICK_ROOM = 240.dp
 
 /** The defaults in the app's language, read at composition so a language change shows them translated (D2). */
 @Composable

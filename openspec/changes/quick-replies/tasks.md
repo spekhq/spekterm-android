@@ -21,7 +21,7 @@
 ## 4. Acceptance
 
 - [x] 4.1 `./gradlew test assembleDebug` green; `connectedDebugAndroidTest` on the emulator green
-- [ ] 4.2 A recorded run against a spekterm desktop started from source (`npm run dev`): a chip sends its sentence and the reply is confirmed; with "half a reply" and an attachment in the field, both stay, also after leaving the screen and opening the reply bar from a change; chips disabled while the agent asks for a choice and while the state is unknown; the same chips in the reply bar; a refused quick reply leaves the field; the edited list survives an app restart and an unpair/pair
+- [x] 4.2 A recorded run against a spekterm desktop started from source (`npm run dev`): a chip sends its sentence and the reply is confirmed; with "half a reply" and an attachment in the field, both stay, also after leaving the screen and opening the reply bar from a change; chips disabled while the agent asks for a choice and while the state is unknown; the same chips in the reply bar; a refused quick reply leaves the field; the edited list survives an app restart and an unpair/pair
 - [ ] 4.3 On the real phone: the row with the keyboard open in portrait and landscape (the field stays visible; adjust the threshold if needed and record it); TalkBack reads each chip's whole sentence; with an unedited list, switching the app's language to 中文（台灣） shows the Chinese defaults; screenshots light and dark in both languages
 - [ ] 4.4 Record the runs and measurements in `docs/conversation-findings.md`
 

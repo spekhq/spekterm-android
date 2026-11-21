@@ -87,7 +87,7 @@ semantics carry the whole sentence. `Composer` takes `quickReplies: List<String>
 `BoxWithConstraints`, so a Compose test drives it without the store or a connection. Shown
 exactly while: the list is not empty, the composer is not in command mode (it shows the `$` field then, and hides
 attachments and skills the same way), the skills panel (`SlashPanel`) is not showing, and the space for the
-conversation and its reply area (`BoxWithConstraints` of the screen) is at least 360 dp tall — below that (landscape
+conversation and its reply area (`BoxWithConstraints` of the screen) is at least 240 dp tall (first guessed at 360 dp; lowered after measuring, task 4) — below that (landscape
 with the keyboard open, typically) the row is hidden so the field stays visible. While the prompt card shows, the
 row shows disabled. Enabled exactly while D1's gate is null. A tap calls `sendQuick`.
 
